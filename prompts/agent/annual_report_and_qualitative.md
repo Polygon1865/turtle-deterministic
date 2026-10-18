@@ -60,6 +60,37 @@ python -m turtlefw.cli qualitative <code> --init   # 生成模板
 python -m turtlefw.cli qualitative <code> --check  # 结构校验
 ```
 
+## 4.5 数字交叉审计（必做）
+
+从年报/公告里抄出下列字段，写成 `reported_numbers.json`（单位：**元**，不要换算成百万）：
+
+```json
+{
+  "items": [
+    {
+      "item": "revenue",
+      "value": "115931000000",
+      "source": "2025 年年度报告",
+      "page": "p.12"
+    }
+  ]
+}
+```
+
+可用 item：`revenue` / `net_income` / `ocf` / `capex` / `equity` / `total_assets`。
+只抄合并报表数字（同一项目有母公司口径时不要混用）；无法确认的数字不要抄。
+
+```powershell
+python -m turtlefw.cli audit <code> --doc reported_numbers.json --threshold 1 `
+  --write output\<标准化代码>\qualitative.json
+```
+
+规则：
+
+- 差异 > 阈值写入 `discrepancies`，**不覆盖 CLI、不取平均、不换算**；
+- 差异 >1% 时在最终交付里单独说明可能原因（四舍五入、口径、追溯调整）；
+- 审计失败的字段保持沉默，不要为了凑数编数字。
+
 ## 5. 生成报告
 
 ```powershell
