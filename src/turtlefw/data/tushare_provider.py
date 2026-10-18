@@ -291,7 +291,7 @@ class TushareProvider:
 
     # -- dividends ---------------------------------------------------------
     def dividends(
-        self, code: StockCode, *, currency: Currency | None = None, years: int = 8
+        self, code: StockCode, *, currency: Currency | None = None, years: int = 6
     ) -> list[DividendEvent]:
         unit = currency or self._default_currency(code)
         if code.is_a_share:

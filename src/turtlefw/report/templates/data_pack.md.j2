@@ -1,0 +1,35 @@
+# 数据包 — {{ code }}
+
+> 生成时间：{{ generated_at }} ｜ 报表币种：{{ currency }} ｜ 数据源：Tushare Pro
+> 数据快照：`{{ snapshot_id }}` ｜ 行情日期：{{ as_of }} ｜ 市场：{{ market }}
+
+## 1. 关键指标
+
+{{ kpi_table }}
+
+## 2. 五年财务趋势（百万元，EPS 除外）
+
+{{ trend_table }}
+
+## 3. 分红历史
+
+{{ dividend_table }}
+
+## 4. 行情与估值
+
+{{ quote_table }}
+
+## 5. 底价（{{ methods }} 法）
+
+{{ floor_table }}
+
+**综合底价：{{ composite }} {{ currency }} ｜ 当前价溢价：{{ premium }}**
+
+## 6. 数据问题
+
+{{ issues_md }}
+
+---
+
+> 本数据包由确定性脚本生成，所有金额来自 Tushare Pro，未经 LLM 加工。
+> 指标口径与阈值见 `configs/screening.toml`；不构成投资建议。

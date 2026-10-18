@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -79,15 +80,33 @@ def kpi_summary(
         else None
     )
 
+    per_year: dict[int, Decimal] = defaultdict(Decimal)
+    for event in dividends:
+        per_year[event.fiscal_year] += event.dps
+    recent_years = sorted(per_year)[-3:]
+    avg_dps = (
+        sum((per_year[year] for year in recent_years), Decimal("0"))
+        / Decimal(len(recent_years))
+        if recent_years
+        else None
+    )
+    min_fcf_all = dict(sorted(fcf.items())[-5:])
+    min_fcf = (
+        min(min_fcf_all.values())
+        if min_fcf_all and min(min_fcf_all.values()) > 0
+        else None
+    )
+    trad = statements.annual_series(rows, "balance", "trad_asset")
+
     baselines = valuation.five_baselines(
         cash=cash_latest,
-        trad_assets=None,
+        trad_assets=trad.get(latest_year) if latest_year else None,
         debt=debt_latest,
         equity=equity.get(latest_year) if latest_year else None,
         shares=shares,
         closes=closes,
-        average_dps=None,
-        min_fcf=None,
+        average_dps=avg_dps,
+        min_fcf=min_fcf,
         rf_pct=rf_pct,
     )
     composite = valuation.composite(baselines, settings.valuation.composite_method)
@@ -151,23 +170,24 @@ def _num(value: object) -> Decimal | None:
     return number if number.is_finite() else None
 
 
-def _live_analyze(raw_code: str, save: bool, currency: str | None = None) -> int:
-    from .data.tushare_provider import TushareProvider
-
-    settings = load_settings()
-    code = StockCode.parse(raw_code)
-
+def _unit_for(code: StockCode, currency: str | None) -> Currency:
     if currency:
-        unit = Currency(currency)
-    elif code.market is Market.HK:
-        unit = Currency.CNY
+        return Currency(currency)
+    if code.market is Market.HK:
         print(
             "提示：港股默认按人民币报表处理（多数内地企业）；"
             "若为港元报表请加 --currency HKD",
             file=sys.stderr,
         )
-    else:
-        unit = Currency.CNY
+    return Currency.CNY
+
+
+def _live_analyze(raw_code: str, save: bool, currency: str | None = None) -> int:
+    from .data.tushare_provider import TushareProvider
+
+    settings = load_settings()
+    code = StockCode.parse(raw_code)
+    unit = _unit_for(code, currency)
 
     provider = TushareProvider(get_token())
     rows = provider.statements(code, currency=unit)
@@ -233,6 +253,61 @@ def _live_analyze(raw_code: str, save: bool, currency: str | None = None) -> int
         store = StatementStore(Path("output") / "store")
         store.append(rows)
         print(f"\n已写入 output/store，snapshot_id={store.snapshot_id(str(code))}")
+    return 0
+
+
+def _pack(raw_code: str, out: str | None, currency: str | None = None) -> int:
+    from .data.tushare_provider import TushareProvider
+    from .report.pack import render_data_pack
+
+    settings = load_settings()
+    code = StockCode.parse(raw_code)
+    unit = _unit_for(code, currency)
+    provider = TushareProvider(get_token())
+
+    rows = provider.statements(code, currency=unit)
+    if not rows:
+        print("未取到报表数据。", file=sys.stderr)
+        for issue in provider.issues:
+            print(f"  {issue}", file=sys.stderr)
+        return 2
+
+    dividends = provider.dividends(code, currency=unit)
+    basic = sorted(
+        provider.daily_basic(code), key=lambda r: str(r.get("trade_date", "")), reverse=True
+    )
+    history = provider.weekly(code)
+    rf = provider.risk_free_rate(code) or settings.returns.default_rf
+
+    quote = basic[0] if basic else None
+    market_cap = Money(Decimal("0"), Currency.CNY)
+    shares = Decimal("0")
+    if quote:
+        total_mv_wan = _num(quote.get("total_mv"))
+        total_share_wan = _num(quote.get("total_share"))
+        if total_mv_wan is not None and total_share_wan is not None:
+            market_cap = Money(total_mv_wan * Decimal("10000"), unit)
+            shares = total_share_wan * Decimal("10000")
+
+    markdown = render_data_pack(
+        code,
+        rows,
+        dividends,
+        quote=quote,
+        history=history,
+        market_cap=market_cap,
+        shares=shares,
+        rf_pct=rf,
+        settings=settings,
+        issues=provider.issues,
+        tax_pct=Decimal("20") if code.market is Market.HK else Decimal("0"),
+    )
+
+    path = Path(out) if out else Path("output") / str(code) / "data_pack.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(markdown, encoding="utf-8")
+    print(f"数据包已写入 {path.resolve()}")
+    print(f"字节数：{len(markdown.encode('utf-8')):,} ｜ 行数：{markdown.count(chr(10)) + 1}")
     return 0
 
 
@@ -302,6 +377,16 @@ def build_parser() -> argparse.ArgumentParser:
     screen = sub.add_parser("screen", help="全市场筛选")
     screen.add_argument("--tier1-only", action="store_true", help="只跑 Tier 1")
 
+    pack = sub.add_parser("pack", help="生成 Markdown 数据包")
+    pack.add_argument("code", help="股票代码，如 600887")
+    pack.add_argument("--out", default=None, help="输出路径，默认 output/<code>/data_pack.md")
+    pack.add_argument(
+        "--currency",
+        choices=[c.value for c in Currency],
+        default=None,
+        help="报表币种；港股默认 CNY",
+    )
+
     sub.add_parser("version", help="版本信息")
     return parser
 
@@ -320,6 +405,8 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.command == "screen":
             return _screen(args.tier1_only)
+        if args.command == "pack":
+            return _pack(args.code, args.out, args.currency)
     except TurtleError as exc:
         print(f"错误：{exc}", file=sys.stderr)
         return 2
