@@ -508,6 +508,64 @@ def _qualitative_cmd(code_raw: str, init: bool, check: bool, out: str | None) ->
     return 0
 
 
+def _audit(raw_code: str, doc_path: str, write_path: str | None, threshold: float) -> int:
+    import json
+
+    from .data.tushare_provider import TushareProvider
+    from .metrics import statements
+    from .metrics.audit import compare, parse_doc_items
+
+    code = StockCode.parse(raw_code)
+    unit = _unit_for(code, None)
+    provider = TushareProvider(get_token())
+    rows = provider.statements(code, currency=unit)
+    if not rows:
+        print("未取到报表数据。", file=sys.stderr)
+        return 2
+
+    years = sorted({r.period_end.year for r in rows if r.period_type == "annual"})
+    latest = max(years)
+    series = statements.annual_series
+    cli = {
+        "revenue": series(rows, "income", "revenue").get(latest),
+        "net_income": series(rows, "income", "n_income_attr_p").get(latest),
+        "ocf": series(rows, "cashflow", "n_cashflow_act").get(latest),
+        "capex": series(rows, "cashflow", "c_pay_acq_const_fiolta").get(latest),
+        "equity": series(rows, "balance", "total_hldr_eqy_exc_min_int").get(latest),
+        "total_assets": series(rows, "balance", "total_assets").get(latest),
+    }
+    cli = {key: value for key, value in cli.items() if value is not None}
+
+    payload = json.loads(Path(doc_path).read_text(encoding="utf-8"))
+    documents = parse_doc_items(payload.get("items", []))
+    rows_out = compare(cli, documents, threshold_pct=Decimal(str(threshold)))
+
+    print(f"审计口径：{code} FY{latest} ｜ 阈值 {threshold}% ｜ 文档条目 {len(documents)}")
+    if not rows_out:
+        print("未发现数字口径冲突。")
+    else:
+        print(f"{'项目':<10}{'CLI(百万)':>14}{'文档(百万)':>14}  来源 / 备注")
+        for row in rows_out:
+            print(
+                f"{row['item']:<10}{row['cli_value']:>14}{row['doc_value']:>14}  "
+                f"{row['source']} {row['note']}"
+            )
+
+    if write_path:
+        path = Path(write_path)
+        if not path.is_file():
+            print(f"目标 qualitative.json 不存在：{path}", file=sys.stderr)
+            return 2
+        target = json.loads(path.read_text(encoding="utf-8"))
+        existing = target.get("discrepancies", []) or []
+        target["discrepancies"] = existing + rows_out
+        path.write_text(
+            json.dumps(target, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+        print(f"已写入 {path.resolve()}（新增 {len(rows_out)} 条）")
+    return 0
+
+
 def _run_passthrough(module_main, argv: list[str], *, patch_argv: bool = False) -> int:
     """Run a ported CLI whose argparse lives in its own module."""
     import sys
@@ -700,6 +758,12 @@ def build_parser() -> argparse.ArgumentParser:
     qual.add_argument("--check", action="store_true", help="校验现有 JSON")
     qual.add_argument("--out", default=None, help="自定义路径")
 
+    audit = sub.add_parser("audit", help="年报数字与 CLI 数字交叉审计")
+    audit.add_argument("code", help="股票代码")
+    audit.add_argument("--doc", required=True, help="文档数字 JSON（item/value/source/page）")
+    audit.add_argument("--write", default=None, help="把冲突写入 qualitative.json")
+    audit.add_argument("--threshold", type=float, default=1.0, help="相对差异阈值（%%）")
+
     fetch = sub.add_parser("fetch-report", help="下载年报 PDF")
     fetch.add_argument("--url", required=True, help="PDF URL（雪球/同花顺）")
     fetch.add_argument("--stock-code", required=True, help="股票代码，如 SH600887")
@@ -744,6 +808,8 @@ def main(argv: list[str] | None = None) -> int:
                 args.deep,
                 args.api_interval,
             )
+        if args.command == "audit":
+            return _audit(args.code, args.doc, args.write, args.threshold)
         if args.command == "fetch-report":
             from .data import reports
 
