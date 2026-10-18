@@ -11,7 +11,7 @@ def write_qualitative(tmp_path, code, moat="positive"):
             "moat": {
                 "judgment": moat,
                 "confidence": "high",
-                "evidence": [],
+                "evidence": [{"url": "https://x.test/a", "quote": "q"}],
                 "notes": "",
             }
         }
