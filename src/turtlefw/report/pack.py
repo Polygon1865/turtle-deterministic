@@ -183,8 +183,24 @@ def render_data_pack(
         rf_pct=rf_pct,
         dividend_floor_pct=settings.valuation.dividend_discount_floor,
     )
-    composite = valuation.composite(baselines, settings.valuation.composite_method)
+    stats = valuation.floor_stats(baselines, settings.valuation.divergence_threshold)
+    composite = (
+        stats.median
+        if stats.median is not None
+        else valuation.composite(baselines, settings.valuation.composite_method)
+    )
     premium = valuation.premium(price, composite) if price and composite else None
+    status_label = {"stable": "口径一致", "divergent": "口径分歧", "unavailable": "不可用"}[
+        stats.status
+    ]
+    floor_note = (
+        f"均值 {_num(stats.mean)} ｜ 中位数 {_num(stats.median)} ｜ "
+        f"分歧 {_pct(stats.divergence)}（{status_label}）"
+    )
+    if stats.status == "divergent":
+        floor_note += "。均值受极值影响，建议以中位数为准，且仓位不超过「观察」。"
+    elif stats.status == "unavailable":
+        floor_note += "。中位数非正，底价无意义，不应据此判断安全边际。"
 
     snapshot = valuation.build_valuation(
         market_cap=market_cap.amount if market_cap.amount > 0 else None,
@@ -259,7 +275,10 @@ def render_data_pack(
         ["精算回报率 GG", _pct(gg_value)],
         ["门槛 II", _pct(ii)],
         ["R 判定", returns.classify_return(r_value, ii, rf_pct)],
-        ["底价（综合）", _num(composite)],
+        ["底价均值", _num(stats.mean)],
+        ["底价中位数", _num(stats.median)],
+        ["口径分歧", f"{_pct(stats.divergence)}（{status_label}）"],
+        ["底价（采用中位数）", _num(composite)],
         ["当前价", _num(price)],
         ["底价溢价", _pct(premium)],
     ]
@@ -314,6 +333,7 @@ def render_data_pack(
         "methods": len(baselines),
         "composite": _num(composite),
         "premium": _pct(premium),
+        "floor_note": floor_note,
         "warnings": [str(issue) for issue in issues],
         "issues_md": "\n".join(f"- {issue}" for issue in issues)
         or "未检测到数据问题。",

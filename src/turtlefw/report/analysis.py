@@ -64,8 +64,28 @@ def render_analysis(
         rf_pct=ctx.rf_pct,
         dividend_floor_pct=settings.valuation.dividend_discount_floor,
     )
-    composite = valuation.composite(baselines, settings.valuation.composite_method)
+    stats = valuation.floor_stats(baselines, settings.valuation.divergence_threshold)
+    composite = (
+        stats.median
+        if stats.median is not None
+        else valuation.composite(baselines, settings.valuation.composite_method)
+    )
     premium = valuation.premium(ctx.price, composite) if ctx.price and composite else None
+    status_label = {"stable": "口径一致", "divergent": "口径分歧", "unavailable": "不可用"}[
+        stats.status
+    ]
+    floor_note = (
+        f"均值 {_num(stats.mean)} ｜ 中位数 {_num(stats.median)} ｜ "
+        f"分歧 {_pct(stats.divergence)}（{status_label}）"
+    )
+    if stats.status == "divergent":
+        floor_note += "。均值受极值影响，本报告以中位数为准，且仓位不高于「观察」。"
+        if verdict == "买入":
+            verdict, reason = "观察", "底价口径分歧（均值与中位数偏离过大），仓位上限降为观察"
+    elif stats.status == "unavailable":
+        floor_note += "。中位数非正，底价无意义。"
+        if verdict == "买入":
+            verdict, reason = "观察", "底价不可用，无法确认安全边际"
 
     def checks_table(result: FactorResult) -> str:
         return _table(
@@ -91,6 +111,9 @@ def render_analysis(
         ["股息率（3 年均 DPS）", _pct(ctx.snapshot.dividend_yield)],
         ["EBITDA 利润率", _pct(ctx.snapshot.ebitda_margin)],
         ["商誉/总资产", _pct(ctx.snapshot.goodwill_ratio)],
+        ["底价均值", _num(stats.mean)],
+        ["底价中位数", _num(stats.median)],
+        ["口径分歧", f"{_pct(stats.divergence)}（{status_label}）"],
     ]
     floor_rows = [[b.name, _num(b.value), b.formula] for b in baselines]
 
@@ -134,7 +157,12 @@ def render_analysis(
                 ["精算回报率 GG", f3_metrics.get("精算回报率 GG", "—")],
                 ["门槛 II", f2_metrics.get("门槛 II", "—")],
                 ["安全边际", f4_metrics.get("安全边际 KK", "—")],
-                ["仓位建议", "不建仓" if verdict == "排除" else f4_metrics.get("仓位建议", "—")],
+                [
+                    "仓位建议",
+                    "不建仓"
+                    if verdict == "排除"
+                    else ("观察" if verdict == "观察" else f4_metrics.get("仓位建议", "—")),
+                ],
                 ["因子4 独立结论", f4_metrics.get("结论", "—")],
                 ["底价（综合）", _num(composite)],
                 ["当前价溢价", _pct(premium)],
@@ -153,6 +181,7 @@ def render_analysis(
         "floor_table": _table(["方法", "价格", "公式"], floor_rows, ["l", "r", "l"]),
         "composite": _num(composite),
         "premium": _pct(premium),
+        "floor_note": floor_note,
         "payout": _pct(mean_payout),
         "issues_md": "\n".join(f"- {issue}" for issue in issues) or "未检测到数据问题。",
         "notes_1a": "；".join(results["1A"].notes),

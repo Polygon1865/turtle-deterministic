@@ -50,6 +50,7 @@ class ReturnsConfig:
 class ValuationConfig:
     dividend_discount_floor: Decimal = Decimal("3.0")
     composite_method: str = "mean"
+    divergence_threshold: Decimal = Decimal("20")
 
 
 @dataclass(frozen=True, slots=True)
@@ -184,6 +185,7 @@ def load_settings(path: Path | None = None) -> Settings:
     valuation = ValuationConfig(
         dividend_discount_floor=_dec(valuation_data.get("dividend_discount_floor"), "3.0"),
         composite_method=str(valuation_data.get("composite_method", "mean")),
+        divergence_threshold=_dec(valuation_data.get("divergence_threshold"), "20"),
     )
 
     fx_data = data.get("fx", {})

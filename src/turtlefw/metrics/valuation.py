@@ -118,6 +118,39 @@ def premium(price: Decimal, baseline: Decimal | None) -> Decimal | None:
 
 
 @dataclass(frozen=True, slots=True)
+class FloorStats:
+    mean: Decimal | None
+    median: Decimal | None
+    divergence: Decimal | None  # |mean - median| / |median| * 100
+    status: str  # stable | divergent | unavailable
+
+
+def floor_stats(
+    baselines: Iterable[Baseline], threshold: Decimal = Decimal("20")
+) -> FloorStats:
+    """Mean and median of the anchors plus their relative divergence.
+
+    With five anchors the median tolerates up to two extreme values, so a large
+    gap between the two is a signal that the composite is not decision-grade.
+    """
+    values = sorted(b.value for b in baselines)
+    if not values:
+        return FloorStats(None, None, None, "unavailable")
+    mean = sum(values, Decimal("0")) / Decimal(len(values))
+    middle = len(values) // 2
+    median = (
+        values[middle]
+        if len(values) % 2
+        else (values[middle - 1] + values[middle]) / Decimal("2")
+    )
+    if median <= 0:
+        return FloorStats(mean, median, None, "unavailable")
+    divergence = abs(mean - median) / abs(median) * Decimal("100")
+    status = "divergent" if divergence > threshold else "stable"
+    return FloorStats(mean, median, divergence, status)
+
+
+@dataclass(frozen=True, slots=True)
 class ValuationSnapshot:
     ev: Decimal | None
     ebitda: Decimal | None

@@ -178,3 +178,27 @@ class TestValuation:
         names = [b.name for b in items]
         assert names == ["净流动资产/股", "每股净资产", "10年最低价"]
         assert valuation.ten_year_low([Decimal("5"), Decimal("3")]) == Decimal("3")
+
+
+class TestFloorStats:
+    def baselines(self, *values):
+        return [valuation.Baseline(str(i), Decimal(v), "") for i, v in enumerate(values)]
+
+    def test_stable_when_mean_close_to_median(self):
+        stats = valuation.floor_stats(self.baselines("10", "11", "12"))
+        assert stats.status == "stable"
+        assert stats.mean == Decimal("11")
+        assert stats.median == Decimal("11")
+
+    def test_divergent_with_outlier(self):
+        stats = valuation.floor_stats(self.baselines("-5", "9", "10", "11", "60"))
+        assert stats.status == "divergent"
+        assert stats.divergence > 50
+
+    def test_negative_median_is_unavailable(self):
+        stats = valuation.floor_stats(self.baselines("-10", "-5", "-1"))
+        assert stats.status == "unavailable"
+        assert stats.divergence is None
+
+    def test_empty(self):
+        assert valuation.floor_stats([]).status == "unavailable"

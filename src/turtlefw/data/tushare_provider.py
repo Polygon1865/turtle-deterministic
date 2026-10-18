@@ -392,6 +392,37 @@ class TushareProvider:
         cutoff = date.today().year - years
         return [event for event in events if event.fiscal_year >= cutoff]
 
+    # -- market-wide batch (Stage 1) ---------------------------------------
+    def _paginated(self, endpoint: str, fields: str, **params: Any) -> pd.DataFrame:
+        frames: list[pd.DataFrame] = []
+        limit = 5000
+        for page in range(4):
+            frame = self._safe(
+                endpoint, fields=fields, limit=limit, offset=page * limit, **params
+            )
+            if frame.empty:
+                break
+            frames.append(frame)
+            if len(frame) < limit:
+                break
+        return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+    def market_statements(self, period: str, statement: str) -> pd.DataFrame:
+        """All listed companies' statements for one fiscal period (VIP batch)."""
+        endpoint, fields = {
+            "income": ("income_vip", INCOME_FIELDS),
+            "balance": ("balancesheet_vip", BALANCE_FIELDS),
+            "cashflow": ("cashflow_vip", CASHFLOW_FIELDS),
+        }[statement]
+        return self._paginated(endpoint, fields, period=period, report_type="1")
+
+    def market_fina_indicator(self, period: str) -> pd.DataFrame:
+        return self._paginated(
+            "fina_indicator_vip",
+            "ts_code,end_date,roe_waa,grossprofit_margin,debt_to_assets",
+            period=period,
+        )
+
     # -- audit -------------------------------------------------------------
     def audit(self, code: StockCode, *, years: int = 5) -> list[dict]:
         """Latest audit opinions; HK/US are not covered by ``fina_audit``."""

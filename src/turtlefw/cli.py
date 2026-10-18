@@ -515,6 +515,8 @@ def _screen(
     rf: float | None = None,
     rf_source: str | None = None,
     workers: int = 6,
+    fast: bool = False,
+    fast_limit: int = 50,
 ) -> int:
     from .data.tushare_provider import TushareProvider
     from .screener import tier1 as tier1_mod
@@ -555,6 +557,22 @@ def _screen(
     channels = tier1_mod.split_channels(filtered, settings.screening)
 
     ranked = tier1_mod.rank_main(channels, settings.screening)
+
+    if fast:
+        from .screener.fast import fast_screen
+
+        rf_value, _ = _rf_for(provider, settings, StockCode.parse("600887"), rf, rf_source)
+        print("\n=== Fast screen：全市场批量（阶段 1） ===")
+        started = time.perf_counter()
+        result = fast_screen(channels, provider, settings, rf_value, limit=fast_limit)
+        elapsed = time.perf_counter() - started
+        print(result.to_string(index=False))
+        print(f"\n耗时 {elapsed:.1f}s ｜ 候选 {len(result)} 只")
+        if csv_path:
+            Path(csv_path).parent.mkdir(parents=True, exist_ok=True)
+            result.to_csv(csv_path, index=False, encoding="utf-8-sig")
+            print(f"已导出 {Path(csv_path).resolve()}")
+        return 0
 
     if tier1_only:
         print(ranked[["ts_code", "name", "channel", "tier1_score"]].head(30).to_string(index=False))
@@ -601,6 +619,8 @@ def build_parser() -> argparse.ArgumentParser:
     screen.add_argument("--rf", type=float, default=None, help="覆盖无风险利率（%%）")
     screen.add_argument("--rf-source", default=None, help="Rf 来源说明或 URL")
     screen.add_argument("--workers", type=int, default=6, help="Tier 2 并发线程数（默认 6）")
+    screen.add_argument("--fast", action="store_true", help="阶段 1：全市场批量粗筛")
+    screen.add_argument("--fast-limit", type=int, default=50, help="Fast screen 输出只数")
 
     pack = sub.add_parser("pack", help="生成 Markdown 数据包")
     pack.add_argument("code", help="股票代码，如 600887")
@@ -661,6 +681,8 @@ def main(argv: list[str] | None = None) -> int:
                 args.rf,
                 args.rf_source,
                 args.workers,
+                args.fast,
+                args.fast_limit,
             )
         if args.command == "pack":
             return _pack(args.code, args.out, args.currency, args.rf, args.rf_source)

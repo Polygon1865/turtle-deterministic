@@ -50,3 +50,5 @@ cny_per_hkd = 0.92
 dividend_discount_floor = 3.0
 # 五法底价的合成方式: mean | median
 composite_method = "mean"
+# 均值与中位数的相对偏离超过该比例（%）即视为口径分歧
+divergence_threshold = 20.0
