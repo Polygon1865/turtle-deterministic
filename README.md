@@ -11,8 +11,8 @@
 | M0 | 骨架 / 配置 / 类型 / CLI / Windows 安装脚本 | 完成 |
 | M1 | Tushare 数据层（缓存、限速、长表归一化、Parquet 存储） | 完成 |
 | M2 | 指标层（分红、现金流、穿透回报率、五法底价） | 完成 |
-| M3 | 选股器（Tier1 过滤 + 覆盖度感知排名） | 进行中 |
-| M4 | 四因子 + 报告渲染 | 待做 |
+| M3 | 选股器（Tier1 过滤 + 覆盖度感知排名） | Tier1 完成，Tier2 待做 |
+| M4 | 四因子（确定性部分）+ 数据包 + 分析报告 | 完成 |
 | M5 | LLM 定性层 | 待做 |
 | M6 | PDF 附注提取 | 待做 |
 
@@ -30,7 +30,11 @@ notepad .env
 .\.venv\Scripts\python.exe -m turtlefw.cli analyze 600887 --demo
 .\.venv\Scripts\python.exe -m turtlefw.cli analyze 600887
 .\.venv\Scripts\python.exe -m turtlefw.cli analyze 00700.HK --currency CNY
+.\.venv\Scripts\python.exe -m turtlefw.cli pack 600887
+.\.venv\Scripts\python.exe -m turtlefw.cli report 600887 --rf 1.6516 --rf-source "ICBC 2026-10-15"
 ```
+
+`--rf/--rf-source` 用于 `yc_cb` 无权限时传入带出处的无风险利率（例如券商/银行日报）。
 
 已知限制（M1/M2 阶段）：
 

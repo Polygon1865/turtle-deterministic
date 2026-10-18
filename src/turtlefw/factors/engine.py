@@ -160,11 +160,12 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
             if a.get("audit_agency")
         ]
         transitions = sum(1 for a, b in zip(agencies, agencies[1:]) if a != b)
+        chain = list(dict.fromkeys(agencies))
         checks_1a.append(
             Check(
                 "频繁更换审计师",
                 "veto" if transitions >= 2 else "pass",
-                f"{'、'.join(agencies) or '无数据'}（更换 {transitions} 次）",
+                f"{' → '.join(chain) or '无数据'}（更换 {transitions} 次）",
             )
         )
     else:
@@ -341,7 +342,7 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
                 ("结论", verdict),
             ),
             notes=(
-                f"价值陷阱触发 {traps} 项。",
+                f"价值陷阱触发 {traps} 项",
                 "GG ≥ II 时『门槛对应价』是上限参考，不是必须等到的买点。",
             ),
         ),
