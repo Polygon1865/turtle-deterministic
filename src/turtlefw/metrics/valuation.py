@@ -115,3 +115,89 @@ def premium(price: Decimal, baseline: Decimal | None) -> Decimal | None:
     if baseline is None or baseline <= 0:
         return None
     return (price / baseline - Decimal("1")) * Decimal("100")
+
+
+@dataclass(frozen=True, slots=True)
+class ValuationSnapshot:
+    ev: Decimal | None
+    ebitda: Decimal | None
+    net_debt: Decimal | None
+    ev_ebitda: Decimal | None
+    net_debt_ebitda: Decimal | None
+    cash_adj_pe: Decimal | None
+    fcf_yield: Decimal | None
+    pb: Decimal | None
+    goodwill_ratio: Decimal | None
+    dividend_yield: Decimal | None
+    ebitda_margin: Decimal | None
+
+
+def build_valuation(
+    *,
+    market_cap: Decimal | None,
+    cash: Decimal | None,
+    debt: Decimal | None,
+    equity: Decimal | None,
+    net_income: Decimal | None,
+    revenue: Decimal | None,
+    operate_profit: Decimal | None,
+    finance_exp: Decimal | None,
+    da: Decimal | None,
+    fcf: Decimal | None,
+    goodwill: Decimal | None,
+    total_assets: Decimal | None,
+    dps: Decimal | None,
+    price: Decimal | None,
+) -> ValuationSnapshot:
+    """Absolute-valuation dashboard. Missing inputs yield ``None``, never zero."""
+    net_debt = debt - cash if debt is not None and cash is not None else None
+    ev = market_cap + net_debt if market_cap is not None and net_debt is not None else None
+
+    ebitda = None
+    if operate_profit is not None and da is not None:
+        ebitda = operate_profit + (finance_exp or Decimal("0")) + da
+
+    ev_ebitda = ev / ebitda if ev is not None and ebitda and ebitda > 0 else None
+    net_debt_ebitda = (
+        net_debt / ebitda if net_debt is not None and ebitda and ebitda > 0 else None
+    )
+    cash_adj_pe = (
+        (market_cap + net_debt) / net_income
+        if market_cap is not None and net_debt is not None and net_income and net_income > 0
+        else None
+    )
+    fcf_yield = (
+        fcf / market_cap * Decimal("100")
+        if fcf is not None and market_cap and market_cap > 0
+        else None
+    )
+    pb = market_cap / equity if market_cap is not None and equity and equity > 0 else None
+    goodwill_ratio = (
+        goodwill / total_assets * Decimal("100")
+        if goodwill is not None and total_assets and total_assets > 0
+        else None
+    )
+    dividend_yield = (
+        dps / price * Decimal("100")
+        if dps is not None and price and price > 0
+        else None
+    )
+    ebitda_margin = (
+        ebitda / revenue * Decimal("100")
+        if ebitda is not None and revenue and revenue > 0
+        else None
+    )
+
+    return ValuationSnapshot(
+        ev=ev,
+        ebitda=ebitda,
+        net_debt=net_debt,
+        ev_ebitda=ev_ebitda,
+        net_debt_ebitda=net_debt_ebitda,
+        cash_adj_pe=cash_adj_pe,
+        fcf_yield=fcf_yield,
+        pb=pb,
+        goodwill_ratio=goodwill_ratio,
+        dividend_yield=dividend_yield,
+        ebitda_margin=ebitda_margin,
+    )

@@ -182,7 +182,28 @@ def _unit_for(code: StockCode, currency: str | None) -> Currency:
     return Currency.CNY
 
 
-def _live_analyze(raw_code: str, save: bool, currency: str | None = None) -> int:
+def _rf_for(provider, settings, code: StockCode, rf: float | None, rf_source: str | None):
+    """Resolve the risk-free rate: explicit override > live endpoint > config."""
+    if rf is not None:
+        return Decimal(str(rf)), (rf_source or "命令行 --rf")
+    live = provider.risk_free_rate(code)
+    if live is not None:
+        return live, "Tushare yc_cb"
+    print(
+        f"提示：无风险利率接口不可用，使用默认 Rf={settings.returns.default_rf}%"
+        "（见 configs/screening.toml）",
+        file=sys.stderr,
+    )
+    return settings.returns.default_rf, "configs/screening.toml default_rf"
+
+
+def _live_analyze(
+    raw_code: str,
+    save: bool,
+    currency: str | None = None,
+    rf: float | None = None,
+    rf_source: str | None = None,
+) -> int:
     from .data.tushare_provider import TushareProvider
 
     settings = load_settings()
@@ -203,13 +224,8 @@ def _live_analyze(raw_code: str, save: bool, currency: str | None = None) -> int
     basic = sorted(basic, key=lambda r: str(r.get("trade_date", "")), reverse=True)
     weekly = provider.weekly(code)
 
-    rf = provider.risk_free_rate(code)
-    if rf is None:
-        rf = settings.returns.default_rf
-        print(
-            f"提示：无风险利率接口不可用，使用默认 Rf={rf}%（见 configs/screening.toml）",
-            file=sys.stderr,
-        )
+    rf_value, _ = _rf_for(provider, settings, code, rf, rf_source)
+    rf = rf_value
 
     market_cap = Money(Decimal("0"), Currency.CNY)
     shares = Decimal("0")
@@ -256,7 +272,13 @@ def _live_analyze(raw_code: str, save: bool, currency: str | None = None) -> int
     return 0
 
 
-def _pack(raw_code: str, out: str | None, currency: str | None = None) -> int:
+def _pack(
+    raw_code: str,
+    out: str | None,
+    currency: str | None = None,
+    rf: float | None = None,
+    rf_source: str | None = None,
+) -> int:
     from .data.tushare_provider import TushareProvider
     from .report.pack import render_data_pack
 
@@ -277,7 +299,7 @@ def _pack(raw_code: str, out: str | None, currency: str | None = None) -> int:
         provider.daily_basic(code), key=lambda r: str(r.get("trade_date", "")), reverse=True
     )
     history = provider.weekly(code)
-    rf = provider.risk_free_rate(code) or settings.returns.default_rf
+    rf_value, rf_src = _rf_for(provider, settings, code, rf, rf_source)
 
     quote = basic[0] if basic else None
     market_cap = Money(Decimal("0"), Currency.CNY)
@@ -297,10 +319,11 @@ def _pack(raw_code: str, out: str | None, currency: str | None = None) -> int:
         history=history,
         market_cap=market_cap,
         shares=shares,
-        rf_pct=rf,
+        rf_pct=rf_value,
         settings=settings,
         issues=provider.issues,
         tax_pct=Decimal("20") if code.market is Market.HK else Decimal("0"),
+        rf_source=rf_src,
     )
 
     path = Path(out) if out else Path("output") / str(code) / "data_pack.md"
@@ -308,6 +331,111 @@ def _pack(raw_code: str, out: str | None, currency: str | None = None) -> int:
     path.write_text(markdown, encoding="utf-8")
     print(f"数据包已写入 {path.resolve()}")
     print(f"字节数：{len(markdown.encode('utf-8')):,} ｜ 行数：{markdown.count(chr(10)) + 1}")
+    return 0
+
+
+def _report(
+    raw_code: str,
+    out: str | None,
+    currency: str | None = None,
+    rf: float | None = None,
+    rf_source: str | None = None,
+) -> int:
+    from .data.tushare_provider import TushareProvider
+    from .factors.engine import FactorContext, run
+    from .metrics import statements
+    from .metrics.valuation import build_valuation
+    from .report.analysis import render_analysis
+    from .report.pack import _snapshot_id, average_dps
+
+    settings = load_settings()
+    code = StockCode.parse(raw_code)
+    unit = _unit_for(code, currency)
+    provider = TushareProvider(get_token())
+
+    rows = provider.statements(code, currency=unit)
+    if not rows:
+        print("未取到报表数据。", file=sys.stderr)
+        return 2
+    dividends = provider.dividends(code, currency=unit)
+    basic = sorted(
+        provider.daily_basic(code), key=lambda r: str(r.get("trade_date", "")), reverse=True
+    )
+    history = provider.weekly(code)
+    quote = basic[0] if basic else None
+    price = _num(quote.get("close")) if quote else None
+
+    market_cap = Money(Decimal("0"), unit)
+    shares = Decimal("0")
+    if quote:
+        total_mv_wan = _num(quote.get("total_mv"))
+        total_share_wan = _num(quote.get("total_share"))
+        if total_mv_wan is not None and total_share_wan is not None:
+            market_cap = Money(total_mv_wan * Decimal("10000"), unit)
+            shares = total_share_wan * Decimal("10000")
+
+    years = sorted({r.period_end.year for r in rows if r.period_type == "annual"})
+    latest = max(years) if years else None
+    income = lambda item: statements.annual_series(rows, "income", item)  # noqa: E731
+    balance = lambda item: statements.annual_series(rows, "balance", item)  # noqa: E731
+    fcf_series = statements.fcf_series(rows)
+
+    snapshot = build_valuation(
+        market_cap=market_cap.amount if market_cap.amount > 0 else None,
+        cash=statements.cash_and_equivalents(rows).get(latest) if latest else None,
+        debt=statements.interest_bearing_debt(rows).get(latest) if latest else None,
+        equity=statements.equity(rows).get(latest) if latest else None,
+        net_income=income("n_income_attr_p").get(latest) if latest else None,
+        revenue=income("revenue").get(latest) if latest else None,
+        operate_profit=income("operate_profit").get(latest) if latest else None,
+        finance_exp=income("finance_exp").get(latest) if latest else None,
+        da=statements.da_series(rows).get(latest) if latest else None,
+        fcf=fcf_series.get(latest) if latest else None,
+        goodwill=balance("goodwill").get(latest) if latest else None,
+        total_assets=balance("total_assets").get(latest) if latest else None,
+        dps=average_dps(dividends),
+        price=price,
+    )
+
+    rf_value, rf_src = _rf_for(provider, settings, code, rf, rf_source)
+    ctx = FactorContext(
+        code=code,
+        rows=rows,
+        dividends=dividends,
+        market_cap=market_cap,
+        shares=shares,
+        price=price,
+        rf_pct=rf_value,
+        tax_pct=Decimal("20") if code.market is Market.HK else Decimal("0"),
+        settings=settings,
+        snapshot=snapshot,
+        closes=[
+            value
+            for item in history
+            if (value := _num(item.get("close"))) is not None
+        ],
+        audit=provider.audit(code),
+    )
+    results = run(ctx)
+    markdown = render_analysis(
+        ctx,
+        results,
+        settings=settings,
+        snapshot_id=_snapshot_id(rows),
+        rf_source=rf_src,
+        issues=provider.issues,
+    )
+
+    path = Path(out) if out else Path("output") / str(code) / "analysis_report.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(markdown, encoding="utf-8")
+    verdict = dict(results["4"].metrics).get("结论", "观察")
+    print(f"分析报告已写入 {path.resolve()}")
+    print(f"结论：{verdict} ｜ 字节数：{len(markdown.encode('utf-8')):,}")
+    if provider.issues:
+        print("数据问题：", file=sys.stderr)
+        for issue in provider.issues:
+            print(f"  {issue}", file=sys.stderr)
     return 0
 
 
@@ -373,6 +501,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="报表币种；港股默认 CNY，港元报表请显式指定 HKD",
     )
+    analyze.add_argument("--rf", type=float, default=None, help="覆盖无风险利率（%%）")
+    analyze.add_argument("--rf-source", default=None, help="Rf 来源说明或 URL")
 
     screen = sub.add_parser("screen", help="全市场筛选")
     screen.add_argument("--tier1-only", action="store_true", help="只跑 Tier 1")
@@ -386,6 +516,20 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="报表币种；港股默认 CNY",
     )
+    pack.add_argument("--rf", type=float, default=None, help="覆盖无风险利率（%%）")
+    pack.add_argument("--rf-source", default=None, help="Rf 来源说明或 URL")
+
+    report = sub.add_parser("report", help="生成四因子分析报告")
+    report.add_argument("code", help="股票代码，如 600887")
+    report.add_argument("--out", default=None, help="输出路径，默认 output/<code>/analysis_report.md")
+    report.add_argument(
+        "--currency",
+        choices=[c.value for c in Currency],
+        default=None,
+        help="报表币种；港股默认 CNY",
+    )
+    report.add_argument("--rf", type=float, default=None, help="覆盖无风险利率（%%）")
+    report.add_argument("--rf-source", default=None, help="Rf 来源说明或 URL")
 
     sub.add_parser("version", help="版本信息")
     return parser
@@ -401,12 +545,14 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "analyze":
             return _demo_analyze() if args.demo else _live_analyze(
-                args.code, args.save, args.currency
+                args.code, args.save, args.currency, args.rf, args.rf_source
             )
         if args.command == "screen":
             return _screen(args.tier1_only)
         if args.command == "pack":
-            return _pack(args.code, args.out, args.currency)
+            return _pack(args.code, args.out, args.currency, args.rf, args.rf_source)
+        if args.command == "report":
+            return _report(args.code, args.out, args.currency, args.rf, args.rf_source)
     except TurtleError as exc:
         print(f"错误：{exc}", file=sys.stderr)
         return 2

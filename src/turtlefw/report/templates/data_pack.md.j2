@@ -2,6 +2,9 @@
 
 > 生成时间：{{ generated_at }} ｜ 报表币种：{{ currency }} ｜ 数据源：Tushare Pro
 > 数据快照：`{{ snapshot_id }}` ｜ 行情日期：{{ as_of }} ｜ 市场：{{ market }}
+{% if rf_source %}
+> 无风险利率来源：{{ rf_source }}
+{% endif %}
 
 ## 1. 关键指标
 
@@ -19,13 +22,17 @@
 
 {{ quote_table }}
 
-## 5. 底价（{{ methods }} 法）
+## 5. 估值指标
+
+{{ valuation_table }}
+
+## 6. 底价（{{ methods }} 法）
 
 {{ floor_table }}
 
 **综合底价：{{ composite }} {{ currency }} ｜ 当前价溢价：{{ premium }}**
 
-## 6. 数据问题
+## 7. 数据问题
 
 {{ issues_md }}
 

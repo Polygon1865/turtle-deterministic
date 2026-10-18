@@ -305,6 +305,21 @@ class TushareProvider:
         cutoff = date.today().year - years
         return [event for event in events if event.fiscal_year >= cutoff]
 
+    # -- audit -------------------------------------------------------------
+    def audit(self, code: StockCode, *, years: int = 5) -> list[dict]:
+        """Latest audit opinions; HK/US are not covered by ``fina_audit``."""
+        if not code.is_a_share:
+            return []
+        frame = self._safe(
+            "fina_audit",
+            ts_code=str(code),
+            fields="ts_code,end_date,audit_agency,audit_result",
+        )
+        if frame.empty:
+            return []
+        frame = frame.sort_values("end_date", ascending=False)
+        return frame.head(years).to_dict("records")
+
     # -- market data -------------------------------------------------------
     def weekly(self, code: StockCode, *, years: int = 10) -> list[dict]:
         end = date.today()

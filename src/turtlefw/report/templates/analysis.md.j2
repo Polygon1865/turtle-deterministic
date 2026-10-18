@@ -1,0 +1,72 @@
+# 龟龟策略分析报告 — {{ code }}
+
+> 生成时间：{{ generated_at }} ｜ 报表币种：{{ currency }} ｜ 数据快照：`{{ snapshot_id }}`
+> 无风险利率：{{ rf }}（来源：{{ rf_source }}）｜ 当前价：{{ price }} ｜ 总市值（百万元）：{{ market_cap }}
+
+## 一、结论
+
+**{{ verdict }}** — {{ reason }}
+
+{{ summary_table }}
+
+## 二、因子 1A：五分钟快筛
+
+{{ f1a_table }}
+
+> {{ notes_1a }}
+
+## 三、因子 1B：深度定性（可计算部分）
+
+{{ f1b_table }}
+
+> {{ notes_1b }}
+
+## 四、因子 2：穿透回报率粗算
+
+{{ f2_table }}
+
+> {{ notes_2 }}
+
+## 五、因子 3：穿透回报率精算
+
+{{ f3_table }}
+
+> {{ notes_3 }}
+
+## 六、因子 4：估值与安全边际
+
+{{ f4_table }}
+
+**价值陷阱排查**
+
+{{ f4_checks }}
+
+> {{ notes_4 }}
+
+## 七、估值指标与底价
+
+{{ valuation_table }}
+
+{{ floor_table }}
+
+**综合底价：{{ composite }} {{ currency }} ｜ 当前价溢价：{{ premium }}**
+
+## 八、数据问题与待验证事项
+
+{{ issues_md }}
+
+以下内容本版未自动验证，需在 LLM 定性层补充：
+
+- 护城河类型与竞争格局
+- 管理层与治理结构
+- 行业景气与政策风险
+- 财务造假/违规前科
+- 控股股东负面信号
+
+## 九、数据来源与免责声明
+
+- 财务数据：Tushare Pro（`turtlefw` 确定性管线）
+- 无风险利率：{{ rf_source }}
+- 分红：Tushare `dividend` / `hk_fina_indicator`
+
+> 本报告由确定性规则生成，未包含 LLM 定性判断，不构成投资建议。

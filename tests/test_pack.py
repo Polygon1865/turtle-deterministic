@@ -24,7 +24,14 @@ def render() -> str:
 class TestDataPack:
     def test_sections_present(self):
         text = render()
-        for heading in ("# 数据包", "## 1. 关键指标", "## 2. 五年财务趋势", "## 3. 分红历史", "## 5. 底价"):
+        for heading in (
+            "# 数据包",
+            "## 1. 关键指标",
+            "## 2. 五年财务趋势",
+            "## 3. 分红历史",
+            "## 5. 估值指标",
+            "## 6. 底价",
+        ):
             assert heading in text
 
     def test_currency_and_snapshot(self):
@@ -38,4 +45,4 @@ class TestDataPack:
 
     def test_floor_methods_are_numbered(self):
         text = render()
-        assert "## 5. 底价（" in text and "法）" in text
+        assert "## 6. 底价（" in text and "法）" in text

@@ -1,0 +1,1 @@
+"""Four-factor analysis."""

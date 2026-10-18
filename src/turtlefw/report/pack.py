@@ -44,6 +44,12 @@ def _num(value: Decimal | None, digits: int = 2) -> str:
     return f"{value:,.{digits}f}"
 
 
+def _x(value: Decimal | None) -> str:
+    if value is None:
+        return "—"
+    return f"{value:,.2f}x"
+
+
 def _table(
     headers: Sequence[str],
     rows: Sequence[Sequence[str]],
@@ -107,6 +113,7 @@ def render_data_pack(
     settings: Settings,
     issues: Sequence[FetchIssue] = (),
     tax_pct: Decimal = Decimal("0"),
+    rf_source: str = "",
 ) -> str:
     currency = rows[0].currency if rows else Currency.CNY
     years = sorted({r.period_end.year for r in rows if r.period_type == "annual"})[-5:]
@@ -163,6 +170,29 @@ def render_data_pack(
     )
     composite = valuation.composite(baselines, settings.valuation.composite_method)
     premium = valuation.premium(price, composite) if price and composite else None
+
+    snapshot = valuation.build_valuation(
+        market_cap=market_cap.amount if market_cap.amount > 0 else None,
+        cash=cash.get(latest_year) if latest_year else None,
+        debt=debt.get(latest_year) if latest_year else None,
+        equity=equity.get(latest_year) if latest_year else None,
+        net_income=net_income.get(latest_year) if latest_year else None,
+        revenue=revenue.get(latest_year) if latest_year else None,
+        operate_profit=_series(rows, "income", "operate_profit").get(latest_year)
+        if latest_year
+        else None,
+        finance_exp=_series(rows, "income", "finance_exp").get(latest_year)
+        if latest_year
+        else None,
+        da=da.get(latest_year) if latest_year else None,
+        fcf=latest_fcf,
+        goodwill=_series(rows, "balance", "goodwill").get(latest_year) if latest_year else None,
+        total_assets=_series(rows, "balance", "total_assets").get(latest_year)
+        if latest_year
+        else None,
+        dps=average_dps(dividends),
+        price=price,
+    )
 
     # -- tables -----------------------------------------------------------
     def money_row(label: str, series: dict[int, Decimal]) -> list[str]:
@@ -230,6 +260,19 @@ def render_data_pack(
 
     floor_rows = [[b.name, _num(b.value), b.formula] for b in baselines]
 
+    valuation_rows = [
+        ["企业价值 EV（百万元）", _m(snapshot.ev)],
+        ["EBITDA（百万元）", _m(snapshot.ebitda)],
+        ["EV/EBITDA", _x(snapshot.ev_ebitda)],
+        ["净负债/EBITDA", _x(snapshot.net_debt_ebitda)],
+        ["扣除现金 PE", _x(snapshot.cash_adj_pe)],
+        ["P/B", _x(snapshot.pb)],
+        ["FCF 收益率", _pct(snapshot.fcf_yield)],
+        ["股息率（3 年均 DPS）", _pct(snapshot.dividend_yield)],
+        ["EBITDA 利润率", _pct(snapshot.ebitda_margin)],
+        ["商誉/总资产", _pct(snapshot.goodwill_ratio)],
+    ]
+
     context = {
         "code": str(code),
         "market": code.market.value,
@@ -237,6 +280,7 @@ def render_data_pack(
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "snapshot_id": _snapshot_id(rows),
         "as_of": str(quote.get("trade_date", "")) if quote else "",
+        "rf_source": rf_source,
         "kpi_table": _table(["指标", "数值"], kpi_rows),
         "trend_table": _table(
             ["项目"] + [str(year) for year in years],
@@ -249,6 +293,7 @@ def render_data_pack(
             ["l", "r", "r", "r", "r"],
         ),
         "quote_table": _table(["项目", "数值"], quote_rows),
+        "valuation_table": _table(["指标", "数值"], valuation_rows),
         "floor_table": _table(["方法", "价格", "公式"], floor_rows, ["l", "r", "l"]),
         "methods": len(baselines),
         "composite": _num(composite),
