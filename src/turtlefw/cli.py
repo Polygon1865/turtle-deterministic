@@ -508,6 +508,40 @@ def _qualitative_cmd(code_raw: str, init: bool, check: bool, out: str | None) ->
     return 0
 
 
+def _state_cmd(
+    code_raw: str,
+    init: bool,
+    phase: str | None,
+    artifact: str | None,
+    warnings: list[str] | None,
+) -> int:
+    import json as _json
+
+    from . import state as st
+
+    code = StockCode.parse(code_raw)
+    path = st.path_for(str(code))
+    if init or not path.is_file():
+        run = st.new(str(code))
+    else:
+        run = st.load(path)
+
+    if phase:
+        st.advance(run, phase)
+    if artifact:
+        key, _, value = artifact.partition("=")
+        if not key or not value:
+            print("--artifact 需要 key=path 格式", file=sys.stderr)
+            return 2
+        st.add_artifact(run, key, value)
+    for message in warnings or []:
+        st.add_warning(run, message)
+
+    st.save(run, path)
+    print(_json.dumps(run.to_dict(), ensure_ascii=False, indent=2))
+    return 0
+
+
 def _audit(raw_code: str, doc_path: str, write_path: str | None, threshold: float) -> int:
     import json
 
@@ -764,6 +798,13 @@ def build_parser() -> argparse.ArgumentParser:
     audit.add_argument("--write", default=None, help="把冲突写入 qualitative.json")
     audit.add_argument("--threshold", type=float, default=1.0, help="相对差异阈值（%%）")
 
+    state = sub.add_parser("state", help="初始化/更新多阶段运行状态")
+    state.add_argument("code", help="股票代码")
+    state.add_argument("--init", action="store_true", help="新建 run_state.json")
+    state.add_argument("--phase", default=None, help="推进到指定阶段")
+    state.add_argument("--artifact", default=None, help="记录产物 key=path")
+    state.add_argument("--warning", action="append", default=None, help="追加警告（可重复）")
+
     fetch = sub.add_parser("fetch-report", help="下载年报 PDF")
     fetch.add_argument("--url", required=True, help="PDF URL（雪球/同花顺）")
     fetch.add_argument("--stock-code", required=True, help="股票代码，如 SH600887")
@@ -807,6 +848,10 @@ def main(argv: list[str] | None = None) -> int:
                 args.fast_limit,
                 args.deep,
                 args.api_interval,
+            )
+        if args.command == "state":
+            return _state_cmd(
+                args.code, args.init, args.phase, args.artifact, args.warning
             )
         if args.command == "audit":
             return _audit(args.code, args.doc, args.write, args.threshold)
