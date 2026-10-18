@@ -5,7 +5,7 @@ from turtlefw import qa
 
 def setup_run(tmp_path, with_all=True):
     base = tmp_path / "600887.SH"
-    base.mkdir()
+    base.mkdir(exist_ok=True)
     (base / "run_state.json").write_text(
         json.dumps({"code": "600887.SH", "run_id": "x", "phase": "report"}),
         encoding="utf-8",
