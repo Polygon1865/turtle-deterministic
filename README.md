@@ -1,0 +1,68 @@
+# Turtle Investment Framework (clean-room)
+
+确定性取数 + 四因子分析的 A 股 / 港股基本面研究系统。设计思路沿用
+[龟龟投资框架](https://github.com/Pr0ph3tyyy/Turtle_investment_framework)，
+实现从头重写，修正了原项目在单位、币种、分红聚合、缺失值处理上的已知缺陷。
+
+## 状态
+
+| 里程碑 | 内容 | 状态 |
+|:---|:---|:---|
+| M0 | 骨架 / 配置 / 类型 / CLI / Windows 安装脚本 | 完成 |
+| M1 | Tushare 数据层（缓存、限速、长表归一化、Parquet 存储） | 完成 |
+| M2 | 指标层（分红、现金流、穿透回报率、五法底价） | 完成 |
+| M3 | 选股器（Tier1 过滤 + 覆盖度感知排名） | 进行中 |
+| M4 | 四因子 + 报告渲染 | 待做 |
+| M5 | LLM 定性层 | 待做 |
+| M6 | PDF 附注提取 | 待做 |
+
+## 快速开始（Windows）
+
+```powershell
+cd C:\PyProject\turtle-framework
+pwsh -File scripts\init.ps1
+
+# 把 Tushare token 写进 .env（config.py 会自动加载）
+Copy-Item .env.sample .env
+notepad .env
+
+.\.venv\Scripts\python.exe -m turtlefw.cli --help
+.\.venv\Scripts\python.exe -m turtlefw.cli analyze 600887 --demo
+```
+
+macOS / Linux:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -e ".[dev]"
+.venv/bin/python -m turtlefw.cli analyze 600887 --demo
+```
+
+## 设计约束
+
+1. **金额必须带币种**：`Money(amount, currency)`，跨币种运算抛异常，必须显式传汇率。
+2. **报表币种来自报表**，不按上市地推断（港股大量公司以人民币报表）。
+3. **取数不缩放**：数据库存原始单位（元），只在展示层转百万元。
+4. **单一指标口径**：分红、穿透回报率、底价各只有一个函数，选股器与报告共用。
+5. **缺失值三态**：`OK / MISSING / NOT_APPLICABLE`，门禁 fail-closed，排名按覆盖度加权。
+6. **可复现**：同一数据快照重新渲染，确定性部分逐字节一致。
+
+## 目录
+
+```
+src/turtlefw/
+├─ types.py           # Money / Currency / StockCode / Metric
+├─ config.py          # TOML 配置 + .env
+├─ data/              # provider / normalize / cache / store
+├─ metrics/           # dividends / statements / returns / valuation
+├─ screener/          # rank / tier1
+└─ report/            # bundle / render + Jinja2 模板
+```
+
+## 测试
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest
+```
+
+全部测试离线运行，不需要 Tushare token。

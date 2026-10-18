@@ -1,0 +1,45 @@
+# 选股与因子阈值。改动这里不需要改代码。
+# 所有百分比均为百分数（8 = 8%）。
+
+[filters]
+min_listing_years = 3
+min_market_cap_yi = 5.0
+min_turnover_pct = 0.1
+max_pb = 10.0
+max_pe = 50.0
+
+# 不适用自由现金流框架的行业，Tier1 直接排除
+excluded_industries = ["银行", "证券", "保险", "信托", "多元金融"]
+
+[tier2]
+min_roe = 8.0
+min_gross_margin = 15.0
+max_debt_ratio = 70.0
+max_pledge_pct = 70.0
+
+[channels]
+obs_channel_limit = 50
+tier2_main_limit = 150
+
+[ranking]
+min_coverage = 0.75
+
+[ranking.weights]
+roe_waa = 0.20
+fcf_yield = 0.20
+penetration_r = 0.25
+ev_ebitda = 0.15
+floor_premium = 0.20
+
+[returns]
+# 门槛 II：A 股 max(3.5%, Rf + 2%)；港股 max(5%, Rf + 3%)
+a_share_floor = 3.5
+a_share_spread = 2.0
+hk_floor = 5.0
+hk_spread = 3.0
+
+[valuation]
+# 股息隐含价使用的折现率下限（%）
+dividend_discount_floor = 3.0
+# 五法底价的合成方式: mean | median
+composite_method = "mean"
