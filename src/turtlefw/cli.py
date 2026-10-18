@@ -508,6 +508,28 @@ def _qualitative_cmd(code_raw: str, init: bool, check: bool, out: str | None) ->
     return 0
 
 
+def _qa_cmd(code_raw: str, write: bool) -> int:
+    from . import qa
+    from . import state as st
+
+    code = StockCode.parse(code_raw)
+    rows = qa.run_qa(str(code))
+    print(f"QA：{code}")
+    for name, status, detail in rows:
+        print(f"  {name:<16}{status:<6}{detail}")
+    bad = qa.failed(rows)
+    if bad:
+        print(f"未通过：{', '.join(bad)}", file=sys.stderr)
+        return 1
+    if write:
+        path = st.path_for(str(code))
+        run = st.load(path) if path.is_file() else st.new(str(code))
+        st.advance(run, "done")
+        st.save(run, path)
+        print("已推进到 done")
+    return 0
+
+
 def _narrative_cmd(code_raw: str, file_path: str) -> int:
     from . import narrative
 
@@ -873,6 +895,10 @@ def build_parser() -> argparse.ArgumentParser:
     narrative.add_argument("code", help="股票代码")
     narrative.add_argument("--file", required=True, help="叙述 Markdown 路径")
 
+    qa = sub.add_parser("qa", help="交付前门控检查")
+    qa.add_argument("code", help="股票代码")
+    qa.add_argument("--write", action="store_true", help="全部通过后推进到 done")
+
     fetch = sub.add_parser("fetch-report", help="下载年报 PDF")
     fetch.add_argument("--url", required=True, help="PDF URL（雪球/同花顺）")
     fetch.add_argument("--stock-code", required=True, help="股票代码，如 SH600887")
@@ -917,6 +943,8 @@ def main(argv: list[str] | None = None) -> int:
                 args.deep,
                 args.api_interval,
             )
+        if args.command == "qa":
+            return _qa_cmd(args.code, args.write)
         if args.command == "narrative":
             return _narrative_cmd(args.code, args.file)
         if args.command == "verify":

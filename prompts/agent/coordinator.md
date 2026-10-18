@@ -28,7 +28,7 @@ python -m turtlefw.cli state <code> --warning "D&A 缺失"
 | 2 report_pdf | `phase2_report_pdf.md` | PDF、pdf_sections.json、reported_numbers.json | PDF 合法且章节命中 ≥4 | 降级为无 PDF 模式 |
 | 3 qualitative | `phase3_qualitative.md`（rubric 在 `references/`） | qualitative.json | `verify` + `qualitative --check` 通过 | 证据不足记 unknown |
 | 4 report | `phase4_report.md` | narrative.md | `narrative` 校验通过 | 交付 CLI 报告 + 失败原因 |
-| 5 qa | 本文件 | 交付说明 | 审计与自检通过 | 列出未通过项 |
+| 5 qa | `phase5_qa.md` | 交付说明 | `qa --write` 通过 | 列出未通过项 |
 
 ## 执行规则
 
