@@ -130,13 +130,25 @@ def render_analysis(
         evidence = all_evidence(ctx.qualitative)
         evidence_md = (
             "\n".join(
-                f"- **{label}**：{url} — “{quote}”" for label, url, quote in evidence
+                f"- **{label}**（{source_type}{' · ' + page if page else ''}）：{url} — “{quote}”"
+                for label, url, quote, source_type, page in evidence
             )
             or "未提供证据。"
         )
+        if ctx.qualitative.discrepancies:
+            discrepancy_table = _table(
+                ["项目", "CLI", "文档/网页", "来源", "备注"],
+                [
+                    [d.item, d.cli_value, d.doc_value, d.source, d.note]
+                    for d in ctx.qualitative.discrepancies
+                ],
+            )
+        else:
+            discrepancy_table = "未发现数字口径冲突。"
     else:
         qual_table = "未提供 qualitative.json，全部定性项标记为 unknown。"
         evidence_md = "未提供证据。"
+        discrepancy_table = "未提供 qualitative.json。"
 
     context = {
         "code": str(ctx.code),
@@ -173,6 +185,7 @@ def render_analysis(
         "f1b_table": checks_table(results["1B"]),
         "qual_table": qual_table,
         "qual_evidence_md": evidence_md,
+        "discrepancy_table": discrepancy_table,
         "f2_table": metrics_table(results["2"]),
         "f3_table": metrics_table(results["3"]),
         "f4_table": metrics_table(results["4"]),

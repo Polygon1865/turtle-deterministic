@@ -25,12 +25,26 @@ MODULES: dict[str, str] = {
 
 JUDGMENTS = {"positive", "neutral", "negative", "unknown"}
 CONFIDENCE = {"high", "medium", "low"}
+SOURCE_TYPES = {"web", "document"}
 
 
 @dataclass(frozen=True, slots=True)
 class Evidence:
     url: str
     quote: str
+    source_type: str = "web"  # web | document
+    page: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class Discrepancy:
+    """A number that differs between the CLI layer and a document/web claim."""
+
+    item: str
+    cli_value: str
+    doc_value: str
+    source: str = ""
+    note: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +59,7 @@ class Judgment:
 @dataclass(frozen=True, slots=True)
 class Qualitative:
     items: dict[str, Judgment] = field(default_factory=dict)
+    discrepancies: tuple[Discrepancy, ...] = ()
 
     def get(self, module: str) -> Judgment | None:
         return self.items.get(module)
@@ -52,6 +67,7 @@ class Qualitative:
 
 def template() -> dict[str, Any]:
     return {
+        "discrepancies": [],
         "modules": {
             key: {
                 "judgment": "unknown",
@@ -60,7 +76,7 @@ def template() -> dict[str, Any]:
                 "notes": "",
             }
             for key in MODULES
-        }
+        },
     }
 
 
@@ -103,11 +119,17 @@ def load(path: Path) -> Qualitative:
         for item in raw.get("evidence", []):
             url = str(item.get("url", "")).strip()
             quote = str(item.get("quote", "")).strip()
+            source_type = str(item.get("source_type", "web")).lower()
+            page = str(item.get("page", "")).strip()
             if not url.startswith(("http://", "https://")):
                 raise TurtleError(f"{module}: evidence url must start with http(s)")
             if not quote:
                 raise TurtleError(f"{module}: evidence quote is empty")
-            evidence.append(Evidence(url=url, quote=quote))
+            if source_type not in SOURCE_TYPES:
+                raise TurtleError(f"{module}: invalid source_type {source_type!r}")
+            evidence.append(
+                Evidence(url=url, quote=quote, source_type=source_type, page=page)
+            )
 
         notes = str(raw.get("notes", "")).strip()
         if judgment != "unknown" and not evidence:
@@ -121,7 +143,24 @@ def load(path: Path) -> Qualitative:
             evidence=tuple(evidence),
             notes=notes,
         )
-    return Qualitative(items=items)
+
+    discrepancies: list[Discrepancy] = []
+    for raw in payload.get("discrepancies", []) or []:
+        if not isinstance(raw, dict):
+            raise TurtleError("each discrepancy must be an object")
+        item = str(raw.get("item", "")).strip()
+        if not item:
+            raise TurtleError("discrepancy.item is required")
+        discrepancies.append(
+            Discrepancy(
+                item=item,
+                cli_value=str(raw.get("cli_value", "")).strip(),
+                doc_value=str(raw.get("doc_value", "")).strip(),
+                source=str(raw.get("source", "")).strip(),
+                note=str(raw.get("note", "")).strip(),
+            )
+        )
+    return Qualitative(items=items, discrepancies=tuple(discrepancies))
 
 
 def summary(q: Qualitative) -> list[tuple[str, str, str, int]]:
@@ -135,13 +174,15 @@ def summary(q: Qualitative) -> list[tuple[str, str, str, int]]:
     return rows
 
 
-def all_evidence(q: Qualitative) -> list[tuple[str, str, str]]:
-    """``(module_label, url, quote)`` for the report appendix."""
+def all_evidence(q: Qualitative) -> list[tuple[str, str, str, str, str]]:
+    """``(module_label, url, quote, source_type, page)`` for the report appendix."""
     rows = []
     for key, label in MODULES.items():
         item = q.get(key)
         if item is None:
             continue
         for evidence in item.evidence:
-            rows.append((label, evidence.url, evidence.quote))
+            rows.append(
+                (label, evidence.url, evidence.quote, evidence.source_type, evidence.page)
+            )
     return rows
