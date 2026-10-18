@@ -141,7 +141,8 @@ def fast_screen(
         if column in merged.columns:
             values = merged[column]
             ok = values >= float(threshold) if op == ">=" else values <= float(threshold)
-            mask &= values.isna() | ok
+            # fail-closed: a missing quality metric is not evidence of quality
+            mask &= values.notna() & ok
     merged = merged[mask]
 
     merged = merged.sort_values("margin", ascending=False)

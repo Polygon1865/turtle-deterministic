@@ -1,3 +1,4 @@
+from dataclasses import replace
 from decimal import Decimal
 
 from turtlefw import demo
@@ -87,6 +88,16 @@ class TestEngine:
         results = run(context())
         trap = {c.name: c for c in results["4"].checks}["现金流趋势性恶化"]
         assert trap.status == "pass"
+
+    def test_high_floor_premium_caps_buy(self):
+        results = run(replace(context(), price=Decimal("200")))
+        assert dict(results["4"].metrics)["结论"] in {"观察", "排除"}
+        check = {c.name: c for c in results["4"].checks}["底价约束"]
+        assert check.status == "veto"
+
+    def test_unreliable_payout_caps_buy(self):
+        results = run(replace(context(), payout_reliable=False))
+        assert dict(results["4"].metrics)["结论"] in {"观察", "排除"}
 
     def test_final_verdict_is_known(self):
         assert final_verdict(run(context()))[0] in {"买入", "观察", "排除"}

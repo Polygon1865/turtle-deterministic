@@ -54,6 +54,7 @@ class FactorContext:
     closes: Sequence[Decimal] = ()
     audit: Sequence[dict] = field(default_factory=tuple)
     qualitative: Qualitative | None = None
+    payout_reliable: bool = True
 
 
 def _pct(value: Decimal | None) -> str:
@@ -281,6 +282,42 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
         price * gg / ii if price is not None and gg is not None and ii > 0 else None
     )
 
+    # Floor-price constraint: a rich premium or an unstable composite caps the verdict.
+    trad = statements.annual_series(rows, "balance", "trad_asset")
+    dps_by_year: dict[int, Decimal] = {}
+    for event in ctx.dividends:
+        dps_by_year[event.fiscal_year] = (
+            dps_by_year.get(event.fiscal_year, Decimal("0")) + event.dps
+        )
+    recent_dps = sorted(dps_by_year)[-3:]
+    avg_dps = (
+        sum((dps_by_year[y] for y in recent_dps), Decimal("0")) / Decimal(len(recent_dps))
+        if recent_dps
+        else None
+    )
+    recent_fcf_all = dict(sorted(fcf.items())[-5:])
+    min_fcf = (
+        min(recent_fcf_all.values())
+        if recent_fcf_all and min(recent_fcf_all.values()) > 0
+        else None
+    )
+    baselines = valuation.five_baselines(
+        cash=cash.get(latest) if latest else None,
+        trad_assets=trad.get(latest) if latest else None,
+        debt=debt.get(latest) if latest else None,
+        equity=equity.get(latest) if latest else None,
+        shares=ctx.shares,
+        closes=ctx.closes,
+        average_dps=avg_dps,
+        min_fcf=min_fcf,
+        rf_pct=ctx.rf_pct,
+        dividend_floor_pct=ctx.settings.valuation.dividend_discount_floor,
+    )
+    stats = valuation.floor_stats(baselines, ctx.settings.valuation.divergence_threshold)
+    floor_premium = (
+        valuation.premium(price, stats.median) if price is not None and stats.median else None
+    )
+
     if gg is None or margin is None:
         position, verdict = "观察", "观察"
     elif margin < 0:
@@ -293,6 +330,19 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
         position, verdict = "50%", "观察"
     else:
         position, verdict = "观察仓位", "观察"
+
+    caps: list[str] = []
+    if floor_premium is not None:
+        if floor_premium > Decimal("150"):
+            caps.append(f"底价溢价 {floor_premium:.0f}% > 150%")
+        elif stats.status == "divergent" and floor_premium > Decimal("80"):
+            caps.append(f"底价口径分歧且溢价 {floor_premium:.0f}% > 80%")
+    elif stats.status == "unavailable":
+        caps.append("底价不可用")
+    if not ctx.payout_reliable:
+        caps.append("支付率数据不完整")
+    if caps and verdict == "买入":
+        verdict, position = "观察", "观察"
 
     passed_4 = verdict != "排除"
 
@@ -354,7 +404,14 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
             key="4",
             title="估值与安全边际",
             passed=passed_4,
-            checks=tuple(trap_checks),
+            checks=(
+                *trap_checks,
+                Check(
+                    "底价约束",
+                    "veto" if caps else "pass",
+                    "；".join(caps) if caps else "底价溢价与口径均在阈值内",
+                ),
+            ),
             metrics=(
                 ("EV/EBITDA", _x(ctx.snapshot.ev_ebitda)),
                 ("扣除现金 PE", _x(ctx.snapshot.cash_adj_pe)),
@@ -364,6 +421,9 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
                 ("安全边际 KK", _pct(margin)),
                 ("股价历史分位", _pct(percentile)),
                 ("门槛对应价", _num_price(target)),
+                ("底价中位数", _num_price(stats.median)),
+                ("底价溢价", _pct(floor_premium)),
+                ("底价口径", stats.status),
                 ("仓位建议", position),
                 ("结论", verdict),
             ),

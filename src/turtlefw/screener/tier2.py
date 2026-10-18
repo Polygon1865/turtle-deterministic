@@ -79,6 +79,14 @@ def analyze_one(provider, row: pd.Series, settings: Settings, rf_pct: Decimal) -
     balance = lambda item: statements.annual_series(rows, "balance", item)  # noqa: E731
     fcf = statements.fcf_series(rows)
     da = statements.da_series(rows)
+    payouts = div_metrics.payout_by_year(
+        dividends, income("n_income_attr_p"), shares=shares
+    )
+    mean_payout, _ = div_metrics.mean_payout(payouts)
+    recent_years = sorted(payouts)[-3:]
+    payout_ok = len(recent_years) >= 3 and all(
+        payouts[year] is not None for year in recent_years
+    )
 
     snapshot = valuation.build_valuation(
         market_cap=market_cap.amount,
@@ -105,6 +113,7 @@ def analyze_one(provider, row: pd.Series, settings: Settings, rf_pct: Decimal) -
         code=code, rows=rows, dividends=dividends, market_cap=market_cap, shares=shares,
         price=price, rf_pct=rf_pct, tax_pct=Decimal("0"), settings=settings,
         snapshot=snapshot, closes=closes, audit=provider.audit(code),
+        payout_reliable=payout_ok,
     )
     results = run(ctx)
     verdict, _ = final_verdict(results)
@@ -119,8 +128,6 @@ def analyze_one(provider, row: pd.Series, settings: Settings, rf_pct: Decimal) -
             return None
 
     # floor premium
-    payouts = div_metrics.payout_by_year(dividends, income("n_income_attr_p"), shares=shares)
-    mean_payout, _ = div_metrics.mean_payout(payouts)
     min_fcf_recent = dict(sorted(fcf.items())[-5:])
     min_fcf = (
         min(min_fcf_recent.values())
@@ -158,7 +165,7 @@ def analyze_one(provider, row: pd.Series, settings: Settings, rf_pct: Decimal) -
         fcf_yield=_dec(f4.get("FCF 收益率", "")),
         floor_premium=premium,
         issues=len(provider.issues),
-        payout_ok=mean_payout is not None,
+        payout_ok=payout_ok,
         floor_status=stats.status,
     )
 

@@ -49,6 +49,14 @@ def frame() -> pd.DataFrame:
     )
 
 
+class MissingQualityProvider(FakeProvider):
+    def market_fina_indicator(self, period):
+        return pd.DataFrame(
+            [{"ts_code": "600887.SH", "roe_waa": float("nan"),
+              "grossprofit_margin": float("nan"), "debt_to_assets": float("nan")}]
+        )
+
+
 class TestFastScreen:
     def test_computes_market_metrics(self):
         result = fast_screen(frame(), FakeProvider(), load_settings(), Decimal("1.8"), limit=10)
@@ -58,6 +66,12 @@ class TestFastScreen:
         assert row["payout"] == 30.0
         assert row["payout_ok"]
         assert row["EV/EBITDA"] > 0
+
+    def test_missing_quality_metrics_fail_closed(self):
+        result = fast_screen(
+            frame(), MissingQualityProvider(), load_settings(), Decimal("1.8"), limit=10
+        )
+        assert result.empty
 
     def test_impossible_payout_is_nan_not_100(self):
         inflated = frame()
