@@ -46,7 +46,14 @@ BASE_HEADERS = {
 }
 
 URL_PATTERN = re.compile(
-    r"^https?://(stockn\.xueqiu\.com|[\w.-]*10jqka\.com\.cn)/.+\.pdf$",
+    r"^https?://("
+    r"stockn\.xueqiu\.com"
+    r"|[\w.-]*10jqka\.com\.cn"
+    r"|static\.cninfo\.com\.cn"
+    r"|www\.sse\.com\.cn"
+    r"|disc\.szse\.cn"
+    r"|www1\.hkexnews\.hk"
+    r")/.+\.pdf$",
     re.IGNORECASE,
 )
 
