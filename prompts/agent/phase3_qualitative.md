@@ -50,11 +50,16 @@
 
 ## 校验
 
+先做事实校验，再做结构校验：
+
 ```powershell
+python -m turtlefw.cli verify <code> --write
 python -m turtlefw.cli qualitative <code> --check
 ```
 
-- 失败：按报错修复，不绕过；
+- `verify` 拉取每个证据 URL，检查引文是否真的在页面中；未通过的模块自动降级 `unknown`；
+- `verify` 只做机械匹配；语义判断用 `references/verifier.md`（support/weak/contradict）；
+- `--check` 失败：按报错修复，不绕过；
 - 通过：更新状态：
 
 ```powershell

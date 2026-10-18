@@ -508,6 +508,50 @@ def _qualitative_cmd(code_raw: str, init: bool, check: bool, out: str | None) ->
     return 0
 
 
+def _verify_cmd(
+    code_raw: str,
+    qualitative_path: str | None,
+    threshold: float,
+    timeout: int,
+    write: bool,
+) -> int:
+    import json as _json
+
+    from . import verify as vf
+    from .qualitative import load as load_q
+
+    code = StockCode.parse(code_raw)
+    path = (
+        Path(qualitative_path)
+        if qualitative_path
+        else Path("output") / str(code) / "qualitative.json"
+    )
+    qualitative = load_q(path)
+    checks = vf.check_qualitative(
+        qualitative,
+        fetch=lambda url: vf.fetch_url(url, timeout),
+        threshold=threshold,
+    )
+    ok = sum(1 for check in checks if check.status == "ok")
+    print(f"证据校验：{ok}/{len(checks)} 通过（阈值 {threshold:.2f}）")
+    for check in checks:
+        print(
+            f"  {check.module:<16}{check.status:<14}{check.score:>6.3f}  {check.url[:80]}"
+        )
+
+    failed = vf.failing_modules(checks)
+    if write and failed:
+        payload = _json.loads(path.read_text(encoding="utf-8"))
+        updated = vf.downgrade(payload, failed)
+        path.write_text(
+            _json.dumps(updated, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+        print(f"已降级 {len(failed)} 个模块：{', '.join(sorted(failed))}")
+    elif failed:
+        print(f"未通过模块：{', '.join(sorted(failed))}（加 --write 可自动降级）")
+    return 0 if not failed else 1
+
+
 def _state_cmd(
     code_raw: str,
     init: bool,
@@ -805,6 +849,13 @@ def build_parser() -> argparse.ArgumentParser:
     state.add_argument("--artifact", default=None, help="记录产物 key=path")
     state.add_argument("--warning", action="append", default=None, help="追加警告（可重复）")
 
+    verify = sub.add_parser("verify", help="证据事实校验（URL + 引文）")
+    verify.add_argument("code", help="股票代码")
+    verify.add_argument("--qualitative", default=None, help="定性 JSON 路径")
+    verify.add_argument("--threshold", type=float, default=0.9, help="引文匹配阈值")
+    verify.add_argument("--timeout", type=int, default=20, help="单 URL 超时秒数")
+    verify.add_argument("--write", action="store_true", help="未通过模块降级为 unknown")
+
     fetch = sub.add_parser("fetch-report", help="下载年报 PDF")
     fetch.add_argument("--url", required=True, help="PDF URL（雪球/同花顺）")
     fetch.add_argument("--stock-code", required=True, help="股票代码，如 SH600887")
@@ -848,6 +899,10 @@ def main(argv: list[str] | None = None) -> int:
                 args.fast_limit,
                 args.deep,
                 args.api_interval,
+            )
+        if args.command == "verify":
+            return _verify_cmd(
+                args.code, args.qualitative, args.threshold, args.timeout, args.write
             )
         if args.command == "state":
             return _state_cmd(
