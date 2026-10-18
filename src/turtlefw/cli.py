@@ -508,6 +508,31 @@ def _qualitative_cmd(code_raw: str, init: bool, check: bool, out: str | None) ->
     return 0
 
 
+def _golden_cmd(
+    init: str | None, codes: str, score_path: str | None, threshold: float
+) -> int:
+    from . import golden
+
+    if init:
+        code_list = [item.strip() for item in codes.split(",") if item.strip()]
+        if not code_list:
+            print("--init 需要配合 --codes（逗号分隔）", file=sys.stderr)
+            return 2
+        path = golden.write_template(init, code_list)
+        print(f"模板已写入 {path}（{len(code_list) * 6} 行待标注）")
+        return 0
+    if score_path:
+        labels = golden.read_labels(score_path)
+        if not labels:
+            print("没有有效标注行（human_judgment 需为 positive/neutral/negative/unknown）", file=sys.stderr)
+            return 2
+        result = golden.score(labels)
+        print(golden.format_report(result))
+        return 0 if result["agreement"] >= threshold else 1
+    print("用法：turtle golden --init <csv> --codes 600887.SH,... 或 --score <csv>", file=sys.stderr)
+    return 2
+
+
 def _qa_cmd(code_raw: str, write: bool) -> int:
     from . import qa
     from . import state as st
@@ -899,6 +924,12 @@ def build_parser() -> argparse.ArgumentParser:
     qa.add_argument("code", help="股票代码")
     qa.add_argument("--write", action="store_true", help="全部通过后推进到 done")
 
+    golden = sub.add_parser("golden", help="黄金集标注模板与评分")
+    golden.add_argument("--init", default=None, help="写出模板 CSV 路径")
+    golden.add_argument("--codes", default="", help="逗号分隔的股票代码")
+    golden.add_argument("--score", default=None, help="对已标注 CSV 评分")
+    golden.add_argument("--threshold", type=float, default=0.75, help="一致率阈值")
+
     fetch = sub.add_parser("fetch-report", help="下载年报 PDF")
     fetch.add_argument("--url", required=True, help="PDF URL（雪球/同花顺）")
     fetch.add_argument("--stock-code", required=True, help="股票代码，如 SH600887")
@@ -943,6 +974,8 @@ def main(argv: list[str] | None = None) -> int:
                 args.deep,
                 args.api_interval,
             )
+        if args.command == "golden":
+            return _golden_cmd(args.init, args.codes, args.score, args.threshold)
         if args.command == "qa":
             return _qa_cmd(args.code, args.write)
         if args.command == "narrative":
