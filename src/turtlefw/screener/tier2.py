@@ -31,6 +31,8 @@ class Tier2Result:
     fcf_yield: Decimal | None
     floor_premium: Decimal | None
     issues: int
+    payout_ok: bool = True
+    floor_status: str = "unavailable"
 
 
 def _latest(series: dict[int, Decimal]) -> Decimal | None:
@@ -118,6 +120,7 @@ def analyze_one(provider, row: pd.Series, settings: Settings, rf_pct: Decimal) -
 
     # floor premium
     payouts = div_metrics.payout_by_year(dividends, income("n_income_attr_p"), shares=shares)
+    mean_payout, _ = div_metrics.mean_payout(payouts)
     min_fcf_recent = dict(sorted(fcf.items())[-5:])
     min_fcf = (
         min(min_fcf_recent.values())
@@ -139,7 +142,8 @@ def analyze_one(provider, row: pd.Series, settings: Settings, rf_pct: Decimal) -
         dividend_floor_pct=settings.valuation.dividend_discount_floor,
     )
     composite = valuation.composite(baselines, settings.valuation.composite_method)
-    premium = valuation.premium(price, composite) if composite else None
+    stats = valuation.floor_stats(baselines, settings.valuation.divergence_threshold)
+    premium = valuation.premium(price, stats.median) if stats.median else None
     if premium is not None:
         premium = premium.quantize(Decimal("0.01"))
 
@@ -154,6 +158,8 @@ def analyze_one(provider, row: pd.Series, settings: Settings, rf_pct: Decimal) -
         fcf_yield=_dec(f4.get("FCF 收益率", "")),
         floor_premium=premium,
         issues=len(provider.issues),
+        payout_ok=mean_payout is not None,
+        floor_status=stats.status,
     )
 
 
@@ -173,6 +179,12 @@ def run_tier2(
     items = list(frame.head(limit).iterrows())
     if not items:
         return pd.DataFrame()
+
+    # One batch call per fiscal year replaces one dividend call per stock.
+    periods = [f"{pd.Timestamp.now().year - 1 - i}1231" for i in range(6)]
+    prefetch = getattr(provider, "prefetch_dividends", None)
+    if callable(prefetch):
+        prefetch(periods)
 
     def job(item):
         try:
@@ -209,6 +221,8 @@ def run_tier2(
                 "EV/EBITDA": r.ev_ebitda,
                 "FCF yield%": r.fcf_yield,
                 "floor premium%": r.floor_premium,
+                "payout_ok": r.payout_ok,
+                "floor_status": r.floor_status,
                 "issues": r.issues,
             }
             for r in results

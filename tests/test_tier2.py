@@ -10,6 +10,9 @@ from turtlefw.screener.tier2 import run_tier2
 class FakeProvider:
     issues: list = []
 
+    def prefetch_dividends(self, periods):
+        return None
+
     def statements(self, code):
         return demo.demo_rows()
 
@@ -47,6 +50,8 @@ class TestTier2:
         assert row["verdict"] in {"买入", "观察", "排除", "数据缺失"}
         assert row["R%"] is not None
         assert row["EV/EBITDA"] is not None
+        assert row["payout_ok"] in {True, False}
+        assert row["floor_status"] in {"stable", "divergent", "unavailable"}
 
     def test_limit(self):
         result = run_tier2(frame(), FakeProvider(), load_settings(), Decimal("1.8"), limit=0)

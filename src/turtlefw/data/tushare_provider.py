@@ -82,6 +82,7 @@ class TushareProvider:
         self._hk_daily: dict[str, list[dict]] = {}
         self._hk_failed: set[str] = set()
         self._hk_yf: dict[str, tuple[list[dict], dict]] = {}
+        self._dividend_map: dict[str, pd.DataFrame] | None = None
 
     def _new_client(self, token: str):
         try:
@@ -372,6 +373,22 @@ class TushareProvider:
         raise NotImplementedError("US statements are not supported yet")
 
     # -- dividends ---------------------------------------------------------
+    def prefetch_dividends(self, periods: list[str]) -> None:
+        """Load all cash-dividend rows for the given fiscal years (one call each)."""
+        frames = [
+            self._paginated("dividend", DIVIDEND_FIELDS, end_date=period)
+            for period in periods
+        ]
+        non_empty = [frame for frame in frames if not frame.empty]
+        if not non_empty:
+            self._dividend_map = {}
+            return
+        combined = pd.concat(non_empty, ignore_index=True)
+        self._dividend_map = {
+            code: group for code, group in combined.groupby("ts_code")
+        }
+
+    # -- dividends ---------------------------------------------------------
     def dividends(
         self,
         code: StockCode,
@@ -382,7 +399,10 @@ class TushareProvider:
     ) -> list[DividendEvent]:
         unit = currency or self._default_currency(code)
         if code.is_a_share:
-            frame = self._safe("dividend", ts_code=str(code), fields=DIVIDEND_FIELDS)
+            if self._dividend_map is not None:
+                frame = self._dividend_map.get(str(code), pd.DataFrame())
+            else:
+                frame = self._safe("dividend", ts_code=str(code), fields=DIVIDEND_FIELDS)
             events = dividend_events(frame, currency=unit)
         elif code.market is Market.HK:
             frame = self._safe("hk_fina_indicator", ts_code=str(code), fields=HK_DIVIDEND_FIELDS)
