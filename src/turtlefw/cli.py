@@ -508,6 +508,19 @@ def _qualitative_cmd(code_raw: str, init: bool, check: bool, out: str | None) ->
     return 0
 
 
+def _narrative_cmd(code_raw: str, file_path: str) -> int:
+    from . import narrative
+
+    code = StockCode.parse(code_raw)
+    bad = narrative.check(str(code), file_path)
+    if bad:
+        print("叙述中出现无法追溯的数字：" + ", ".join(bad), file=sys.stderr)
+        print("只能引用 analysis_report.md / data_pack.md / qualitative.json 中的数字。", file=sys.stderr)
+        return 1
+    print("叙述数字全部可追溯。")
+    return 0
+
+
 def _verify_cmd(
     code_raw: str,
     qualitative_path: str | None,
@@ -856,6 +869,10 @@ def build_parser() -> argparse.ArgumentParser:
     verify.add_argument("--timeout", type=int, default=20, help="单 URL 超时秒数")
     verify.add_argument("--write", action="store_true", help="未通过模块降级为 unknown")
 
+    narrative = sub.add_parser("narrative", help="校验叙述中的数字是否可追溯")
+    narrative.add_argument("code", help="股票代码")
+    narrative.add_argument("--file", required=True, help="叙述 Markdown 路径")
+
     fetch = sub.add_parser("fetch-report", help="下载年报 PDF")
     fetch.add_argument("--url", required=True, help="PDF URL（雪球/同花顺）")
     fetch.add_argument("--stock-code", required=True, help="股票代码，如 SH600887")
@@ -900,6 +917,8 @@ def main(argv: list[str] | None = None) -> int:
                 args.deep,
                 args.api_interval,
             )
+        if args.command == "narrative":
+            return _narrative_cmd(args.code, args.file)
         if args.command == "verify":
             return _verify_cmd(
                 args.code, args.qualitative, args.threshold, args.timeout, args.write
