@@ -41,6 +41,10 @@ hk_spread = 3.0
 # 无风险利率接口（yc_cb）不可用时使用的默认值
 default_rf = 1.8
 
+[fx]
+# 1 HKD = cny_per_hkd CNY，用于把港股行情折算到报表币种
+cny_per_hkd = 0.92
+
 [valuation]
 # 股息隐含价使用的折现率下限（%）
 dividend_discount_floor = 3.0

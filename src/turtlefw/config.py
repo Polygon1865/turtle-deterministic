@@ -91,10 +91,18 @@ class ScreeningConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class FxConfig:
+    """1 HKD = ``cny_per_hkd`` CNY. Used to put HK quotes into report currency."""
+
+    cny_per_hkd: Decimal = Decimal("0.92")
+
+
+@dataclass(frozen=True, slots=True)
 class Settings:
     screening: ScreeningConfig
     returns: ReturnsConfig
     valuation: ValuationConfig
+    fx: FxConfig
     config_path: Path
 
     def save_snapshot(self) -> dict[str, Any]:
@@ -178,10 +186,14 @@ def load_settings(path: Path | None = None) -> Settings:
         composite_method=str(valuation_data.get("composite_method", "mean")),
     )
 
+    fx_data = data.get("fx", {})
+    fx = FxConfig(cny_per_hkd=_dec(fx_data.get("cny_per_hkd"), "0.92"))
+
     return Settings(
         screening=screening,
         returns=returns,
         valuation=valuation,
+        fx=fx,
         config_path=config_path,
     )
 

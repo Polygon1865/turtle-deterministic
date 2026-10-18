@@ -162,3 +162,9 @@ class TestHKDividends:
     def test_ratio_above_one_is_not_rescaled(self):
         df = pd.DataFrame([{"end_date": "20241231", "dps_hkd": "1", "divi_ratio": "35"}])
         assert hk_dividend_events(df, currency=Currency.HKD)[0].payout_pct == Decimal("35")
+
+    def test_dps_can_be_converted_to_report_currency(self):
+        df = pd.DataFrame([{"end_date": "20241231", "dps_hkd": "5", "divi_ratio": "0.2"}])
+        event = hk_dividend_events(df, currency=Currency.CNY, dps_fx=Decimal("0.92"))[0]
+        assert event.dps == Decimal("4.60")
+        assert event.payout_pct == Decimal("20")

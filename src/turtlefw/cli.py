@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
@@ -64,10 +65,25 @@ def kpi_summary(
     mean_payout, used_years = div_metrics.mean_payout(payouts)
 
     latest_fcf = statements.latest_value(fcf)
-    aa = Money(latest_fcf, currency) if latest_fcf is not None else Money.zero(currency)
+    latest_ni = statements.latest_value(income)
+    aa = Money(latest_ni, currency) if latest_ni is not None else Money.zero(currency)
     ii = settings.returns.threshold(rf_pct, code)
     r = returns.penetration_return(
         aa,
+        mean_payout or Decimal("0"),
+        tax_pct,
+        buyback or Money.zero(currency),
+        market_cap,
+        Decimal("1"),
+    )
+    recent_fcf = [v for _, v in sorted(fcf.items())[-2:]]
+    aa_cash = (
+        Money(sum(recent_fcf, Decimal("0")) / Decimal(len(recent_fcf)), currency)
+        if recent_fcf
+        else Money.zero(currency)
+    )
+    gg = returns.penetration_return(
+        aa_cash,
         mean_payout or Decimal("0"),
         tax_pct,
         buyback or Money.zero(currency),
@@ -127,8 +143,10 @@ def kpi_summary(
         ("有息负债", _money(debt_latest)),
         ("净现金", _money(net_cash.amount) if net_cash else "—"),
         ("穿透回报率 R", _fmt(r, "%")),
+        ("精算回报率 GG", _fmt(gg, "%")),
         ("门槛 II", _fmt(ii, "%")),
         ("R 判定", returns.classify_return(r, ii, rf_pct)),
+        ("GG 判定", returns.classify_return(gg, ii, rf_pct)),
         ("底价", f"{_fmt(composite, f' {currency.value}/股')}（{len(baselines)} 法）"),
         ("当前价", _fmt(price, f" {currency.value}/股")),
         ("底价溢价", _fmt(premium, "%")),
@@ -200,6 +218,13 @@ def _rf_for(provider, settings, code: StockCode, rf: float | None, rf_source: st
     return settings.returns.default_rf, "configs/screening.toml default_rf"
 
 
+def _fx_for(code: StockCode, unit: Currency, settings: Settings) -> Decimal:
+    """HKD quote -> CNY report currency; 1 for everything else."""
+    if code.market is Market.HK and unit is Currency.CNY:
+        return settings.fx.cny_per_hkd
+    return Decimal("1")
+
+
 def _live_analyze(
     raw_code: str,
     save: bool,
@@ -221,7 +246,8 @@ def _live_analyze(
             print(f"  {issue}", file=sys.stderr)
         return 2
 
-    divs = provider.dividends(code, currency=unit)
+    fx = _fx_for(code, unit, settings)
+    divs = provider.dividends(code, currency=unit, dps_fx=fx)
     basic = provider.daily_basic(code)
     # daily_basic with only ts_code returns many dates; the newest row wins.
     basic = sorted(basic, key=lambda r: str(r.get("trade_date", "")), reverse=True)
@@ -236,10 +262,12 @@ def _live_analyze(
     if basic:
         record = basic[0]
         price = _num(record.get("close"))
+        if price is not None:
+            price = price * fx
         total_mv_wan = _num(record.get("total_mv"))
         total_share_wan = _num(record.get("total_share"))
         if total_mv_wan is not None and total_share_wan is not None:
-            market_cap = Money(total_mv_wan * Decimal("10000"), Currency.CNY)
+            market_cap = Money(total_mv_wan * Decimal("10000") * fx, unit)
             shares = total_share_wan * Decimal("10000")
 
     closes = [
@@ -297,7 +325,8 @@ def _pack(
             print(f"  {issue}", file=sys.stderr)
         return 2
 
-    dividends = provider.dividends(code, currency=unit)
+    fx = _fx_for(code, unit, settings)
+    dividends = provider.dividends(code, currency=unit, dps_fx=fx)
     basic = sorted(
         provider.daily_basic(code), key=lambda r: str(r.get("trade_date", "")), reverse=True
     )
@@ -305,13 +334,18 @@ def _pack(
     rf_value, rf_src = _rf_for(provider, settings, code, rf, rf_source)
 
     quote = basic[0] if basic else None
-    market_cap = Money(Decimal("0"), Currency.CNY)
+    market_cap = Money(Decimal("0"), unit)
     shares = Decimal("0")
+    price: Decimal | None = None
     if quote:
+        price = _num(quote.get("close"))
+        if price is not None:
+            price = price * fx
+            quote = {**quote, "close": float(price)}
         total_mv_wan = _num(quote.get("total_mv"))
         total_share_wan = _num(quote.get("total_share"))
         if total_mv_wan is not None and total_share_wan is not None:
-            market_cap = Money(total_mv_wan * Decimal("10000"), unit)
+            market_cap = Money(total_mv_wan * Decimal("10000") * fx, unit)
             shares = total_share_wan * Decimal("10000")
 
     markdown = render_data_pack(
@@ -361,13 +395,16 @@ def _report(
     if not rows:
         print("未取到报表数据。", file=sys.stderr)
         return 2
-    dividends = provider.dividends(code, currency=unit)
+    fx = _fx_for(code, unit, settings)
+    dividends = provider.dividends(code, currency=unit, dps_fx=fx)
     basic = sorted(
         provider.daily_basic(code), key=lambda r: str(r.get("trade_date", "")), reverse=True
     )
     history = provider.weekly(code)
     quote = basic[0] if basic else None
     price = _num(quote.get("close")) if quote else None
+    if price is not None:
+        price = price * fx
 
     market_cap = Money(Decimal("0"), unit)
     shares = Decimal("0")
@@ -375,7 +412,7 @@ def _report(
         total_mv_wan = _num(quote.get("total_mv"))
         total_share_wan = _num(quote.get("total_share"))
         if total_mv_wan is not None and total_share_wan is not None:
-            market_cap = Money(total_mv_wan * Decimal("10000"), unit)
+            market_cap = Money(total_mv_wan * Decimal("10000") * fx, unit)
             shares = total_share_wan * Decimal("10000")
 
     years = sorted({r.period_end.year for r in rows if r.period_type == "annual"})
@@ -471,9 +508,17 @@ def _qualitative_cmd(code_raw: str, init: bool, check: bool, out: str | None) ->
     return 0
 
 
-def _screen(tier1_only: bool) -> int:
+def _screen(
+    tier1_only: bool,
+    tier2_limit: int | None = None,
+    csv_path: str | None = None,
+    rf: float | None = None,
+    rf_source: str | None = None,
+    workers: int = 6,
+) -> int:
     from .data.tushare_provider import TushareProvider
     from .screener import tier1 as tier1_mod
+    from .screener.tier2 import run_tier2
 
     settings = load_settings()
     provider = TushareProvider(get_token())
@@ -509,12 +554,25 @@ def _screen(tier1_only: bool) -> int:
     filtered = tier1_mod.apply_filters(frame, settings.screening)
     channels = tier1_mod.split_channels(filtered, settings.screening)
 
+    ranked = tier1_mod.rank_main(channels, settings.screening)
+
     if tier1_only:
-        ranked = tier1_mod.rank_main(channels, settings.screening)
         print(ranked[["ts_code", "name", "channel", "tier1_score"]].head(30).to_string(index=False))
         return 0
 
-    print("Tier 2 尚未实现（里程碑 M3）。使用 --tier1-only 查看 Tier 1 结果。")
+    rf_value, _ = _rf_for(provider, settings, StockCode.parse("600887"), rf, rf_source)
+    limit = tier2_limit or 10
+    print(f"\n=== Tier 2：前 {limit} 只（并发 {workers}） ===")
+    started = time.perf_counter()
+    result = run_tier2(ranked, provider, settings, rf_value, limit=limit, workers=workers)
+    elapsed = time.perf_counter() - started
+    print(result.to_string(index=False))
+    print(f"\n耗时 {elapsed:.1f}s（{len(result)} 只，平均 {elapsed / max(len(result), 1):.1f}s/只）")
+
+    if csv_path:
+        Path(csv_path).parent.mkdir(parents=True, exist_ok=True)
+        result.to_csv(csv_path, index=False, encoding="utf-8-sig")
+        print(f"\n已导出 {Path(csv_path).resolve()}")
     return 0
 
 
@@ -538,6 +596,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     screen = sub.add_parser("screen", help="全市场筛选")
     screen.add_argument("--tier1-only", action="store_true", help="只跑 Tier 1")
+    screen.add_argument("--tier2-limit", type=int, default=None, help="Tier 2 分析只数（默认 10）")
+    screen.add_argument("--csv", dest="csv_path", default=None, help="导出 CSV 路径")
+    screen.add_argument("--rf", type=float, default=None, help="覆盖无风险利率（%%）")
+    screen.add_argument("--rf-source", default=None, help="Rf 来源说明或 URL")
+    screen.add_argument("--workers", type=int, default=6, help="Tier 2 并发线程数（默认 6）")
 
     pack = sub.add_parser("pack", help="生成 Markdown 数据包")
     pack.add_argument("code", help="股票代码，如 600887")
@@ -591,7 +654,14 @@ def main(argv: list[str] | None = None) -> int:
                 args.code, args.save, args.currency, args.rf, args.rf_source
             )
         if args.command == "screen":
-            return _screen(args.tier1_only)
+            return _screen(
+                args.tier1_only,
+                args.tier2_limit,
+                args.csv_path,
+                args.rf,
+                args.rf_source,
+                args.workers,
+            )
         if args.command == "pack":
             return _pack(args.code, args.out, args.currency, args.rf, args.rf_source)
         if args.command == "report":

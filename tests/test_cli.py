@@ -11,7 +11,6 @@ class TestCli:
         out = capsys.readouterr().out
         assert "穿透回报率" in out
         assert "门槛 II" in out
-
     def test_invalid_code_fails_cleanly(self, capsys):
         assert main(["analyze", "@@@"]) == 2
         assert "错误" in capsys.readouterr().err

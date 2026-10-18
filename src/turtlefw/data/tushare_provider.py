@@ -10,6 +10,7 @@ Design notes:
 
 from __future__ import annotations
 
+import threading
 import time
 from datetime import date, timedelta
 from decimal import Decimal
@@ -69,6 +70,9 @@ class TushareProvider:
         import tushare as ts  # imported lazily so unit tests need no token
 
         self._ts = ts
+        self._token = token
+        self._local = threading.local()
+        self._lock = threading.Lock()
         self._pro = self._new_client(token)
         self._cache = FileCache(cache_dir or Path.cwd() / "output" / ".cache", ttl_seconds)
         self._min_interval = min_interval
@@ -77,6 +81,7 @@ class TushareProvider:
         self._issues: list[FetchIssue] = []
         self._hk_daily: dict[str, list[dict]] = {}
         self._hk_failed: set[str] = set()
+        self._hk_yf: dict[str, tuple[list[dict], dict]] = {}
 
     def _new_client(self, token: str):
         try:
@@ -90,11 +95,20 @@ class TushareProvider:
     def issues(self) -> tuple[FetchIssue, ...]:
         return tuple(self._issues)
 
+    def _client(self):
+        """One Tushare client per thread; the shared session is not thread-safe."""
+        client = getattr(self._local, "pro", None)
+        if client is None:
+            client = self._new_client(self._token)
+            self._local.pro = client
+        return client
+
     def _throttle(self) -> None:
-        wait = self._min_interval - (time.monotonic() - self._last_call)
-        if wait > 0:
-            time.sleep(wait)
-        self._last_call = time.monotonic()
+        with self._lock:
+            wait = self._min_interval - (time.monotonic() - self._last_call)
+            if wait > 0:
+                time.sleep(wait)
+            self._last_call = time.monotonic()
 
     def _call(self, endpoint: str, **params: Any) -> pd.DataFrame:
         key = FileCache.make_key(endpoint, params, self.SCHEMA_VERSION)
@@ -106,7 +120,7 @@ class TushareProvider:
         for attempt in range(1, self._max_retries + 1):
             self._throttle()
             try:
-                frame = getattr(self._pro, endpoint)(**params)
+                frame = getattr(self._client(), endpoint)(**params)
                 if frame is None:
                     frame = pd.DataFrame()
                 self._cache.put(key, frame.to_dict("records"))
@@ -129,14 +143,15 @@ class TushareProvider:
         try:
             return self._call(endpoint, **params)
         except ProviderError as exc:
-            self._issues.append(
-                FetchIssue(
-                    endpoint=endpoint,
-                    code=str(params.get("ts_code", "*")),
-                    message=str(exc),
-                    retryable=True,
+            with self._lock:
+                self._issues.append(
+                    FetchIssue(
+                        endpoint=endpoint,
+                        code=str(params.get("ts_code", "*")),
+                        message=str(exc),
+                        retryable=True,
+                    )
                 )
-            )
             return pd.DataFrame()
 
     @staticmethod
@@ -154,6 +169,64 @@ class TushareProvider:
             params["ts_code"] = str(code)
         return self._safe("stock_basic", **params).to_dict("records")
 
+    def _yf_hk(self, code: StockCode) -> tuple[list[dict], dict]:
+        """Yahoo Finance quote + daily history for HK listings (cached)."""
+        key = str(code)
+        if key in self._hk_yf:
+            return self._hk_yf[key]
+
+        try:
+            import yfinance as yf
+        except ImportError:
+            self._issues.append(FetchIssue("yfinance", key, "yfinance not installed"))
+            self._hk_yf[key] = ([], {})
+            return self._hk_yf[key]
+
+        symbol = f"{int(code.numeric):04d}.HK"
+        history: list[dict] = []
+        quote: dict = {}
+        try:
+            ticker = yf.Ticker(symbol)
+            frame = ticker.history(period="10y", interval="1d", auto_adjust=False)
+            if frame is not None and not frame.empty:
+                for index, row in frame.iterrows():
+                    history.append(
+                        {
+                            "trade_date": index.strftime("%Y%m%d"),
+                            "close": float(row["Close"]),
+                            "high": float(row["High"]),
+                            "low": float(row["Low"]),
+                        }
+                    )
+            fast = ticker.fast_info
+
+            def _fast(*names):
+                for name in names:
+                    try:
+                        value = fast[name]
+                    except Exception:  # noqa: BLE001 - FastInfo shape varies
+                        value = getattr(fast, name, None)
+                    if value:
+                        return value
+                return None
+
+            price = _fast("lastPrice", "last_price")
+            cap = _fast("marketCap", "market_cap")
+            shares = _fast("shares")
+            if price:
+                quote["close"] = float(price)
+            if cap:
+                quote["total_mv"] = float(cap) / 10000  # 万元
+            if shares:
+                quote["total_share"] = float(shares) / 10000  # 万股
+            if history:
+                quote["trade_date"] = history[-1]["trade_date"]
+        except Exception as exc:  # noqa: BLE001 - network/vendor errors
+            self._issues.append(FetchIssue("yfinance", key, str(exc)))
+
+        self._hk_yf[key] = (history, quote)
+        return self._hk_yf[key]
+
     def _hk_history(self, code: StockCode, years: int = 10) -> list[dict]:
         """Fetch HK daily bars once per session.
 
@@ -165,6 +238,12 @@ class TushareProvider:
             return self._hk_daily[key]
         if key in self._hk_failed:
             return []
+
+        yf_history, _ = self._yf_hk(code)
+        if yf_history:
+            self._hk_daily[key] = yf_history
+            return yf_history
+
         end = date.today()
         start = end - timedelta(days=365 * max(years, 10))
         frame = self._safe(
@@ -188,6 +267,9 @@ class TushareProvider:
         self, code: StockCode | None = None, trade_date: str | None = None
     ) -> list[dict]:
         if code is not None and code.market is Market.HK:
+            _, quote = self._yf_hk(code)
+            if quote:
+                return [{**quote, "ts_code": str(code)}]
             history = self._hk_history(code, years=1)
             return [history[-1]] if history else []
 
@@ -291,7 +373,12 @@ class TushareProvider:
 
     # -- dividends ---------------------------------------------------------
     def dividends(
-        self, code: StockCode, *, currency: Currency | None = None, years: int = 6
+        self,
+        code: StockCode,
+        *,
+        currency: Currency | None = None,
+        years: int = 6,
+        dps_fx: Decimal = Decimal("1"),
     ) -> list[DividendEvent]:
         unit = currency or self._default_currency(code)
         if code.is_a_share:
@@ -299,7 +386,7 @@ class TushareProvider:
             events = dividend_events(frame, currency=unit)
         elif code.market is Market.HK:
             frame = self._safe("hk_fina_indicator", ts_code=str(code), fields=HK_DIVIDEND_FIELDS)
-            events = hk_dividend_events(frame, currency=unit)
+            events = hk_dividend_events(frame, currency=unit, dps_fx=dps_fx)
         else:
             return []
         cutoff = date.today().year - years

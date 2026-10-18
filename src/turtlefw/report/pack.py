@@ -140,9 +140,24 @@ def render_data_pack(
     closes = [Decimal(str(r["close"])) for r in history if r.get("close") is not None]
 
     ii = settings.returns.threshold(rf_pct, code)
-    aa = Money(latest_fcf, currency) if latest_fcf is not None else Money.zero(currency)
+    latest_ni = net_income.get(latest_year) if latest_year else None
+    aa = Money(latest_ni, currency) if latest_ni is not None else Money.zero(currency)
     r_value = returns.penetration_return(
         aa,
+        mean_payout or Decimal("0"),
+        tax_pct,
+        Money.zero(currency),
+        market_cap,
+        Decimal("1"),
+    )
+    recent_fcf = [v for _, v in sorted(fcf.items())[-2:]]
+    aa_cash = (
+        Money(sum(recent_fcf, Decimal("0")) / Decimal(len(recent_fcf)), currency)
+        if recent_fcf
+        else Money.zero(currency)
+    )
+    gg_value = returns.penetration_return(
+        aa_cash,
         mean_payout or Decimal("0"),
         tax_pct,
         Money.zero(currency),
@@ -241,6 +256,7 @@ def render_data_pack(
         ["有息负债（百万元）", _m(debt.get(latest_year) if latest_year else None)],
         ["净现金（百万元）", _m(net_cash[latest_year].amount) if latest_year in net_cash else "—"],
         ["穿透回报率 R", _pct(r_value)],
+        ["精算回报率 GG", _pct(gg_value)],
         ["门槛 II", _pct(ii)],
         ["R 判定", returns.classify_return(r_value, ii, rf_pct)],
         ["底价（综合）", _num(composite)],

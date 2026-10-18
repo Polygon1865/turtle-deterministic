@@ -191,7 +191,9 @@ def dividend_events(
     return sorted(events, key=lambda e: (e.fiscal_year, e.event_id))
 
 
-def hk_dividend_events(df: pd.DataFrame, *, currency: Currency) -> list[DividendEvent]:
+def hk_dividend_events(
+    df: pd.DataFrame, *, currency: Currency, dps_fx: Decimal = Decimal("1")
+) -> list[DividendEvent]:
     """HK dividends from ``hk_fina_indicator``.
 
     That endpoint repeats the same DPS on every quarter and its ``dps_hkd``
@@ -217,7 +219,7 @@ def hk_dividend_events(df: pd.DataFrame, *, currency: Currency) -> list[Dividend
         by_year[fiscal_end.year] = DividendEvent(
             fiscal_year=fiscal_end.year,
             event_id=f"{fiscal_end.year}",
-            dps=dps or Decimal("0"),
+            dps=(dps or Decimal("0")) * dps_fx,
             currency=currency,
             total=None,
             payout_pct=payout_pct,
