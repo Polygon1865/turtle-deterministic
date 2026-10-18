@@ -518,13 +518,14 @@ def _screen(
     fast: bool = False,
     fast_limit: int = 50,
     deep: int = 0,
+    api_interval: float = 0.35,
 ) -> int:
     from .data.tushare_provider import TushareProvider
     from .screener import tier1 as tier1_mod
     from .screener.tier2 import run_tier2
 
     settings = load_settings()
-    provider = TushareProvider(get_token())
+    provider = TushareProvider(get_token(), min_interval=api_interval)
     universe = provider.stock_basic()
     if not universe:
         print("未取到股票列表。", file=sys.stderr)
@@ -642,6 +643,9 @@ def build_parser() -> argparse.ArgumentParser:
     screen.add_argument("--fast", action="store_true", help="阶段 1：全市场批量粗筛")
     screen.add_argument("--fast-limit", type=int, default=50, help="Fast screen 输出只数")
     screen.add_argument("--deep", type=int, default=0, help="对 Fast 前 N 只接深度四因子")
+    screen.add_argument(
+        "--api-interval", type=float, default=0.35, help="API 最小间隔秒数（默认 0.35）"
+    )
 
     pack = sub.add_parser("pack", help="生成 Markdown 数据包")
     pack.add_argument("code", help="股票代码，如 600887")
@@ -705,6 +709,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.fast,
                 args.fast_limit,
                 args.deep,
+                args.api_interval,
             )
         if args.command == "pack":
             return _pack(args.code, args.out, args.currency, args.rf, args.rf_source)

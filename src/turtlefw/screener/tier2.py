@@ -37,9 +37,26 @@ def _latest(series: dict[int, Decimal]) -> Decimal | None:
     return series[max(series)] if series else None
 
 
+def _safe_decimal(value) -> Decimal | None:
+    try:
+        number = Decimal(str(value))
+    except Exception:  # noqa: BLE001 - pandas NaN / None / strings
+        return None
+    return number if number.is_finite() else None
+
+
 def analyze_one(provider, row: pd.Series, settings: Settings, rf_pct: Decimal) -> Tier2Result:
     code = StockCode.parse(str(row["ts_code"]))
     currency = Currency.CNY
+    price = _safe_decimal(row.get("close"))
+    total_mv = _safe_decimal(row.get("total_mv"))
+    total_share = _safe_decimal(row.get("total_share"))
+    if price is None or total_mv is None or total_share is None or total_share <= 0:
+        return Tier2Result(
+            ts_code=str(code), name=str(row.get("name", "")), channel=str(row.get("channel", "")),
+            verdict="数据缺失（行情/股本）", r=None, gg=None, ii=None, margin=None,
+            ev_ebitda=None, fcf_yield=None, floor_premium=None, issues=len(provider.issues),
+        )
     rows: list[StatementRow] = provider.statements(code)
     if not rows:
         return Tier2Result(
@@ -51,9 +68,8 @@ def analyze_one(provider, row: pd.Series, settings: Settings, rf_pct: Decimal) -
 
     dividends = provider.dividends(code)
     history = provider.weekly(code)
-    price = Decimal(str(row["close"]))
-    market_cap = Money(Decimal(str(row["total_mv"])) * Decimal("10000"), currency)
-    shares = Decimal(str(row["total_share"])) * Decimal("10000")
+    market_cap = Money(total_mv * Decimal("10000"), currency)
+    shares = total_share * Decimal("10000")
 
     years = sorted({r.period_end.year for r in rows if r.period_type == "annual"})
     latest = max(years) if years else None
@@ -159,7 +175,19 @@ def run_tier2(
         return pd.DataFrame()
 
     def job(item):
-        return analyze_one(provider, item[1], settings, rf_pct)
+        try:
+            return analyze_one(provider, item[1], settings, rf_pct)
+        except Exception as exc:  # noqa: BLE001 - one bad stock must not stop the batch
+            row = item[1]
+            return Tier2Result(
+                ts_code=str(row.get("ts_code", "")),
+                name=str(row.get("name", "")),
+                channel=str(row.get("channel", "")),
+                verdict=f"分析失败:{type(exc).__name__}",
+                r=None, gg=None, ii=None, margin=None,
+                ev_ebitda=None, fcf_yield=None, floor_premium=None,
+                issues=len(provider.issues),
+            )
 
     if workers > 1 and len(items) > 1:
         with ThreadPoolExecutor(max_workers=workers) as pool:

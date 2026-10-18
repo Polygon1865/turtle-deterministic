@@ -106,12 +106,24 @@ class Market(StrEnum):
 
 _A_SHARE_PREFIX: dict[str, Market] = {
     "6": Market.SH,
-    "9": Market.SH,
     "0": Market.SZ,
     "3": Market.SZ,
     "4": Market.BJ,
     "8": Market.BJ,
 }
+
+
+def _market_for(number: str) -> Market | None:
+    """Infer the exchange from a 6-digit A-share code.
+
+    ``92xxxx`` is the Beijing Stock Exchange's newer block; other ``9xxxxx``
+    codes are Shanghai B-shares.
+    """
+    if number.startswith("92"):
+        return Market.BJ
+    if number.startswith("9"):
+        return Market.SH
+    return _A_SHARE_PREFIX.get(number[0])
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,7 +150,7 @@ class StockCode:
 
         if m := re.fullmatch(r"(\d{6})\.(SH|SZ|BJ)", text):
             number, market = m.groups()
-            expected = _A_SHARE_PREFIX.get(number[0])
+            expected = _market_for(number)
             if expected is None or expected.value != market:
                 raise TurtleError(f"code {number} does not belong to exchange {market}")
             return cls(f"{number}.{market}", Market(market))
@@ -151,7 +163,7 @@ class StockCode:
             return cls(text, Market.US)
 
         if re.fullmatch(r"\d{6}", text):
-            market = _A_SHARE_PREFIX.get(text[0])
+            market = _market_for(text)
             if market is None:
                 raise TurtleError(f"unrecognised A-share prefix: {text!r}")
             return cls(f"{text}.{market.value}", market)
