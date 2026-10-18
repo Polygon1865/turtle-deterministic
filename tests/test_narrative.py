@@ -26,7 +26,7 @@ def test_decimal_variant_passes():
 
 def test_check_reads_sources(tmp_path):
     code_dir = tmp_path / "600887.SH"
-    code_dir.mkdir()
+    code_dir.mkdir(exist_ok=True)
     (code_dir / "analysis_report.md").write_text("结论：买入 ｜ R 7.48%", encoding="utf-8")
     narrative = tmp_path / "narrative.md"
     narrative.write_text("R 为 7.48%", encoding="utf-8")
