@@ -26,7 +26,7 @@ python -m turtlefw.cli state <code> --warning "D&A 缺失"
 | 0 intake | 本文件 | run_state.json | 代码可解析、venv 与 .env 可用 | 只问必要问题 |
 | 1 data | `phase1_data.md` | data_pack.md | pack 成功、关键段齐全 | 记 warning，继续 |
 | 2 report_pdf | `phase2_report_pdf.md` | PDF、pdf_sections.json、reported_numbers.json | PDF 合法且章节命中 ≥4 | 降级为无 PDF 模式 |
-| 3 qualitative | `annual_report_and_qualitative.md` | qualitative.json | `qualitative --check` 通过 | 证据不足记 unknown |
+| 3 qualitative | `phase3_qualitative.md`（rubric 在 `references/`） | qualitative.json | `qualitative --check` 通过 | 证据不足记 unknown |
 | 4 report | — | analysis_report.md | `report` 成功 | 交付 CLI 报告 + 失败原因 |
 | 5 qa | 本文件 | 交付说明 | 审计与自检通过 | 列出未通过项 |
 
