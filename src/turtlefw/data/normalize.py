@@ -147,15 +147,24 @@ def dividend_events(
 ) -> list[DividendEvent]:
     """Convert Tushare ``dividend`` rows into events with a total amount.
 
-    ``cash_div_tax`` is per-share pre-tax, ``base_share`` is in 10k shares.
-    Multiple events within one fiscal year are kept separate; aggregation
-    happens later in ``metrics.dividends``.
+    Tushare emits the *same* dividend several times, once per process stage
+    (预案 / 股东大会通过 / 实施), sometimes with different ``ann_date`` values.
+    Only implemented (实施) rows are kept, then de-duplicated on
+    ``(period_end, dps)`` so a fiscal year with an interim and a final
+    dividend still yields two events that get summed later.
     """
     events: list[DividendEvent] = []
     if df is None or df.empty:
         return events
 
-    for record in df.to_dict("records"):
+    records = df.to_dict("records")
+    implemented = [
+        r for r in records if str(r.get("div_proc", "")).strip() == "实施"
+    ]
+    candidates = implemented or records  # some vendors omit div_proc
+
+    seen: set[tuple[str, str]] = set()
+    for record in candidates:
         fiscal_end = parse_date(record.get("end_date"))
         if fiscal_end is None:
             continue
@@ -163,16 +172,19 @@ def dividend_events(
         base_share_wan = to_decimal(record.get("base_share"))
         if dps is None or dps <= 0 or base_share_wan is None or base_share_wan <= 0:
             continue
+        key = (fiscal_end.isoformat(), str(dps))
+        if key in seen:
+            continue
+        seen.add(key)
         total = dps * base_share_wan * Decimal("10000")
         ann = parse_date(record.get("ann_date"))
-        event_id = f"{ann.isoformat() if ann else fiscal_end.isoformat()}:{record.get('div_proc') or 'unknown'}"
         events.append(
             DividendEvent(
                 fiscal_year=fiscal_end.year,
-                event_id=event_id,
+                event_id=f"{fiscal_end.isoformat()}:{dps}",
                 dps=dps,
-                total=total,
                 currency=currency,
+                total=total,
                 ann_date=ann,
             )
         )
@@ -180,30 +192,37 @@ def dividend_events(
 
 
 def hk_dividend_events(df: pd.DataFrame, *, currency: Currency) -> list[DividendEvent]:
-    """HK dividends come from ``hk_fina_indicator`` as DPS only.
+    """HK dividends from ``hk_fina_indicator``.
 
-    ``total`` stays ``None``; ``payout_by_year`` derives it when a share count
-    is supplied.
+    That endpoint repeats the same DPS on every quarter and its ``dps_hkd``
+    is a TTM-style field, so we keep annual rows only and use ``divi_ratio``
+    (a payout ratio) as the authoritative payout figure.
     """
     events: list[DividendEvent] = []
     if df is None or df.empty:
         return events
 
+    by_year: dict[int, DividendEvent] = {}
     for record in df.to_dict("records"):
         fiscal_end = parse_date(record.get("end_date"))
-        dps = to_decimal(record.get("dps_hkd"))
-        if fiscal_end is None or dps is None or dps <= 0:
+        if fiscal_end is None or fiscal_end.month != 12:
             continue
-        events.append(
-            DividendEvent(
-                fiscal_year=fiscal_end.year,
-                event_id=fiscal_end.isoformat(),
-                dps=dps,
-                currency=currency,
-                total=None,
-            )
+        ratio = to_decimal(record.get("divi_ratio"))
+        dps = to_decimal(record.get("dps_hkd"))
+        payout_pct = None
+        if ratio is not None:
+            payout_pct = ratio * Decimal("100") if ratio <= 1 else ratio
+        if payout_pct is None and (dps is None or dps <= 0):
+            continue
+        by_year[fiscal_end.year] = DividendEvent(
+            fiscal_year=fiscal_end.year,
+            event_id=f"{fiscal_end.year}",
+            dps=dps or Decimal("0"),
+            currency=currency,
+            total=None,
+            payout_pct=payout_pct,
         )
-    return sorted(events, key=lambda e: (e.fiscal_year, e.event_id))
+    return [by_year[year] for year in sorted(by_year)]
 
 
 def rows_to_frame(rows: Iterable[StatementRow]) -> pd.DataFrame:

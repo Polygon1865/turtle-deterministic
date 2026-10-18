@@ -28,7 +28,16 @@ notepad .env
 
 .\.venv\Scripts\python.exe -m turtlefw.cli --help
 .\.venv\Scripts\python.exe -m turtlefw.cli analyze 600887 --demo
+.\.venv\Scripts\python.exe -m turtlefw.cli analyze 600887
+.\.venv\Scripts\python.exe -m turtlefw.cli analyze 00700.HK --currency CNY
 ```
+
+已知限制（M1/M2 阶段）：
+
+- 港股默认按人民币报表处理（多数港股内地企业），港元报表请加 `--currency HKD`。
+- 港股行情走 `hk_daily`，该接口限 **1 次/小时**，被限流时本次分析会跳过行情，不会重试等待。
+- 港股总市值/股本暂未接入，因此港股的穿透回报率与底价暂为「不可用」（M3 接 yfinance 行情源）。
+- `yc_cb` 无权限时回退到 `configs/screening.toml` 的 `default_rf`。
 
 macOS / Linux:
 

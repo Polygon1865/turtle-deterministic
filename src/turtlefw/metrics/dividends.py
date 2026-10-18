@@ -38,6 +38,7 @@ def payout_by_year(
         return {year: None for year in net_income}
 
     totals: dict[int, Decimal] = defaultdict(Decimal)
+    explicit: dict[int, list[Decimal]] = defaultdict(list)
     seen: set[tuple[int, str]] = set()
 
     for event in events:
@@ -45,6 +46,9 @@ def payout_by_year(
         if key in seen:  # repeated announcements are idempotent
             continue
         seen.add(key)
+        if event.payout_pct is not None:
+            explicit[event.fiscal_year].append(event.payout_pct)
+            continue
         amount = total_for(event, shares)
         if amount is None:
             continue
@@ -52,7 +56,10 @@ def payout_by_year(
 
     result: dict[int, Decimal | None] = {}
     for year, income in net_income.items():
-        if income is None or income <= 0:
+        if year in explicit:
+            values = explicit[year]
+            result[year] = sum(values, Decimal("0")) / Decimal(len(values))
+        elif income is None or income <= 0:
             result[year] = None
         elif year not in totals:
             result[year] = Decimal("0")

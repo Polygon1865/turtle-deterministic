@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import pandas as pd
 import pytest
 
@@ -109,3 +111,54 @@ class TestDividendEvents:
     def test_zero_dividend_skipped(self):
         df = pd.DataFrame([{"end_date": "20241231", "cash_div_tax": "0", "base_share": "1000"}])
         assert dividend_events(df, currency=Currency.CNY) == []
+
+
+class TestDividendDedupe:
+    """Tushare repeats one dividend for every process stage."""
+
+    def rows(self):
+        stages = ["预案", "股东大会通过", "实施"]
+        return pd.DataFrame(
+            [
+                {
+                    "end_date": "20241231",
+                    "ann_date": "20250430",
+                    "div_proc": stage,
+                    "cash_div_tax": "1.22",
+                    "base_share": "1000",
+                }
+                for stage in stages
+            ]
+        )
+
+    def test_three_stages_collapse_to_one_event(self):
+        events = dividend_events(self.rows(), currency=Currency.CNY)
+        assert len(events) == 1
+        assert events[0].total == Decimal("12200000")
+
+    def test_interim_and_final_are_two_events(self):
+        df = pd.DataFrame(
+            [
+                {"end_date": "20250930", "div_proc": "实施", "cash_div_tax": "0.48", "base_share": "1000"},
+                {"end_date": "20251231", "div_proc": "实施", "cash_div_tax": "0.90", "base_share": "1000"},
+            ]
+        )
+        assert len(dividend_events(df, currency=Currency.CNY)) == 2
+
+
+class TestHKDividends:
+    def test_quarterly_rows_collapse_to_one_annual_event(self):
+        df = pd.DataFrame(
+            [
+                {"end_date": f"2025{month}30", "dps_hkd": "5.3", "divi_ratio": "0.1942"}
+                for month in ("03", "06", "09")
+            ]
+            + [{"end_date": "20251231", "dps_hkd": "5.3", "divi_ratio": "0.1942"}]
+        )
+        events = hk_dividend_events(df, currency=Currency.CNY)
+        assert len(events) == 1
+        assert events[0].payout_pct == Decimal("19.42")
+
+    def test_ratio_above_one_is_not_rescaled(self):
+        df = pd.DataFrame([{"end_date": "20241231", "dps_hkd": "1", "divi_ratio": "35"}])
+        assert hk_dividend_events(df, currency=Currency.HKD)[0].payout_pct == Decimal("35")

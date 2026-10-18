@@ -67,3 +67,25 @@ class TestMeanPayout:
 
     def test_all_missing(self):
         assert mean_payout({2024: None}) == (None, 0)
+
+
+class TestExplicitPayout:
+    """HK rows carry a payout ratio directly; it wins over totals."""
+
+    def test_payout_pct_is_used(self):
+        hk = DividendEvent(
+            fiscal_year=2024,
+            event_id="2024",
+            dps=Decimal("5.3"),
+            currency=Currency.HKD,
+            payout_pct=Decimal("19.42"),
+        )
+        payouts = payout_by_year([hk], {2024: Decimal("1000")}, shares=Decimal("100"))
+        assert payouts[2024] == Decimal("19.42")
+
+    def test_annual_hk_rows_do_not_double_count(self):
+        rows = [
+            DividendEvent(2024, "2024", Decimal("5.3"), Currency.HKD, payout_pct=Decimal("20")),
+            DividendEvent(2024, "2024", Decimal("5.3"), Currency.HKD, payout_pct=Decimal("20")),
+        ]
+        assert payout_by_year(rows, {2024: Decimal("100")})[2024] == Decimal("20")

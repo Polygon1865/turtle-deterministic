@@ -110,12 +110,21 @@ def revenue(rows: Iterable[StatementRow]) -> dict[int, Decimal]:
     return annual_series(rows, "income", "revenue")
 
 
-def cagr(series: Mapping[int, Decimal]) -> Decimal | None:
-    """Compound annual growth rate between the first and last positive year."""
-    years = sorted(series)
-    if len(years) < 2:
+def window(series: Mapping[int, Decimal], years: int = 5) -> dict[int, Decimal]:
+    """Keep the most recent ``years`` observations."""
+    if not series:
+        return {}
+    keep = sorted(series)[-years:]
+    return {year: series[year] for year in keep}
+
+
+def cagr(series: Mapping[int, Decimal], *, years: int = 5) -> Decimal | None:
+    """Compound annual growth rate over the most recent ``years`` observations."""
+    series = window(series, years)
+    years_sorted = sorted(series)
+    if len(years_sorted) < 2:
         return None
-    first, last = years[0], years[-1]
+    first, last = years_sorted[0], years_sorted[-1]
     start, end = series[first], series[last]
     if start is None or end is None or start <= 0 or end <= 0 or last <= first:
         return None

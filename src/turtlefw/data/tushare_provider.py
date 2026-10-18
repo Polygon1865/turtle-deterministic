@@ -75,6 +75,8 @@ class TushareProvider:
         self._max_retries = max_retries
         self._last_call = 0.0
         self._issues: list[FetchIssue] = []
+        self._hk_daily: dict[str, list[dict]] = {}
+        self._hk_failed: set[str] = set()
 
     def _new_client(self, token: str):
         try:
@@ -111,6 +113,12 @@ class TushareProvider:
                 return frame
             except Exception as exc:  # noqa: BLE001 - provider raises vendor exceptions
                 last_error = exc
+                message = str(exc)
+                if "没有接口" in message or "权限" in message:
+                    raise ProviderError(f"{endpoint} permission denied: {message}") from exc
+                if "频率超限" in message:
+                    # e.g. hk_daily is limited to once per hour; retrying is futile.
+                    raise ProviderError(f"{endpoint} rate limited: {message}") from exc
                 if attempt < self._max_retries:
                     time.sleep(min(2.0 * attempt, 8.0))
         raise ProviderError(
@@ -146,9 +154,43 @@ class TushareProvider:
             params["ts_code"] = str(code)
         return self._safe("stock_basic", **params).to_dict("records")
 
+    def _hk_history(self, code: StockCode, years: int = 10) -> list[dict]:
+        """Fetch HK daily bars once per session.
+
+        ``hk_daily`` is limited to 1 request/minute, and both the quote and the
+        price history need it, so a single 10-year pull serves both.
+        """
+        key = str(code)
+        if key in self._hk_daily:
+            return self._hk_daily[key]
+        if key in self._hk_failed:
+            return []
+        end = date.today()
+        start = end - timedelta(days=365 * max(years, 10))
+        frame = self._safe(
+            "hk_daily",
+            ts_code=key,
+            start_date=start.strftime("%Y%m%d"),
+            end_date=end.strftime("%Y%m%d"),
+            fields="ts_code,trade_date,close,high,low,vol",
+        )
+        if frame.empty:
+            self._hk_failed.add(key)
+            return []
+        records = frame.to_dict("records")
+        for record in records:
+            record["trade_date"] = str(record["trade_date"])
+        records.sort(key=lambda r: r["trade_date"])
+        self._hk_daily[key] = records
+        return records
+
     def daily_basic(
         self, code: StockCode | None = None, trade_date: str | None = None
     ) -> list[dict]:
+        if code is not None and code.market is Market.HK:
+            history = self._hk_history(code, years=1)
+            return [history[-1]] if history else []
+
         params: dict[str, Any] = {"fields": DAILY_BASIC_FIELDS}
         if code is not None:
             params["ts_code"] = str(code)
@@ -177,13 +219,22 @@ class TushareProvider:
         *,
         report_type: str = "1",
         currency: Currency | None = None,
+        years: int = 6,
     ) -> list[StatementRow]:
         unit = currency or self._default_currency(code)
+        start = date.today() - timedelta(days=365 * (years + 1))
+        start_str = start.strftime("%Y%m%d")
 
         if code.is_a_share:
             rows: list[StatementRow] = []
             rows += rows_from_wide(
-                self._safe("income", ts_code=str(code), report_type=report_type, fields=INCOME_FIELDS),
+                self._safe(
+                    "income",
+                    ts_code=str(code),
+                    report_type=report_type,
+                    start_date=start_str,
+                    fields=INCOME_FIELDS,
+                ),
                 statement="income",
                 item_map=CN_INCOME_MAP,
                 currency=unit,
@@ -193,6 +244,7 @@ class TushareProvider:
                     "balancesheet",
                     ts_code=str(code),
                     report_type=report_type,
+                    start_date=start_str,
                     fields=BALANCE_FIELDS,
                 ),
                 statement="balance",
@@ -204,6 +256,7 @@ class TushareProvider:
                     "cashflow",
                     ts_code=str(code),
                     report_type=report_type,
+                    start_date=start_str,
                     fields=CASHFLOW_FIELDS,
                 ),
                 statement="cashflow",
@@ -232,37 +285,47 @@ class TushareProvider:
                 item_map=HK_CASHFLOW_MAP,
                 currency=unit,
             )
-            return rows
+            return [row for row in rows if row.period_end.year >= start.year]
 
         raise NotImplementedError("US statements are not supported yet")
 
     # -- dividends ---------------------------------------------------------
     def dividends(
-        self, code: StockCode, *, currency: Currency | None = None
+        self, code: StockCode, *, currency: Currency | None = None, years: int = 8
     ) -> list[DividendEvent]:
         unit = currency or self._default_currency(code)
         if code.is_a_share:
             frame = self._safe("dividend", ts_code=str(code), fields=DIVIDEND_FIELDS)
-            return dividend_events(frame, currency=unit)
-        if code.market is Market.HK:
+            events = dividend_events(frame, currency=unit)
+        elif code.market is Market.HK:
             frame = self._safe("hk_fina_indicator", ts_code=str(code), fields=HK_DIVIDEND_FIELDS)
-            return hk_dividend_events(frame, currency=unit)
-        return []
+            events = hk_dividend_events(frame, currency=unit)
+        else:
+            return []
+        cutoff = date.today().year - years
+        return [event for event in events if event.fiscal_year >= cutoff]
 
     # -- market data -------------------------------------------------------
     def weekly(self, code: StockCode, *, years: int = 10) -> list[dict]:
-        if not code.is_a_share:
-            self._issues.append(
-                FetchIssue("weekly", str(code), "weekly history is A-share only for now")
-            )
-            return []
         end = date.today()
         start = end - timedelta(days=365 * years)
+        start_str, end_str = start.strftime("%Y%m%d"), end.strftime("%Y%m%d")
+
+        if code.market is Market.HK:
+            # No hk_weekly endpoint: daily closes are used as the price history.
+            return self._hk_history(code, years=years)
+
+        if not code.is_a_share:
+            self._issues.append(
+                FetchIssue("weekly", str(code), "price history is A-share/HK only for now")
+            )
+            return []
+
         frame = self._safe(
             "weekly",
             ts_code=str(code),
-            start_date=start.strftime("%Y%m%d"),
-            end_date=end.strftime("%Y%m%d"),
+            start_date=start_str,
+            end_date=end_str,
             fields="ts_code,trade_date,open,high,low,close,vol,amount",
         )
         if frame.empty:

@@ -225,3 +225,4 @@ class DividendEvent:
     currency: Currency
     total: Decimal | None = None
     ann_date: date | None = None
+    payout_pct: Decimal | None = None

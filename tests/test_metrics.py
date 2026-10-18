@@ -49,6 +49,26 @@ class TestStatements:
     def test_cagr_ignores_negative_base(self):
         assert statements.cagr({2022: Decimal("-100"), 2024: Decimal("121")}) is None
 
+    def test_cagr_uses_last_five_years(self):
+        # 2015 -> 2025 includes 1992-style history; only 2021..2025 should count
+        series = {
+            2015: Decimal("10"),
+            2016: Decimal("20"),
+            2017: Decimal("40"),
+            2018: Decimal("60"),
+            2019: Decimal("80"),
+            2020: Decimal("100"),
+            2021: Decimal("110"),
+            2022: Decimal("120"),
+            2023: Decimal("130"),
+            2024: Decimal("140"),
+            2025: Decimal("150"),
+        }
+        value = statements.cagr(series)
+        assert value is not None
+        expected = (Decimal("150") / Decimal("110")) ** (Decimal("1") / Decimal("4")) - 1
+        assert value.quantize(Decimal("0.000001")) == expected.quantize(Decimal("0.000001"))
+
     def test_annual_only(self):
         rows = make_rows({("income", "revenue"): {2024: "100"}})
         interim = rows[0].__class__(

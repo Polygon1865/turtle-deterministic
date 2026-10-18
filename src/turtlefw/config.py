@@ -34,6 +34,8 @@ class ReturnsConfig:
     a_share_spread: Decimal = Decimal("2.0")
     hk_floor: Decimal = Decimal("5.0")
     hk_spread: Decimal = Decimal("3.0")
+    # Used when the risk-free endpoint is unavailable (e.g. yc_cb permission).
+    default_rf: Decimal = Decimal("1.8")
 
     def threshold(self, rf_pct: Decimal, code: StockCode) -> Decimal:
         """II = max(floor, Rf + spread)."""
@@ -167,6 +169,7 @@ def load_settings(path: Path | None = None) -> Settings:
         a_share_spread=_dec(returns_data.get("a_share_spread"), "2.0"),
         hk_floor=_dec(returns_data.get("hk_floor"), "5.0"),
         hk_spread=_dec(returns_data.get("hk_spread"), "3.0"),
+        default_rf=_dec(returns_data.get("default_rf"), "1.8"),
     )
 
     valuation_data = data.get("valuation", {})

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -13,7 +14,7 @@ from .data.protocol import StatementRow
 from .data.store import StatementStore
 from .metrics import dividends as div_metrics
 from .metrics import returns, statements, valuation
-from .types import Currency, DividendEvent, Money, StockCode, TurtleError
+from .types import Currency, DividendEvent, Market, Money, StockCode, TurtleError
 
 
 def _pct(value: Decimal | None, digits: int = 2) -> str:
@@ -45,6 +46,7 @@ def kpi_summary(
     tax_pct: Decimal = Decimal("0"),
     buyback: Money | None = None,
     closes: list[Decimal] | None = None,
+    price: Decimal | None = None,
 ) -> list[tuple[str, str]]:
     """Compute the deterministic KPI block shared by demo and live modes."""
     currency = rows[0].currency if rows else Currency.CNY
@@ -89,7 +91,8 @@ def kpi_summary(
         rf_pct=rf_pct,
     )
     composite = valuation.composite(baselines, settings.valuation.composite_method)
-    price = market_cap.amount / shares if shares else None
+    if price is None and shares:
+        price = market_cap.amount / shares
     premium = valuation.premium(price, composite) if price and composite else None
 
     return [
@@ -137,41 +140,76 @@ def _demo_analyze() -> int:
     return 0
 
 
-def _live_analyze(raw_code: str, save: bool) -> int:
+def _num(value: object) -> Decimal | None:
+    """Parse a provider value, rejecting None / NaN / inf."""
+    if value is None:
+        return None
+    try:
+        number = Decimal(str(value))
+    except Exception:  # noqa: BLE001 - vendor payload may be a placeholder
+        return None
+    return number if number.is_finite() else None
+
+
+def _live_analyze(raw_code: str, save: bool, currency: str | None = None) -> int:
     from .data.tushare_provider import TushareProvider
 
     settings = load_settings()
     code = StockCode.parse(raw_code)
+
+    if currency:
+        unit = Currency(currency)
+    elif code.market is Market.HK:
+        unit = Currency.CNY
+        print(
+            "提示：港股默认按人民币报表处理（多数内地企业）；"
+            "若为港元报表请加 --currency HKD",
+            file=sys.stderr,
+        )
+    else:
+        unit = Currency.CNY
+
     provider = TushareProvider(get_token())
-    rows = provider.statements(code)
+    rows = provider.statements(code, currency=unit)
     if not rows:
         print("未取到报表数据，请检查 Token 权限与代码。", file=sys.stderr)
         for issue in provider.issues:
             print(f"  {issue}", file=sys.stderr)
         return 2
 
-    divs = provider.dividends(code)
+    divs = provider.dividends(code, currency=unit)
     basic = provider.daily_basic(code)
+    # daily_basic with only ts_code returns many dates; the newest row wins.
+    basic = sorted(basic, key=lambda r: str(r.get("trade_date", "")), reverse=True)
     weekly = provider.weekly(code)
-    rf = provider.risk_free_rate(code) or Decimal("0")
+
+    rf = provider.risk_free_rate(code)
+    if rf is None:
+        rf = settings.returns.default_rf
+        print(
+            f"提示：无风险利率接口不可用，使用默认 Rf={rf}%（见 configs/screening.toml）",
+            file=sys.stderr,
+        )
 
     market_cap = Money(Decimal("0"), Currency.CNY)
     shares = Decimal("0")
+    price: Decimal | None = None
     if basic:
         record = basic[0]
-        total_mv_wan = record.get("total_mv")
-        total_share_wan = record.get("total_share")
+        price = _num(record.get("close"))
+        total_mv_wan = _num(record.get("total_mv"))
+        total_share_wan = _num(record.get("total_share"))
         if total_mv_wan is not None and total_share_wan is not None:
-            market_cap = Money(Decimal(str(total_mv_wan)) * Decimal("10000"), Currency.CNY)
-            shares = Decimal(str(total_share_wan)) * Decimal("10000")
+            market_cap = Money(total_mv_wan * Decimal("10000"), Currency.CNY)
+            shares = total_share_wan * Decimal("10000")
 
     closes = [
-        Decimal(str(item["close"]))
+        value
         for item in weekly
-        if item.get("close") is not None
+        if (value := _num(item.get("close"))) is not None
     ]
 
-    tax = Decimal("20") if code.market.value == "HK" else Decimal("0")
+    tax = Decimal("20") if code.market is Market.HK else Decimal("0")
     items = kpi_summary(
         code,
         rows,
@@ -182,6 +220,7 @@ def _live_analyze(raw_code: str, save: bool) -> int:
         settings=settings,
         tax_pct=tax,
         closes=closes,
+        price=price,
     )
     _print_kpis(f"{code}", items)
 
@@ -203,15 +242,34 @@ def _screen(tier1_only: bool) -> int:
 
     settings = load_settings()
     provider = TushareProvider(get_token())
-    trade_date = provider.latest_trade_date()
     universe = provider.stock_basic()
+    if not universe:
+        print("未取到股票列表。", file=sys.stderr)
+        for issue in provider.issues:
+            print(f"  {issue}", file=sys.stderr)
+        return 2
+
+    # Today's snapshot is unavailable before the evening, and trade_cal may be
+    # restricted; walk back over recent days until a non-empty snapshot appears.
+    trade_date = provider.latest_trade_date()
     daily = provider.daily_basic(trade_date=trade_date)
+    if not daily:
+        for delta in range(1, 10):
+            candidate = (date.today() - timedelta(days=delta)).strftime("%Y%m%d")
+            daily = provider.daily_basic(trade_date=candidate)
+            if daily:
+                trade_date = candidate
+                break
 
     import pandas as pd
 
-    if not universe or not daily:
-        print("未取到全市场数据。", file=sys.stderr)
+    if not daily:
+        print("未取到当日行情快照。", file=sys.stderr)
+        for issue in provider.issues:
+            print(f"  {issue}", file=sys.stderr)
         return 2
+
+    print(f"交易日: {trade_date}")
     frame = pd.DataFrame(universe).merge(pd.DataFrame(daily), on="ts_code", how="inner")
     filtered = tier1_mod.apply_filters(frame, settings.screening)
     channels = tier1_mod.split_channels(filtered, settings.screening)
@@ -234,6 +292,12 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument("code", help="股票代码，如 600887 / 00700.HK")
     analyze.add_argument("--demo", action="store_true", help="使用内置合成数据，不需要 Token")
     analyze.add_argument("--save", action="store_true", help="把报表写入 output/store")
+    analyze.add_argument(
+        "--currency",
+        choices=[c.value for c in Currency],
+        default=None,
+        help="报表币种；港股默认 CNY，港元报表请显式指定 HKD",
+    )
 
     screen = sub.add_parser("screen", help="全市场筛选")
     screen.add_argument("--tier1-only", action="store_true", help="只跑 Tier 1")
@@ -251,7 +315,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"turtle-framework {__version__}")
             return 0
         if args.command == "analyze":
-            return _demo_analyze() if args.demo else _live_analyze(args.code, args.save)
+            return _demo_analyze() if args.demo else _live_analyze(
+                args.code, args.save, args.currency
+            )
         if args.command == "screen":
             return _screen(args.tier1_only)
     except TurtleError as exc:
