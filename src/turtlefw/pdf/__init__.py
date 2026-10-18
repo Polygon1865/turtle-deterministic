@@ -1,0 +1,1 @@
+"""Annual-report PDF preprocessing."""

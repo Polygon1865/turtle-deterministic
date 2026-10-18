@@ -508,6 +508,24 @@ def _qualitative_cmd(code_raw: str, init: bool, check: bool, out: str | None) ->
     return 0
 
 
+def _run_passthrough(module_main, argv: list[str], *, patch_argv: bool = False) -> int:
+    """Run a ported CLI whose argparse lives in its own module."""
+    import sys
+
+    old_argv = sys.argv
+    try:
+        if patch_argv:
+            sys.argv = ["turtle", *argv]
+            module_main()
+        else:
+            module_main(argv)
+    except SystemExit as exc:
+        return int(exc.code or 0)
+    finally:
+        sys.argv = old_argv
+    return 0
+
+
 def _screen(
     tier1_only: bool,
     tier2_limit: int | None = None,
@@ -682,6 +700,21 @@ def build_parser() -> argparse.ArgumentParser:
     qual.add_argument("--check", action="store_true", help="校验现有 JSON")
     qual.add_argument("--out", default=None, help="自定义路径")
 
+    fetch = sub.add_parser("fetch-report", help="下载年报 PDF")
+    fetch.add_argument("--url", required=True, help="PDF URL（雪球/同花顺）")
+    fetch.add_argument("--stock-code", required=True, help="股票代码，如 SH600887")
+    fetch.add_argument("--report-type", required=True, help="年报/中报/一季报/三季报")
+    fetch.add_argument("--year", required=True, help="报告年份")
+    fetch.add_argument("--save-dir", default=".", help="保存目录")
+    fetch.add_argument("--max-retries", type=int, default=3)
+
+    pdf = sub.add_parser("pdf", help="年报 PDF 章节预处理")
+    pdf.add_argument("--pdf", required=True, help="年报 PDF 路径")
+    pdf.add_argument("--output", default=None, help="输出 JSON 路径")
+    pdf.add_argument("--hints", default=None, help="TOC hints JSON")
+    pdf.add_argument("--verbose", action="store_true")
+    pdf.add_argument("--dry-run", action="store_true")
+
     sub.add_parser("version", help="版本信息")
     return parser
 
@@ -711,6 +744,31 @@ def main(argv: list[str] | None = None) -> int:
                 args.deep,
                 args.api_interval,
             )
+        if args.command == "fetch-report":
+            from .data import reports
+
+            argv = [
+                "--url", args.url,
+                "--stock-code", args.stock_code,
+                "--report-type", args.report_type,
+                "--year", str(args.year),
+                "--save-dir", args.save_dir,
+                "--max-retries", str(args.max_retries),
+            ]
+            return _run_passthrough(reports.main, argv)
+        if args.command == "pdf":
+            from .pdf import preprocessor
+
+            argv = ["--pdf", args.pdf]
+            if args.output:
+                argv += ["--output", args.output]
+            if args.hints:
+                argv += ["--hints", args.hints]
+            if args.verbose:
+                argv.append("--verbose")
+            if args.dry_run:
+                argv.append("--dry-run")
+            return _run_passthrough(preprocessor.main, argv, patch_argv=True)
         if args.command == "pack":
             return _pack(args.code, args.out, args.currency, args.rf, args.rf_source)
         if args.command == "report":
