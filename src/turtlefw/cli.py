@@ -517,6 +517,7 @@ def _screen(
     workers: int = 6,
     fast: bool = False,
     fast_limit: int = 50,
+    deep: int = 0,
 ) -> int:
     from .data.tushare_provider import TushareProvider
     from .screener import tier1 as tier1_mod
@@ -572,6 +573,25 @@ def _screen(
             Path(csv_path).parent.mkdir(parents=True, exist_ok=True)
             result.to_csv(csv_path, index=False, encoding="utf-8-sig")
             print(f"已导出 {Path(csv_path).resolve()}")
+
+        if deep and not result.empty:
+            from .screener.tier2 import run_tier2
+
+            codes = list(result["ts_code"])
+            order = {code: index for index, code in enumerate(codes)}
+            deep_frame = channels[channels["ts_code"].isin(codes)].copy()
+            deep_frame["_order"] = deep_frame["ts_code"].map(order)
+            deep_frame = deep_frame.sort_values("_order").drop(columns="_order")
+            print(f"\n=== Deep：前 {min(deep, len(deep_frame))} 只 ===")
+            deep_result = run_tier2(
+                deep_frame, provider, settings, rf_value, limit=deep, workers=workers
+            )
+            print(deep_result.to_string(index=False))
+            if csv_path:
+                path = Path(csv_path)
+                deep_path = path.with_name(f"{path.stem}_deep{path.suffix}")
+                deep_result.to_csv(deep_path, index=False, encoding="utf-8-sig")
+                print(f"已导出 {deep_path.resolve()}")
         return 0
 
     if tier1_only:
@@ -621,6 +641,7 @@ def build_parser() -> argparse.ArgumentParser:
     screen.add_argument("--workers", type=int, default=6, help="Tier 2 并发线程数（默认 6）")
     screen.add_argument("--fast", action="store_true", help="阶段 1：全市场批量粗筛")
     screen.add_argument("--fast-limit", type=int, default=50, help="Fast screen 输出只数")
+    screen.add_argument("--deep", type=int, default=0, help="对 Fast 前 N 只接深度四因子")
 
     pack = sub.add_parser("pack", help="生成 Markdown 数据包")
     pack.add_argument("code", help="股票代码，如 600887")
@@ -683,6 +704,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.workers,
                 args.fast,
                 args.fast_limit,
+                args.deep,
             )
         if args.command == "pack":
             return _pack(args.code, args.out, args.currency, args.rf, args.rf_source)

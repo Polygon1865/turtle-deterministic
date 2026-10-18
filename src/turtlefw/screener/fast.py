@@ -99,10 +99,15 @@ def fast_screen(
     merged = merged[merged["total_mv"].notna() & merged["pe_ttm"].notna()]
 
     mktcap = pd.to_numeric(merged["total_mv"], errors="coerce") * 10000
-    payout = (
+    payout_raw = (
         pd.to_numeric(merged["dv_ttm"], errors="coerce")
         * pd.to_numeric(merged["pe_ttm"], errors="coerce")
-    ).clip(lower=0, upper=100)
+    )
+    # dv_ttm x pe_ttm is an approximation; values outside (0, 100] mean the two
+    # snapshots disagree, so the payout is unknown rather than clipped to 100.
+    payout = payout_raw.where((payout_raw > 0) & (payout_raw <= 100))
+    merged["payout"] = payout
+    merged["payout_ok"] = payout.notna()
     ni = merged["net_income"]
     aa = (
         merged["fcf"].fillna(prev_fcf)
@@ -141,7 +146,7 @@ def fast_screen(
 
     merged = merged.sort_values("margin", ascending=False)
     columns = [
-        "name", "channel", "roe", "payout", "R%", "GG%", "II%", "margin",
+        "name", "channel", "roe", "payout", "payout_ok", "R%", "GG%", "II%", "margin",
         "EV/EBITDA", "FCF yield%",
     ]
     available = [c for c in columns if c in merged.columns]

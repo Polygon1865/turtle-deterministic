@@ -56,4 +56,13 @@ class TestFastScreen:
         row = result.iloc[0]
         assert row["R%"] == 3.0  # 1亿净利 * 30% / 10亿市值
         assert row["payout"] == 30.0
+        assert row["payout_ok"]
         assert row["EV/EBITDA"] > 0
+
+    def test_impossible_payout_is_nan_not_100(self):
+        inflated = frame()
+        inflated.loc[0, "dv_ttm"] = 30.0  # 30% yield * PE 10 = 300% payout
+        result = fast_screen(inflated, FakeProvider(), load_settings(), Decimal("1.8"), limit=10)
+        row = result.iloc[0]
+        assert pd.isna(row["payout"])
+        assert not row["payout_ok"]
