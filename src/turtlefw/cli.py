@@ -15,6 +15,9 @@ from .data.protocol import StatementRow
 from .data.store import StatementStore
 from .metrics import dividends as div_metrics
 from .metrics import returns, statements, valuation
+from .qualitative import load as load_qualitative
+from .qualitative import summary as qualitative_summary
+from .qualitative import write_template
 from .types import Currency, DividendEvent, Market, Money, StockCode, TurtleError
 
 
@@ -340,6 +343,7 @@ def _report(
     currency: str | None = None,
     rf: float | None = None,
     rf_source: str | None = None,
+    qualitative_path: str | None = None,
 ) -> int:
     from .data.tushare_provider import TushareProvider
     from .factors.engine import FactorContext, run
@@ -398,6 +402,12 @@ def _report(
     )
 
     rf_value, rf_src = _rf_for(provider, settings, code, rf, rf_source)
+    qual_path = (
+        Path(qualitative_path)
+        if qualitative_path
+        else Path("output") / str(code) / "qualitative.json"
+    )
+    qualitative = load_qualitative(qual_path) if qual_path.is_file() else None
     ctx = FactorContext(
         code=code,
         rows=rows,
@@ -415,6 +425,7 @@ def _report(
             if (value := _num(item.get("close"))) is not None
         ],
         audit=provider.audit(code),
+        qualitative=qualitative,
     )
     results = run(ctx)
     markdown = render_analysis(
@@ -436,6 +447,27 @@ def _report(
         print("数据问题：", file=sys.stderr)
         for issue in provider.issues:
             print(f"  {issue}", file=sys.stderr)
+    return 0
+
+
+def _qualitative_cmd(code_raw: str, init: bool, check: bool, out: str | None) -> int:
+    code = StockCode.parse(code_raw)
+    path = Path(out) if out else Path("output") / str(code) / "qualitative.json"
+    if init:
+        write_template(path)
+        print(f"模板已写入 {path.resolve()}")
+        print("填写 judgment/confidence/evidence 后，用 --check 校验，再运行 report。")
+        return 0
+    if check:
+        if not path.is_file():
+            print(f"文件不存在：{path}", file=sys.stderr)
+            return 2
+        qualitative = load_qualitative(path)
+        print(f"{path} 校验通过")
+        for label, judgment, confidence, count in qualitative_summary(qualitative):
+            print(f"  {label:<12} {judgment:<9} 置信度 {confidence:<6} 证据 {count}")
+        return 0
+    print(f"{path.resolve()} ｜ {'存在' if path.is_file() else '不存在（用 --init 生成模板）'}")
     return 0
 
 
@@ -530,6 +562,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     report.add_argument("--rf", type=float, default=None, help="覆盖无风险利率（%%）")
     report.add_argument("--rf-source", default=None, help="Rf 来源说明或 URL")
+    report.add_argument(
+        "--qualitative",
+        default=None,
+        help="定性 JSON 路径，默认 output/<code>/qualitative.json",
+    )
+
+    qual = sub.add_parser("qualitative", help="生成/校验定性输入模板")
+    qual.add_argument("code", help="股票代码")
+    qual.add_argument("--init", action="store_true", help="生成模板 JSON")
+    qual.add_argument("--check", action="store_true", help="校验现有 JSON")
+    qual.add_argument("--out", default=None, help="自定义路径")
 
     sub.add_parser("version", help="版本信息")
     return parser
@@ -552,7 +595,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "pack":
             return _pack(args.code, args.out, args.currency, args.rf, args.rf_source)
         if args.command == "report":
-            return _report(args.code, args.out, args.currency, args.rf, args.rf_source)
+            return _report(
+                args.code, args.out, args.currency, args.rf, args.rf_source, args.qualitative
+            )
+        if args.command == "qualitative":
+            return _qualitative_cmd(args.code, args.init, args.check, args.out)
     except TurtleError as exc:
         print(f"错误：{exc}", file=sys.stderr)
         return 2

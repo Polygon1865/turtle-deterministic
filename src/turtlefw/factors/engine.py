@@ -16,6 +16,7 @@ from ..config import Settings
 from ..data.protocol import StatementRow
 from ..metrics import dividends as div_metrics
 from ..metrics import returns, statements, valuation
+from ..qualitative import Qualitative
 from ..types import DividendEvent, Money, StockCode
 
 G = Decimal("1.0")  # maintenance-capex factor; framework default when no industry view
@@ -52,6 +53,7 @@ class FactorContext:
     snapshot: valuation.ValuationSnapshot
     closes: Sequence[Decimal] = ()
     audit: Sequence[dict] = field(default_factory=tuple)
+    qualitative: Qualitative | None = None
 
 
 def _pct(value: Decimal | None) -> str:
@@ -172,7 +174,18 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
         checks_1a.append(Check("审计意见", "unknown", "未取到审计数据"))
         checks_1a.append(Check("频繁更换审计师", "unknown", "未取到审计数据"))
     for name in ("财务造假或重大违规前科", "看不懂", "商业模式未被验证", "控股股东重大负面信号"):
-        checks_1a.append(Check(name, "unknown", "需人工/LLM 判断"))
+        if name == "商业模式未被验证":
+            checks_1a.append(Check(name, "unknown", "需人工/LLM 判断"))
+            continue
+        module = {
+            "财务造假或重大违规前科": "fraud",
+            "看不懂": "understandability",
+            "控股股东重大负面信号": "controller",
+        }[name]
+        checks_1a.append(
+            _qualitative_check(name, module, ctx.qualitative, ok_status="pass")
+        )
+
     veto_1a = any(c.status == "veto" for c in checks_1a)
     passed_1a = False if veto_1a else None
 
@@ -214,8 +227,18 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
         Check("收款模式", "info", f"应收账款/营收 {_pct(ar_ratio)}"),
         Check("周期性", "info", f"近 5 年营收变异系数 {_pct(cv)}"),
         Check("商誉占比", "info", f"{_pct(ctx.snapshot.goodwill_ratio)}"),
-        Check("护城河/管理层/政策", "unknown", "需人工/LLM 判断"),
+        _qualitative_check("护城河与竞争格局", "moat", ctx.qualitative, veto_on_negative=False),
+        _qualitative_check("管理层与治理", "management", ctx.qualitative),
+        _qualitative_check("监管与政策", "policy", ctx.qualitative, veto_on_negative=False),
     ]
+    management_bad = any(
+        c.name == "管理层与治理" and c.status == "veto" for c in checks_1b
+    )
+    passed_1b = (
+        False
+        if management_bad
+        else (None if any(c.status == "unknown" for c in checks_1b) else True)
+    )
 
     # ---- Factor 4 -----------------------------------------------------
     trap_checks: list[Check] = []
@@ -279,14 +302,17 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
             title="五分钟快筛",
             passed=passed_1a,
             checks=tuple(checks_1a),
-            notes=("含 4 项定性检查未自动验证，报告中标注为 unknown。",),
+            notes=(
+                f"含 {sum(1 for c in checks_1a if c.status == 'unknown')} 项检查未自动验证，"
+                "报告中标注为 unknown。",
+            ),
         ),
         "1B": FactorResult(
             key="1B",
             title="深度定性（可计算部分）",
-            passed=None,
+            passed=passed_1b,
             checks=tuple(checks_1b),
-            notes=("护城河、管理层、政策等判断需 LLM 层补充。",),
+            notes=("护城河、管理层、政策来自 evidence-backed 定性输入；缺失即为 unknown。",),
         ),
         "2": FactorResult(
             key="2",
@@ -353,9 +379,33 @@ def _num_price(value: Decimal | None) -> str:
     return "—" if value is None else f"{value:,.2f}"
 
 
+LABELS = {"positive": "正面", "neutral": "中性", "negative": "负面"}
+
+
+def _qualitative_check(
+    name: str,
+    module: str,
+    qualitative: Qualitative | None,
+    *,
+    veto_on_negative: bool = True,
+    ok_status: str = "info",
+) -> Check:
+    item = qualitative.get(module) if qualitative else None
+    if item is None or item.judgment == "unknown":
+        return Check(name, "unknown", "未提供证据化判断")
+    status = "veto" if (veto_on_negative and item.judgment == "negative") else ok_status
+    return Check(
+        name,
+        status,
+        f"{LABELS[item.judgment]}（置信度 {item.confidence}，{len(item.evidence)} 条证据）",
+    )
+
+
 def final_verdict(results: dict[str, FactorResult]) -> tuple[str, str]:
     if results["1A"].passed is False:
         return "排除", "因子1A 触发否决"
+    if results["1B"].passed is False:
+        return "排除", "因子1B 管理层触发否决"
     if results["2"].passed is False:
         return "排除", "粗算穿透回报率未过否决门"
     if results["3"].passed is False:

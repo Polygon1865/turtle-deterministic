@@ -13,7 +13,7 @@
 | M2 | 指标层（分红、现金流、穿透回报率、五法底价） | 完成 |
 | M3 | 选股器（Tier1 过滤 + 覆盖度感知排名） | Tier1 完成，Tier2 待做 |
 | M4 | 四因子（确定性部分）+ 数据包 + 分析报告 | 完成 |
-| M5 | LLM 定性层 | 待做 |
+| M5 | 定性层（evidence-backed JSON + 校验 + 报告合并） | 完成（LLM 自动填充为可选） |
 | M6 | PDF 附注提取 | 待做 |
 
 ## 快速开始（Windows）
@@ -35,6 +35,16 @@ notepad .env
 ```
 
 `--rf/--rf-source` 用于 `yc_cb` 无权限时传入带出处的无风险利率（例如券商/银行日报）。
+
+### 定性输入（evidence-backed）
+
+```powershell
+turtle qualitative 600887 --init     # 生成 output/600887.SH/qualitative.json 模板
+turtle qualitative 600887 --check    # 校验：判断值、置信度、URL、引文
+turtle report 600887                 # 自动读取同目录 qualitative.json
+```
+
+规则：`judgment` 必须是 `positive/neutral/negative/unknown`；非 unknown 但**没有证据**会被自动降级为 `unknown`；证据必须含 http(s) URL 与非空引文。LLM 或人工填写走同一套校验。
 
 已知限制（M1/M2 阶段）：
 
