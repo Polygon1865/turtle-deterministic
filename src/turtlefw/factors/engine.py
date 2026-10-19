@@ -61,6 +61,7 @@ class FactorContext:
     buyback: Money | None = None
     sbc: Money | None = None
     pdf_cash_bridge: Mapping[int, Mapping[str, str | None]] | None = None
+    decisions: Mapping[str, str] = field(default_factory=dict)
 
 
 def _pct(value: Decimal | None) -> str:
@@ -69,6 +70,16 @@ def _pct(value: Decimal | None) -> str:
 
 def _x(value: Decimal | None) -> str:
     return "—" if value is None else f"{value:,.2f}x"
+
+
+def _decision_decimal(ctx: FactorContext, key: str) -> Decimal | None:
+    raw = ctx.decisions.get(key)
+    if raw is None:
+        return None
+    try:
+        return Decimal(str(raw).strip())
+    except Exception as exc:  # invalid decision is a hard error
+        raise ValueError(f"decision {key}: invalid decimal {raw!r}") from exc
 
 
 def _m(value: Decimal | None) -> str:
@@ -126,12 +137,31 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
     capex = statements.annual_series(rows, "cashflow", "c_pay_acq_const_fiolta")
     receivable = statements.annual_series(rows, "balance", "accounts_receiv")
     capex_ratio = grids.capex_da_ratio(capex, da)
-    _g_rows, g_row, g_reason = grids.g_grid(
+    g_rows, g_row, g_reason = grids.g_grid(
         c, d, capex_ratio, ctx.settings.returns
     )
+    g_decision = _decision_decimal(ctx, "g")
+    if g_decision is not None:
+        selected_g = next((row for row in g_rows if row.g == g_decision), None)
+        if selected_g is None:
+            raise ValueError(f"decision g: {g_decision} is not in the G grid")
+        g_row = selected_g
+        g_reason = f"研究决策 G={_decimal(g_decision)}"
 
     # ---- Factor 2: crude return --------------------------------------
     ii = returns.threshold_ii(ctx.rf_pct, ctx.code, ctx.settings.returns)
+    if "payout" in ctx.decisions:
+        payout_decision = _decision_decimal(ctx, "payout")
+        payout_candidates = {
+            candidate.value
+            for candidate in payout_check.candidates
+            if candidate.value is not None
+        }
+        if payout_decision is None or payout_decision not in payout_candidates:
+            raise ValueError(
+                f"decision payout: {ctx.decisions['payout']} is not a payout candidate"
+            )
+        mean_payout = payout_decision
     oe = (c + d - d * g_row.g) if c is not None and d is not None else c
     oe_normalized = owner_earnings.normalized_owner_earnings(rows, g=g_row.g)
     oe_used = oe_normalized if oe_normalized is not None else oe
@@ -150,7 +180,17 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
             else None
         )
 
-    r = crude_at(ctx.tax_pct)
+    tax_pct = ctx.tax_pct
+    if "tax" in ctx.decisions:
+        tax_decision = _decision_decimal(ctx, "tax")
+        tax_candidates = {scenario.rate for scenario in grids.tax_scenarios(ctx.code)}
+        if tax_decision is None or tax_decision not in tax_candidates:
+            raise ValueError(
+                f"decision tax: {ctx.decisions['tax']} is not a tax scenario"
+            )
+        tax_pct = tax_decision
+
+    r = crude_at(tax_pct)
     gate = returns.classify_return(r, ii, ctx.rf_pct)
 
     # ---- Factor 3: refined return ------------------------------------
@@ -161,6 +201,13 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
     aa_all = grids.aa_variants(surplus) if surplus else grids.aa_variants(fcf)
     aa = aa_all[0].value if aa_all else None
     aa_source = f"{aa_all[0].label}（{aa_source_base}）" if aa_all else "不可用"
+    if "aa" in ctx.decisions:
+        aa_decision = str(ctx.decisions["aa"]).strip()
+        selected_aa = next((row for row in aa_all if row.label == aa_decision), None)
+        if selected_aa is None:
+            raise ValueError(f"decision aa: {aa_decision} is not an AA variant")
+        aa = selected_aa.value
+        aa_source = f"{selected_aa.label}（{aa_source_base}）"
     sbc_amount = ctx.sbc.amount if ctx.sbc is not None else Decimal("0")
     aa_net = (aa - sbc_amount) if aa is not None else None
 
@@ -178,7 +225,7 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
             else None
         )
 
-    gg = refined_at(ctx.tax_pct)
+    gg = refined_at(tax_pct)
     hh = (r - gg) if r is not None and gg is not None else None
     margin = (gg - ii) if gg is not None else None
     tax_rows = [
@@ -194,7 +241,7 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
         revenue.get(latest) if latest else None,
         effective_lam,
         payout_pct=mean_payout or Decimal("0"),
-        tax_pct=ctx.tax_pct,
+        tax_pct=tax_pct,
         market_cap=ctx.market_cap.amount,
         ii_pct=ii,
     )
@@ -203,7 +250,7 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
         revenue.get(latest) if latest else None,
         effective_lam,
         payout_pct=mean_payout or Decimal("0"),
-        tax_pct=ctx.tax_pct,
+        tax_pct=tax_pct,
         market_cap=ctx.market_cap.amount,
         ii_pct=ii,
     )
@@ -502,7 +549,7 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
                 else ("Owner Earnings", f"{_m(oe)} 百万元（当期）"),
                 ("维持性 Capex 系数 G", f"{g_row.g}（{g_reason}）"),
                 ("支付率 M", f"{_pct(mean_payout)}（{payout_check.recommended_label}）"),
-                ("股息税率 Q", _pct(ctx.tax_pct)),
+                ("股息税率 Q", _pct(tax_pct)),
                 ("回购 O", f"{_m(ctx.buyback.amount) if ctx.buyback else 0} 百万元"),
                 ("粗算回报率 R", _pct(r)),
                 ("门槛 II", _pct(ii)),
@@ -519,6 +566,7 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
                     for index, candidate in enumerate(payout_check.candidates)
                 ),
                 ("payout.spread", _payout_spread(payout_check)),
+                *((f"g.candidate.{index}", row.g) for index, row in enumerate(g_rows)),
             ),
             notes=(
                 f"G 由 Capex/D&A 强度选择：{g_reason}；税档："
@@ -574,6 +622,7 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
                 ("sbc", sbc_amount),
                 ("sbc_m", sbc_amount / Decimal("1000000") if sbc_amount else Decimal("0")),
                 ("hh", hh),
+                *((f"aa.candidate.{index}", row.value) for index, row in enumerate(aa_all)),
                 ("lambda", effective_lam),
                 ("k_star", k_star),
                 ("scenario_gg_10", gg * Decimal("0.9") if gg is not None else None),

@@ -27,12 +27,17 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
 - claim 可绑定 `pdf:section:MDA` / `P4` / `SUB` 等，报告显示页号与引文。
 - `ResearchParam` / `ResearchDecision` 已完成契约与校验；engine 接入留在 Phase 3。
 
-## Phase 3（下一步）：方法深度
+## Phase 3（部分完成）：方法深度
 
-- G 网格、M 三法、AA 变体、税档、λ/k*。
-- 全部预计算为 Decision candidates。
-- LLM 只选候选 + 理由；默认走确定性选择。
-- engine 读取 Decision，校验选中值属于候选集。
+- G 网格、M 三法、AA 变体、税档已预计算为 Decision candidates。
+- engine 已读取 `decisions`：
+  - `g` 必须属于 G 网格；
+  - `payout` 必须属于支付率候选；
+  - `aa` 必须属于 AA 变体；
+  - `tax` 必须属于税档情景；
+  - 非法选择直接报错，不静默回退。
+- 默认无 Decision 时保持原确定性路径。
+- 仍待补：λ/k* 作为显式 Decision、完整候选表展示。
 
 ## Phase 4：数据覆盖
 

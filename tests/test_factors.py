@@ -1,6 +1,8 @@
 from dataclasses import replace
 from decimal import Decimal
 
+import pytest
+
 from turtlefw import demo
 from turtlefw.config import load_settings
 from turtlefw.factors.engine import FactorContext, final_verdict, run
@@ -108,6 +110,22 @@ class TestEngine:
         metrics = dict(results["2"].metrics)
         assert "维持性 Capex 系数 G" in metrics
         assert metrics["维持性 Capex 系数 G"].startswith("1.15")
+
+    def test_research_decision_selects_g_candidate(self):
+        results = run(replace(context(), decisions={"g": "1.50"}))
+        metrics = dict(results["2"].metrics)
+        assert "1.50" in metrics["维持性 Capex 系数 G"]
+
+    def test_research_decision_rejects_unknown_candidate(self):
+        with pytest.raises(ValueError, match="not in the G grid"):
+            run(replace(context(), decisions={"g": "9.99"}))
+
+    def test_research_decision_selects_tax_and_aa(self):
+        results = run(
+            replace(context(), decisions={"tax": "10", "aa": "AA_all"})
+        )
+        assert dict(results["2"].metrics)["股息税率 Q"] == "10.00%"
+        assert dict(results["3"].metrics)["AA 口径"].startswith("AA_all")
 
     def test_confidence_is_reported(self):
         results = run(context())

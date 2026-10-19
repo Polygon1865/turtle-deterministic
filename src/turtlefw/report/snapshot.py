@@ -335,6 +335,20 @@ def render(
             qualitative = load_qualitative(qual_path)
     elif qualitative_path is not None and Path(qualitative_path).is_file():
         qualitative = load_qualitative(Path(qualitative_path))
+    research_document = None
+    research_candidate = (
+        Path(snapshot_dir) / "research.json"
+        if snapshot_dir is not None
+        else Path(research_path) if research_path is not None else None
+    )
+    if research_candidate is not None and research_candidate.is_file():
+        from ..research import load as load_research
+
+        research_document = load_research(research_candidate)
+    decisions = {
+        decision.metric_id: decision.selected
+        for decision in (research_document.decisions if research_document else ())
+    }
     ctx = FactorContext(
         code=code,
         rows=rows,
@@ -359,6 +373,7 @@ def render(
         buyback=Money(Decimal(inputs.buyback), currency) if inputs.buyback else None,
         sbc=Money(Decimal(inputs.sbc), currency) if inputs.sbc else None,
         pdf_cash_bridge=inputs.pdf_bridge,
+        decisions=decisions,
     )
     results = run(ctx)
     metric_map = {
@@ -371,13 +386,7 @@ def render(
     }
     research_md = ""
     fact_map = dict(facts or {})
-    candidate = (
-        Path(snapshot_dir) / "research.json"
-        if snapshot_dir is not None
-        else Path(research_path) if research_path is not None else None
-    )
-    if candidate is not None and candidate.is_file():
-        from ..research import load as load_research
+    if research_document is not None:
         from ..research import render_markdown
 
         if not fact_map and snapshot_dir is not None:
@@ -399,7 +408,7 @@ def render(
                     for item in payload:
                         if isinstance(item, dict) and item.get("id"):
                             fact_map[str(item["id"])] = str(item.get("quote", ""))
-        research_md = render_markdown(load_research(candidate), metric_map, fact_map)
+        research_md = render_markdown(research_document, metric_map, fact_map)
     markdown = render_analysis(
         ctx,
         results,
