@@ -59,7 +59,7 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
 ## Phase 6（部分完成）：claim-level audit
 
 - 新增 `coverage` 能力矩阵，data pack 第 16 段显示 available/partial/missing。
-- `research-agent --retries`：schema/质量失败可重试。
+- `research-agent --response`：离线回放 LLM JSON，用于 eval/回归，不发网络请求。
 - `research-agent --min-claims/--min-dimensions`：不足时把反馈加入 prompt 重试。
 - `qa` 增加 `research_quality` 和 `data_coverage`：显示研究覆盖和缺失数据能力。
 - `qa` 增加 `research_refs` 行：用 snapshot 的 metrics/evidence 复算引用。

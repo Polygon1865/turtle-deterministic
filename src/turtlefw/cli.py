@@ -1413,11 +1413,12 @@ def _research_agent_cmd(
     retries: int = 0,
     min_claims: int = 0,
     min_dimensions: int = 0,
+    response: str | None = None,
 ) -> int:
     import json
     import os
 
-    from .agent import AgentError, OpenAICompatibleLLM, ResearchAgent
+    from .agent import AgentError, FakeLLM, OpenAICompatibleLLM, ResearchAgent
     from .research import to_payload
 
     root = Path(snapshot)
@@ -1465,13 +1466,18 @@ def _research_agent_cmd(
         "TURTLE_LLM_BASE_URL", "https://api.openai.com/v1"
     )
     model_name = model or os.environ.get("TURTLE_LLM_MODEL", "")
-    if not key or not model_name:
+    if response and Path(response).is_file():
+        llm = FakeLLM(
+            json.loads(Path(response).read_text(encoding="utf-8-sig"))
+        )
+    elif not key or not model_name:
         print(
             "缺少 LLM 配置：设置 TURTLE_LLM_API_KEY / TURTLE_LLM_MODEL（或 --api-key/--model）",
             file=sys.stderr,
         )
         return 2
-    llm = OpenAICompatibleLLM(base_url=url, model=model_name, api_key=key)
+    else:
+        llm = OpenAICompatibleLLM(base_url=url, model=model_name, api_key=key)
     try:
         document = ResearchAgent(llm).run(
             context,
@@ -2465,6 +2471,9 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent.add_argument("--retries", type=int, default=0, help="schema/质量失败重试次数")
     research_agent.add_argument("--min-claims", type=int, default=0, help="最少 claim 数")
     research_agent.add_argument("--min-dimensions", type=int, default=0, help="最少覆盖维度")
+    research_agent.add_argument(
+        "--response", default=None, help="离线回放 LLM JSON（不发网络请求）"
+    )
 
     snapshot = sub.add_parser("snapshot", help="生成不可变 ReportSnapshot manifest")
     snapshot.add_argument("code", help="股票代码")
@@ -2747,6 +2756,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.retries,
                 args.min_claims,
                 args.min_dimensions,
+                args.response,
             )
         if args.command == "snapshot":
             return _snapshot_cmd(
