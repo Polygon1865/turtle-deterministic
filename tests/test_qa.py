@@ -119,6 +119,25 @@ def test_qa_json_artifact(tmp_path):
     assert target.parent == base
 
 
+def test_research_provenance_tamper_fails(tmp_path):
+    base = setup_run(tmp_path)
+    research = base / "research.json"
+    research.write_text('{"claims": []}', encoding="utf-8")
+    provenance = {
+        "provider": "dsh",
+        "research_sha256": file_hash(research),
+        "context_sha256": "",
+    }
+    (base / "research_provenance.json").write_text(
+        json.dumps(provenance), encoding="utf-8"
+    )
+    rows = qa.run_qa("600887.SH", root=tmp_path)
+    assert ("research_provenance", "PASS",) in [(r[0], r[1]) for r in rows]
+    research.write_text('{"claims": [], "tampered": true}', encoding="utf-8")
+    rows = qa.run_qa("600887.SH", root=tmp_path)
+    assert "research_provenance" in qa.failed(rows)
+
+
 def test_research_artifact_is_validated(tmp_path):
     base = setup_run(tmp_path)
     (base / "research.json").write_text(

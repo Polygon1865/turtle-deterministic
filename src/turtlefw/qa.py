@@ -7,6 +7,7 @@ narrative number is untraceable.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -95,6 +96,28 @@ def run_qa(code: str, root: Path | str | None = None) -> list[tuple[str, str, st
         except Exception as exc:
             add("research", False, str(exc))
 
+    provenance_path = base / "research_provenance.json"
+    if provenance_path.is_file():
+        try:
+            provenance = json.loads(provenance_path.read_text(encoding="utf-8-sig"))
+            research_file = base / "research.json"
+            actual = (
+                hashlib.sha256(research_file.read_bytes()).hexdigest()
+                if research_file.is_file()
+                else ""
+            )
+            expected = str(provenance.get("research_sha256", ""))
+            add(
+                "research_provenance",
+                bool(expected) and actual == expected,
+                f"provider={provenance.get('provider', '')} "
+                f"model={provenance.get('model', '')}",
+            )
+        except Exception as exc:
+            add("research_provenance", False, str(exc))
+    else:
+        add("research_provenance", True, "未提供（可选）")
+
     if loaded is not None and unknown and unknown == len(loaded.items):
         add("unknown_ratio", False, "全部模块 unknown，定性分析未完成")
 
@@ -102,8 +125,6 @@ def run_qa(code: str, root: Path | str | None = None) -> list[tuple[str, str, st
     report_file = base / "analysis_report.md"
     report_hash = ""
     if report_file.is_file():
-        import hashlib
-
         report_hash = hashlib.sha256(report_file.read_bytes()).hexdigest()
     matching: list[tuple[Path, ReportManifest]] = []
     matching_without_coverage: list[tuple[Path, ReportManifest]] = []
@@ -178,8 +199,6 @@ def run_qa(code: str, root: Path | str | None = None) -> list[tuple[str, str, st
     research_file = base / "research.json"
     if research_file.is_file() and matching:
         try:
-            import json
-
             from .research import audit as research_audit
             from .research import load as load_research
 
