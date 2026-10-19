@@ -127,6 +127,16 @@ class TestEngine:
         assert dict(results["2"].metrics)["股息税率 Q"] == "10.00%"
         assert dict(results["3"].metrics)["AA 口径"].startswith("AA_all")
 
+    def test_research_decision_selects_pessimistic_scenario(self):
+        results = run(replace(context(), decisions={"scenario": "0.8"}))
+        metrics = dict(results["3"].metrics)
+        assert metrics["悲观情景 k"] == "0.80"
+        assert metrics["悲观情景 GG"].endswith("%")
+
+    def test_research_decision_rejects_unknown_scenario(self):
+        with pytest.raises(ValueError, match="not a supported k"):
+            run(replace(context(), decisions={"scenario": "0.5"}))
+
     def test_confidence_is_reported(self):
         results = run(context())
         metrics = dict(results["4"].metrics)

@@ -254,6 +254,20 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
         market_cap=ctx.market_cap.amount,
         ii_pct=ii,
     )
+    scenario_k = Decimal("1.0")
+    if "scenario" in ctx.decisions:
+        scenario_k = _decision_decimal(ctx, "scenario") or Decimal("1.0")
+        if scenario_k not in {Decimal("0.9"), Decimal("0.8"), Decimal("0.7")}:
+            raise ValueError(
+                f"decision scenario: {scenario_k} is not a supported k"
+            )
+    scenario_gg = None
+    for row_k, _row_aa, row_gg in sensitivity:
+        if row_k == scenario_k:
+            scenario_gg = row_gg
+            break
+    if scenario_gg is None and gg is not None:
+        scenario_gg = gg * scenario_k
 
     # ---- Factor 1A ----------------------------------------------------
     checks_1a: list[Check] = []
@@ -612,9 +626,19 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
                 ("收入 -20% 情景", _scenario(sensitivity, gg, Decimal("0.8"))),
                 ("收入 -30% 情景", _scenario(sensitivity, gg, Decimal("0.7"))),
                 ("临界收入倍数 k*", _decimal(k_star)),
+                *(
+                    (
+                        ("悲观情景 k", _decimal(scenario_k)),
+                        ("悲观情景 GG", _pct(scenario_gg)),
+                    )
+                    if "scenario" in ctx.decisions
+                    else ()
+                ),
             ),
             values=(
                 ("gg", gg),
+                ("scenario.k", scenario_k),
+                ("scenario.gg", scenario_gg),
                 ("aa", aa),
                 ("aa_m", aa / Decimal("1000000") if aa is not None else None),
                 ("aa_net", aa_net),

@@ -129,7 +129,7 @@
 .\.venv\Scripts\python.exe -m turtlefw.cli html --input "$env:TEMP\turtle-smoke\analysis_report.md"
 ```
 
-- 全量测试：**314 项收集，314 通过，0 失败，0 setup error**（`tests/conftest.py` 提供沙箱可写临时目录 fixture）。
+- 全量测试：**316 项收集，316 通过，0 失败，0 setup error**（`tests/conftest.py` 提供沙箱可写临时目录 fixture）。
 - 600887 live smoke：数据包/报告均生成；R 4.52%、GG 5.13%、现金桥 7/7 年、质押率 6.29%、回购 O 588.95 百万元；报告结论"观察"，因子 4 与 Thesis Card 一致。
 - 00700.HK live smoke（`yfinance 1.7.0`）：当前价 384.38 CNY、52 周高 610.88、10 年低 152.40；底价 152.40、溢价 152.21%；港股指间接现金桥 6/7 年（2021 缺上年余额），AA 仍为 OCF−Capex。
 - **真实年报验证**：600887（259 页，cninfo）7/7 章节、6/6 数字、audit 无冲突；00700（282 页，HKEX）4/7 章节、6/6 数字，audit 仅营业收入差 1.09%（PDF 751,766 vs Tushare 743,689，差额为 Others 分部 8,077）。详见 [pdf-extraction-validation.md](pdf-extraction-validation.md)。

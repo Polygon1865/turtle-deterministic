@@ -29,15 +29,15 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
 
 ## Phase 3（部分完成）：方法深度
 
-- G 网格、M 三法、AA 变体、税档已预计算为 Decision candidates。
+- G 网格、M 三法、AA 变体、税档、悲观情景 k 已预计算为 Decision candidates。
 - engine 已读取 `decisions`：
   - `g` 必须属于 G 网格；
   - `payout` 必须属于支付率候选；
   - `aa` 必须属于 AA 变体；
   - `tax` 必须属于税档情景；
+  - `scenario` 必须属于 0.9/0.8/0.7；
   - 非法选择直接报错，不静默回退。
 - 默认无 Decision 时保持原确定性路径。
-- 仍待补：λ/k* 作为显式 Decision、完整候选表展示。
 
 ## Phase 4：数据覆盖
 
