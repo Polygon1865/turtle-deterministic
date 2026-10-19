@@ -58,7 +58,8 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
 
 ## Phase 6（部分完成）：claim-level audit
 
-- `research-audit` 增加 `--min-claims` / `--min-dimensions` 和 quality 统计。
+- 新增 `coverage` 能力矩阵，data pack 第 16 段显示 available/partial/missing。
+- 新增 `research-audit` 增加 `--min-claims` / `--min-dimensions` 和 quality 统计。
 - `qa` 增加 `research_refs` 行：用 snapshot 的 metrics/evidence 复算引用。
 - 未解析 metric/fact、非 unknown 无证据、非法 decision 均失败。
 - 报告支持 `--html` 同时输出 HTML（D1–D6 章节/证据表可直接渲染）。

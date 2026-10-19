@@ -12,6 +12,7 @@ from typing import Any, Mapping, Sequence
 from jinja2 import Environment, FileSystemLoader
 
 from ..config import Settings
+from ..data.coverage import coverage_markdown
 from ..data.protocol import StatementRow
 from ..facts import MetricPoint, MetricRegistry
 from ..metrics import cashflow
@@ -681,6 +682,7 @@ def render_data_pack(
         "pit_note": pit_note,
         "data_basis": "annual" if not ttm_rows else "annual+TTM",
         "audit_note": "数字来自确定性管线；PDF 事实/来源冲突见 analysis_report.md 与 cleanroom.json。",
+        "coverage_table": coverage_markdown(code),
         "rf_source": rf_source,
         "kpi_table": _table(["指标", "数值"], kpi_rows),
         "trend_table": _table(

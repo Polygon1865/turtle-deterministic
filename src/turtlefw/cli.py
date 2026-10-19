@@ -1489,6 +1489,36 @@ def _research_agent_cmd(
     return 0
 
 
+def _coverage_cmd(code_raw: str, as_json: bool) -> int:
+    import json
+
+    from .data.coverage import capabilities
+
+    code = StockCode.parse(code_raw)
+    rows = capabilities(code)
+    if as_json:
+        print(
+            json.dumps(
+                [
+                    {
+                        "key": row.key,
+                        "label": row.label,
+                        "status": row.status,
+                        "detail": row.detail,
+                    }
+                    for row in rows
+                ],
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+    else:
+        print(f"数据覆盖：{code}")
+        for row in rows:
+            print(f"  {row.label:<18}{row.status:<10}{row.detail}")
+    return 0
+
+
 def _sec_evidence_cmd(
     ticker: str | None,
     cik: int | None,
@@ -2411,6 +2441,10 @@ def build_parser() -> argparse.ArgumentParser:
     sec_evidence.add_argument("--cik", type=int, default=None, help="SEC CIK")
     sec_evidence.add_argument("--out", required=True, help="evidence.json 输出")
 
+    coverage = sub.add_parser("coverage", help="显示数据覆盖能力矩阵")
+    coverage.add_argument("code", help="股票代码")
+    coverage.add_argument("--json", action="store_true", help="JSON 输出")
+
     research_agent = sub.add_parser(
         "research-agent", help="用 OpenAI-compatible LLM 生成 research.json"
     )
@@ -2689,6 +2723,8 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.command == "sec-evidence":
             return _sec_evidence_cmd(args.ticker, args.cik, args.out)
+        if args.command == "coverage":
+            return _coverage_cmd(args.code, args.json)
         if args.command == "research-agent":
             return _research_agent_cmd(
                 args.snapshot,

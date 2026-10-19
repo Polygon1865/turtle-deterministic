@@ -221,7 +221,7 @@ Agent 只能调用白名单工具：
 ### Phase 3（2–3 周）
 - 中报/TTM、PIT snapshot、港股分部/股东 PDF；
 - US provider（SEC + yfinance）；
-- data pack 已扩到 15 段（口径/审计、现金桥、PDF 状态、TTM、公式）；
+- data pack 已扩到 16 段（口径/审计、现金桥、PDF 状态、TTM、公式、数据覆盖）；
 
 ### Phase 4（2 周）
 - Agent 编排器、clean-room runner、live CI、golden set；
@@ -235,7 +235,7 @@ Agent 只能调用白名单工具：
 - **可关闭**：无 LLM 时仍生成完整的确定性报告；
 - **数据**：period/annualized/source_rank 在数据包可见；
 - **审计**：numeric/citation/consistency 三类失败可定位到 artifact；
-- **测试**：fake LLM 契约测试 + 现有 325 测试不回退。
+- **测试**：fake LLM 契约测试 + 现有 328 测试不回退。
 
 ## 9. 明确不做
 
@@ -280,7 +280,7 @@ Agent 只能调用白名单工具：
 - **DSH 输出根**：`TURTLE_OUTPUT_DIR` / `--output-dir`，受限沙箱可写 `.runs/`；
 - **本地 smoke**：`turtle smoke --codes 600887,00700.HK,AAPL`，检查取数/report/snapshot/manifest；
 - **manifest 校验**：`report --snapshot` 校验 facts/config/research/template/report hash；
-- **测试**：`tests/conftest.py` 提供沙箱可写临时目录，325 收集 / 325 通过 / 0 setup error；
+- **测试**：`tests/conftest.py` 提供沙箱可写临时目录，328 收集 / 328 通过 / 0 setup error；
 - **00700 已知差异**：收入 1.09% 解释为 Others 8,077，分区 4/7 是报告结构差异，见 `docs/00700-known-differences.md`。
 
 尚未完成：
