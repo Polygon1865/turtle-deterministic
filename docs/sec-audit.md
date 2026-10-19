@@ -35,6 +35,30 @@ capex         PaymentsToAcquirePropertyPlantAndEquipment
 - `fy`
 - `USD`
 
+## SEC evidence
+
+```powershell
+turtle sec-evidence --ticker AAPL --out output\AAPL.US\evidence.json
+```
+
+输出：
+
+```text
+sec:revenue:2025
+sec:net_income:2025
+...
+source_rank = 2
+quote = SEC companyfacts ...
+```
+
+research claim 可绑定：
+
+```text
+{{fact:sec:revenue:2025}}
+```
+
+`research-agent` 会读取 snapshot 的 `evidence.json` 作为 fact 上下文。
+
 ## 边界
 
 - 只做年表复核，不提供股价/股本/分红；

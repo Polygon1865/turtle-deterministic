@@ -188,6 +188,34 @@ def fetch_companyfacts(
     )
 
 
+def evidence_facts(
+    payload: Mapping[str, Any],
+    *,
+    cik: int | None = None,
+) -> list[dict[str, object]]:
+    """Turn annual SEC facts into report-addressable evidence rows."""
+    facts = annual_facts(payload)
+    source_url = FACTS_URL.format(cik=cik) if cik is not None else ""
+    rows: list[dict[str, object]] = []
+    for item, values in sorted(facts.items()):
+        for year, value in sorted(values.items()):
+            rows.append(
+                {
+                    "id": f"sec:{item}:{year}",
+                    "page": "",
+                    "section": "SEC",
+                    "label": f"SEC {item} FY{year}",
+                    "value": str(value),
+                    "unit": "USD",
+                    "quote": f"SEC companyfacts {item} FY{year} = {value}",
+                    "confidence": "high",
+                    "source_rank": 2,
+                    "source_url": source_url,
+                }
+            )
+    return rows
+
+
 def compare_rows(
     rows: Sequence[Mapping[str, Any]],
     facts: Mapping[str, Mapping[int, Decimal]],

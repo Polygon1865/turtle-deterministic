@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from turtlefw.data.sec import annual_facts, compare_rows, statement_rows
+from turtlefw.data.sec import annual_facts, compare_rows, evidence_facts, statement_rows
 from turtlefw.types import StockCode
 
 
@@ -65,3 +65,11 @@ def test_statement_rows_from_sec_facts():
     assert revenue.value == Decimal("1000")
     assert revenue.source == "sec"
     assert revenue.statement == "income"
+
+
+def test_evidence_facts_are_addressable():
+    facts = evidence_facts(_payload(), cik=320193)
+    revenue = next(item for item in facts if item["id"] == "sec:revenue:2025")
+    assert "1000" in str(revenue["quote"])
+    assert revenue["source_rank"] == 2
+    assert "CIK0000320193" in str(revenue["source_url"])

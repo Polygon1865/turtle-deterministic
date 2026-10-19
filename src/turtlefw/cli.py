@@ -1437,6 +1437,11 @@ def _research_agent_cmd(
     if reported.is_file():
         report_payload = json.loads(reported.read_text(encoding="utf-8-sig"))
         context["facts"] = report_payload.get("document_facts", [])
+    evidence = root / "evidence.json"
+    if evidence.is_file():
+        evidence_payload = json.loads(evidence.read_text(encoding="utf-8-sig"))
+        if isinstance(evidence_payload, list):
+            context["facts"] = list(context["facts"]) + evidence_payload
     if data_pack and Path(data_pack).is_file():
         context["data_pack"] = Path(data_pack).read_text(encoding="utf-8-sig")[:40000]
 
@@ -1469,6 +1474,39 @@ def _research_agent_cmd(
         f"{len(document.claims)} claims，{len(document.params)} params，"
         f"{len(document.decisions)} decisions"
     )
+    return 0
+
+
+def _sec_evidence_cmd(
+    ticker: str | None,
+    cik: int | None,
+    out: str,
+) -> int:
+    import json
+
+    from .data.sec import cik_for_ticker, evidence_facts, fetch_companyfacts
+
+    if cik is None:
+        if not ticker:
+            print("需要 --ticker 或 --cik", file=sys.stderr)
+            return 2
+        try:
+            cik = cik_for_ticker(ticker)
+        except Exception as exc:  # noqa: BLE001
+            print(f"SEC CIK 查询失败：{exc}", file=sys.stderr)
+            return 2
+    try:
+        payload = fetch_companyfacts(cik)
+    except Exception as exc:  # noqa: BLE001
+        print(f"SEC companyfacts 查询失败：{exc}", file=sys.stderr)
+        return 2
+    target = Path(out)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    facts = evidence_facts(payload, cik=cik)
+    target.write_bytes(
+        (json.dumps(facts, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    )
+    print(f"SEC evidence 已写入 {target.resolve()}（{len(facts)} facts）")
     return 0
 
 
@@ -2319,6 +2357,13 @@ def build_parser() -> argparse.ArgumentParser:
     sec_audit.add_argument("--out", default=None, help="JSON 输出")
     sec_audit.add_argument("--tolerance", type=float, default=1.0, help="差异阈值 %%")
 
+    sec_evidence = sub.add_parser(
+        "sec-evidence", help="从 SEC companyfacts 生成 research evidence"
+    )
+    sec_evidence.add_argument("--ticker", default=None, help="美股 ticker")
+    sec_evidence.add_argument("--cik", type=int, default=None, help="SEC CIK")
+    sec_evidence.add_argument("--out", required=True, help="evidence.json 输出")
+
     research_agent = sub.add_parser(
         "research-agent", help="用 OpenAI-compatible LLM 生成 research.json"
     )
@@ -2589,6 +2634,8 @@ def main(argv: list[str] | None = None) -> int:
             return _sec_audit_cmd(
                 args.snapshot, args.ticker, args.cik, args.out, args.tolerance
             )
+        if args.command == "sec-evidence":
+            return _sec_evidence_cmd(args.ticker, args.cik, args.out)
         if args.command == "research-agent":
             return _research_agent_cmd(
                 args.snapshot,
