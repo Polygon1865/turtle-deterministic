@@ -11,7 +11,9 @@ import csv
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
+from .paths import output_root
 from .qualitative import MODULES, load
 
 JUDGMENTS = ("positive", "neutral", "negative", "unknown")
@@ -51,16 +53,17 @@ def read_labels(path: Path | str) -> list[Label]:
     return labels
 
 
-def score(labels: list[Label], root: Path | str = "output") -> dict:
+def score(labels: list[Label], root: Path | str | None = None) -> dict[str, Any]:
+    base = Path(root) if root is not None else output_root()
     per_module: dict[str, list[int]] = defaultdict(lambda: [0, 0])
     missing: set[str] = set()
     predicted_unknown = 0
     total = 0
     matched = 0
-    cache: dict[str, object] = {}
+    cache: dict[str, Any] = {}
 
     for label in labels:
-        qpath = Path(root) / label.code / "qualitative.json"
+        qpath = base / label.code / "qualitative.json"
         if not qpath.is_file():
             missing.add(label.code)
             continue
@@ -94,7 +97,7 @@ def score(labels: list[Label], root: Path | str = "output") -> dict:
     }
 
 
-def format_report(result: dict) -> str:
+def format_report(result: dict[str, Any]) -> str:
     lines = [
         f"黄金集一致率：{result['matched']}/{result['total']} "
         f"= {result['agreement'] * 100:.1f}%"

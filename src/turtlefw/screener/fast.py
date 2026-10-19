@@ -15,7 +15,6 @@ from decimal import Decimal
 import pandas as pd
 
 from ..config import Settings
-from ..metrics import returns
 from ..types import StockCode
 
 PERIODS = 5
@@ -117,7 +116,6 @@ def fast_screen(
     if prev_fcf is not None and "fcf" in merged:
         aa = (merged["fcf"].fillna(0) + prev_fcf.reindex(merged.index).fillna(0)) / 2
 
-    ii = float(settings.returns.threshold(Decimal("0"), StockCode.parse("600887")))
     merged["payout"] = payout
     merged["R%"] = ni * payout / 100 / mktcap * 100
     merged["GG%"] = aa * payout / 100 / mktcap * 100

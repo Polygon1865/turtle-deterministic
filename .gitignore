@@ -15,6 +15,10 @@ venv/
 
 # Runtime output
 output/
+.runs/
+.acl-recovery/
+.tmp_write_probe/
+init.log
 *.parquet
 *.duckdb
 

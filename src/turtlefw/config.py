@@ -36,6 +36,11 @@ class ReturnsConfig:
     hk_spread: Decimal = Decimal("3.0")
     # Used when the risk-free endpoint is unavailable (e.g. yc_cb permission).
     default_rf: Decimal = Decimal("1.8")
+    # Maintenance-capex coefficient bands used by the deterministic G grid.
+    g_light: Decimal = Decimal("0.85")
+    g_mid: Decimal = Decimal("1.15")
+    g_heavy: Decimal = Decimal("1.50")
+    g_default: Decimal = Decimal("1.00")
 
     def threshold(self, rf_pct: Decimal, code: StockCode) -> Decimal:
         """II = max(floor, Rf + spread)."""
@@ -49,8 +54,14 @@ class ReturnsConfig:
 @dataclass(frozen=True, slots=True)
 class ValuationConfig:
     dividend_discount_floor: Decimal = Decimal("3.0")
-    composite_method: str = "mean"
+    composite_method: str = "median"
     divergence_threshold: Decimal = Decimal("20")
+
+    def validate(self) -> None:
+        if self.composite_method not in {"mean", "median"}:
+            raise ConfigError(
+                f"composite_method must be mean or median, got {self.composite_method!r}"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,11 +133,15 @@ class Settings:
                 "a_share_spread": str(self.returns.a_share_spread),
                 "hk_floor": str(self.returns.hk_floor),
                 "hk_spread": str(self.returns.hk_spread),
+                "g_light": str(self.returns.g_light),
+                "g_mid": str(self.returns.g_mid),
+                "g_heavy": str(self.returns.g_heavy),
             },
             "valuation": {
                 "dividend_discount_floor": str(self.valuation.dividend_discount_floor),
                 "composite_method": self.valuation.composite_method,
             },
+            "fx": {"cny_per_hkd": str(self.fx.cny_per_hkd)},
         }
 
 
@@ -179,14 +194,19 @@ def load_settings(path: Path | None = None) -> Settings:
         hk_floor=_dec(returns_data.get("hk_floor"), "5.0"),
         hk_spread=_dec(returns_data.get("hk_spread"), "3.0"),
         default_rf=_dec(returns_data.get("default_rf"), "1.8"),
+        g_light=_dec(returns_data.get("g_light"), "0.85"),
+        g_mid=_dec(returns_data.get("g_mid"), "1.15"),
+        g_heavy=_dec(returns_data.get("g_heavy"), "1.50"),
+        g_default=_dec(returns_data.get("g_default"), "1.00"),
     )
 
     valuation_data = data.get("valuation", {})
     valuation = ValuationConfig(
         dividend_discount_floor=_dec(valuation_data.get("dividend_discount_floor"), "3.0"),
-        composite_method=str(valuation_data.get("composite_method", "mean")),
+        composite_method=str(valuation_data.get("composite_method", "median")),
         divergence_threshold=_dec(valuation_data.get("divergence_threshold"), "20"),
     )
+    valuation.validate()
 
     fx_data = data.get("fx", {})
     fx = FxConfig(cny_per_hkd=_dec(fx_data.get("cny_per_hkd"), "0.92"))

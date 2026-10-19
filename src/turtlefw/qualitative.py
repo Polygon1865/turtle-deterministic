@@ -45,6 +45,7 @@ class Discrepancy:
     doc_value: str
     source: str = ""
     note: str = ""
+    source_rank: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -158,6 +159,7 @@ def load(path: Path) -> Qualitative:
                 doc_value=str(raw.get("doc_value", "")).strip(),
                 source=str(raw.get("source", "")).strip(),
                 note=str(raw.get("note", "")).strip(),
+                source_rank=int(raw.get("source_rank", 0) or 0),
             )
         )
     return Qualitative(items=items, discrepancies=tuple(discrepancies))

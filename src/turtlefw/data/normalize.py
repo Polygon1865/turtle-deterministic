@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 from typing import Any, Iterable, Mapping
@@ -97,20 +99,30 @@ def rows_from_hk_line_items(
     df: pd.DataFrame,
     *,
     statement: str,
-    item_map: Mapping[str, str],
+    item_map: Mapping[str, str | tuple[str, ...]],
     currency: Currency,
     source: str = "tushare",
 ) -> list[StatementRow]:
-    """HK style: ``ind_name`` / ``ind_value`` rows pivoted onto canonical items."""
+    """HK style: ``ind_name`` / ``ind_value`` rows pivoted onto canonical items.
+
+    A canonical item may map to several line items (e.g. HK capex is split
+    between property/equipment and intangible assets); those lines are summed.
+    """
     rows: list[StatementRow] = []
     if df is None or df.empty:
         return rows
 
-    reverse = {v: k for k, v in item_map.items()}
-    seen: set[tuple[date, str]] = set()
+    reverse: dict[str, str] = {}
+    for canonical, names in item_map.items():
+        for name in (names,) if isinstance(names, str) else names:
+            reverse[name] = canonical
+    seen: set[tuple[date, str, str]] = set()
+    totals: dict[tuple[date, str], Decimal] = defaultdict(Decimal)
+    ann_dates: dict[tuple[date, str], date | None] = {}
 
     for record in df.to_dict("records"):
-        item = reverse.get(str(record.get("ind_name", "")).strip())
+        raw_name = str(record.get("ind_name", "")).strip()
+        item = reverse.get(raw_name)
         if item is None:
             continue
         period_end = parse_date(record.get("end_date"))
@@ -120,12 +132,17 @@ def rows_from_hk_line_items(
         if value is None:
             continue
         key = (period_end, item)
-        if key in seen:  # first non-null wins for duplicated line items
+        line_key = (period_end, item, raw_name)
+        if line_key in seen:  # exact duplicate line item
             continue
-        seen.add(key)
+        seen.add(line_key)
+        totals[key] += value
+        ann_dates[key] = parse_date(record.get("ann_date"))
+
+    for (period_end, item), value in totals.items():
         rows.append(
             StatementRow(
-                code=str(record.get("ts_code", "")),
+                code=str(df.iloc[0].get("ts_code", "")) if len(df) else "",
                 period_end=period_end,
                 period_type=period_type(period_end),
                 statement=statement,
@@ -133,7 +150,7 @@ def rows_from_hk_line_items(
                 value=value,
                 currency=currency,
                 source=source,
-                ann_date=parse_date(record.get("ann_date")),
+                ann_date=ann_dates.get((period_end, item)),
             )
         )
     return rows
@@ -224,7 +241,14 @@ def hk_dividend_events(
             total=None,
             payout_pct=payout_pct,
         )
-    return [by_year[year] for year in sorted(by_year)]
+    events = [by_year[year] for year in sorted(by_year)]
+    positive = [event.dps for event in events if event.dps > 0]
+    # hk_fina_indicator repeats one TTM DPS on every annual row for some names.
+    # Three identical positive years is a vendor placeholder, not a dividend
+    # history: keep the payout ratio but stop using DPS for averages.
+    if len(positive) >= 3 and len(set(positive)) == 1:
+        events = [replace(event, dps_reliable=False) for event in events]
+    return events
 
 
 def rows_to_frame(rows: Iterable[StatementRow]) -> pd.DataFrame:

@@ -10,6 +10,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from .paths import output_root
+
 TOKEN = re.compile(r"\d[\d,]*(?:\.\d+)?")
 
 
@@ -51,8 +53,10 @@ def unknown_numbers(narrative: str, allowed: set[str]) -> list[str]:
     return sorted(bad)
 
 
-def check(code: str, narrative_path: Path | str, root: Path | str = "output") -> list[str]:
-    base = Path(root) / str(code)
+def check(
+    code: str, narrative_path: Path | str, root: Path | str | None = None
+) -> list[str]:
+    base = (Path(root) if root is not None else output_root()) / str(code)
     sources = [
         base / "analysis_report.md",
         base / "data_pack.md",

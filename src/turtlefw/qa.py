@@ -7,14 +7,19 @@ narrative number is untraceable.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
+from datetime import datetime
+
 from . import narrative
+from .facts import ReportManifest
+from .paths import output_root
 from .qualitative import load as load_qualitative
 
 
-def run_qa(code: str, root: Path | str = "output") -> list[tuple[str, str, str]]:
-    base = Path(root) / str(code)
+def run_qa(code: str, root: Path | str | None = None) -> list[tuple[str, str, str]]:
+    base = (Path(root) if root is not None else output_root()) / str(code)
     rows: list[tuple[str, str, str]] = []
 
     def add(name: str, ok: bool, detail: str = "") -> None:
@@ -35,6 +40,16 @@ def run_qa(code: str, root: Path | str = "output") -> list[tuple[str, str, str]]
             items = loaded.items
             unknown = sum(1 for item in items.values() if item.judgment == "unknown")
             add("qualitative", True, f"{len(items)} 模块，{unknown} 个 unknown")
+            bad_evidence = [
+                key
+                for key, item in items.items()
+                if item.judgment != "unknown" and not item.evidence
+            ]
+            add(
+                "evidence",
+                not bad_evidence,
+                "" if not bad_evidence else "缺少证据：" + ",".join(bad_evidence),
+            )
             add(
                 "discrepancies",
                 True,
@@ -52,7 +67,116 @@ def run_qa(code: str, root: Path | str = "output") -> list[tuple[str, str, str]]
 
     if loaded is not None and unknown and unknown == len(loaded.items):
         add("unknown_ratio", False, "全部模块 unknown，定性分析未完成")
+
+    manifests = [base / "manifest.json", *sorted(base.glob("*/manifest.json"))]
+    report_file = base / "analysis_report.md"
+    report_hash = ""
+    if report_file.is_file():
+        import hashlib
+
+        report_hash = hashlib.sha256(report_file.read_bytes()).hexdigest()
+    matching: list[tuple[Path, ReportManifest]] = []
+    matching_without_coverage: list[tuple[Path, ReportManifest]] = []
+    for candidate in manifests:
+        if not candidate.is_file():
+            continue
+        try:
+            parsed = ReportManifest.read(candidate)
+        except Exception:
+            continue
+        if report_hash and parsed.report_hash == report_hash:
+            if parsed.numeric_coverage:
+                matching.append((candidate, parsed))
+            else:
+                matching_without_coverage.append((candidate, parsed))
+    if not matching and matching_without_coverage:
+        matching = matching_without_coverage[:1]
+    if not matching:
+        for candidate in sorted(manifests, key=lambda item: item.stat().st_mtime if item.is_file() else 0, reverse=True):
+            if not candidate.is_file():
+                continue
+            try:
+                parsed = ReportManifest.read(candidate)
+            except Exception:
+                continue
+            if parsed.numeric_coverage:
+                matching.append((candidate, parsed))
+                break
+    if not matching:
+        add("numeric_coverage", False, "缺少匹配当前报告的 manifest（需 report --save-snapshot）")
+    else:
+        try:
+            manifest_path, manifest = matching[0]
+            snapshot_dir = manifest_path.parent
+            audit_path = snapshot_dir / "numeric_audit.json"
+            from .facts import file_hash
+            from .numeric_audit import audit as numeric_audit
+
+            if not manifest.numeric_hash:
+                add("numeric_coverage", False, "manifest 缺少 numeric_hash")
+            elif not audit_path.is_file():
+                add("numeric_coverage", False, "缺少 numeric_audit.json")
+            elif file_hash(audit_path) != manifest.numeric_hash:
+                add("numeric_coverage", False, "numeric_hash mismatch")
+            else:
+                source_paths = [snapshot_dir / name for name in manifest.numeric_sources]
+                missing = [path.name for path in source_paths if not path.is_file()]
+                if missing:
+                    add("numeric_coverage", False, "numeric 来源缺失：" + ",".join(missing))
+                else:
+                    recomputed = numeric_audit(report_file, source_paths)
+                    same_unknown = sorted(str(item) for item in manifest.numeric_unknown) == [
+                        str(item) for item in recomputed["unknown"]
+                    ]
+                    manifest_coverage = float(manifest.numeric_coverage or 0)
+                    passed = (
+                        float(recomputed["coverage"]) >= 0.9999
+                        and str(recomputed["status"]) == "pass"
+                        and abs(manifest_coverage - float(recomputed["coverage"])) < 1e-9
+                        and same_unknown
+                    )
+                    add(
+                        "numeric_coverage",
+                        passed,
+                        f"recomputed={float(recomputed['coverage']):.4f} "
+                        f"manifest={manifest.numeric_coverage or 'missing'} "
+                        f"unknown={len(recomputed['unknown'])}",
+                    )
+        except Exception as exc:
+            add("numeric_coverage", False, f"numeric audit 复算失败：{exc}")
     return rows
+
+
+def payload(code: str, rows: list[tuple[str, str, str]]) -> dict[str, object]:
+    return {
+        "code": str(code),
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "status": "pass" if not failed(rows) else "fail",
+        "rows": [
+            {"name": name, "status": status, "detail": detail}
+            for name, status, detail in rows
+        ],
+    }
+
+
+def write_json(
+    code: str,
+    rows: list[tuple[str, str, str]],
+    path: Path | str | None = None,
+    root: Path | str | None = None,
+) -> Path:
+    target = (
+        Path(path)
+        if path is not None
+        else (Path(root) if root is not None else output_root()) / str(code) / "qa.json"
+    )
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(
+        (json.dumps(payload(code, rows), ensure_ascii=False, indent=2) + "\n").encode(
+            "utf-8"
+        )
+    )
+    return target
 
 
 def failed(rows: list[tuple[str, str, str]]) -> list[str]:

@@ -238,3 +238,5 @@ class DividendEvent:
     total: Decimal | None = None
     ann_date: date | None = None
     payout_pct: Decimal | None = None
+    # False when the vendor repeats one TTM DPS on every fiscal year (HK).
+    dps_reliable: bool = True

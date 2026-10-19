@@ -1,5 +1,6 @@
 from turtlefw import demo
 from turtlefw.config import load_settings
+from turtlefw.data.protocol import StatementRow
 from turtlefw.report.pack import render_data_pack
 from turtlefw.types import Currency, Money
 
@@ -46,3 +47,32 @@ class TestDataPack:
     def test_floor_methods_are_numbered(self):
         text = render()
         assert "## 6. 底价（" in text and "法）" in text
+
+    def test_interim_section_when_available(self):
+        from datetime import date
+
+        rows = demo.demo_rows() + [
+            StatementRow(
+                code="600887.SH",
+                period_end=date(2025, 6, 30),
+                period_type="interim",
+                statement="income",
+                item="revenue",
+                value=50_000_000_000,
+                currency=Currency.CNY,
+                source="test",
+            )
+        ]
+        text = render_data_pack(
+            demo.DEMO_CODE,
+            rows,
+            demo.demo_dividends(),
+            quote={"trade_date": "20261016", "close": 28.2},
+            history=[{"trade_date": "20261016", "close": 28.2, "high": 30.0, "low": 27.0}],
+            market_cap=Money(demo.DEMO_MARKET_CAP, Currency.CNY),
+            shares=demo.DEMO_SHARES,
+            rf_pct=demo.DEMO_RF,
+            settings=load_settings(),
+        )
+        assert "### 2.1 最新中报/季报" in text
+        assert "年化系数 ×2.00" in text

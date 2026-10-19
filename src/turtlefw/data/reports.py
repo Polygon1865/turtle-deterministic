@@ -122,8 +122,9 @@ def build_filename(stock_code, report_type, year):
         "q3": "三季报",
     }
     normalized = type_map.get(report_type.lower(), report_type)
-    # Strip exchange prefix for filename
+    # Strip exchange prefix/suffix for filename
     code = re.sub(r"^(SH|SZ)", "", stock_code, flags=re.IGNORECASE)
+    code = re.sub(r"\.(SH|SZ|HK)$", "", code, flags=re.IGNORECASE)
     return f"{code}_{year}_{normalized}.pdf"
 
 

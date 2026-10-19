@@ -26,9 +26,9 @@ if (-not (Test-Path $venvPy)) {
     throw "venv creation failed: $venvPy not found"
 }
 
-Write-Host "[2/4] installing package (editable) and dev dependencies"
+Write-Host "[2/4] installing package (editable) and dev/pdf/hk dependencies"
 & $venvPy -m pip install --upgrade pip --quiet
-& $venvPy -m pip install -e ".[dev]" --quiet
+& $venvPy -m pip install -e ".[dev,pdf,hk]" --quiet
 
 Write-Host "[3/4] checking Tushare token"
 $envFile = Join-Path $root ".env"

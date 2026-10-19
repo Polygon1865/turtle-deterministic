@@ -10,16 +10,15 @@ from __future__ import annotations
 import statistics
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Sequence
+from typing import Mapping, Sequence
 
 from ..config import Settings
 from ..data.protocol import StatementRow
+from ..metrics import cashflow
 from ..metrics import dividends as div_metrics
-from ..metrics import returns, statements, valuation
+from ..metrics import grids, owner_earnings, returns, statements, valuation
 from ..qualitative import Qualitative
 from ..types import DividendEvent, Money, StockCode
-
-G = Decimal("1.0")  # maintenance-capex factor; framework default when no industry view
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,6 +35,7 @@ class FactorResult:
     passed: bool | None
     checks: tuple[Check, ...] = ()
     metrics: tuple[tuple[str, str], ...] = ()
+    values: tuple[tuple[str, Decimal | None], ...] = ()
     notes: tuple[str, ...] = ()
 
 
@@ -51,10 +51,16 @@ class FactorContext:
     tax_pct: Decimal
     settings: Settings
     snapshot: valuation.ValuationSnapshot
+    diluted_shares: Decimal | None = None
     closes: Sequence[Decimal] = ()
-    audit: Sequence[dict] = field(default_factory=tuple)
+    audit: Sequence[dict[str, object]] = field(default_factory=tuple)
     qualitative: Qualitative | None = None
     payout_reliable: bool = True
+    pledge_pct: Decimal | None = None
+    parent_cash: Decimal | None = None
+    buyback: Money | None = None
+    sbc: Money | None = None
+    pdf_cash_bridge: Mapping[int, Mapping[str, str | None]] | None = None
 
 
 def _pct(value: Decimal | None) -> str:
@@ -100,54 +106,107 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
     cash = statements.cash_and_equivalents(rows)
     years = sorted(income)[-5:]
     payouts = div_metrics.payout_by_year(ctx.dividends, income, shares=ctx.shares)
-    mean_payout, payout_years = div_metrics.mean_payout(payouts)
+    mean_payout, _ = div_metrics.mean_payout(payouts)
+    eps = statements.annual_series(rows, "income", "basic_eps")
+    cash_dividends = statements.annual_series(rows, "cashflow", "c_pay_dist_dpcp_int_exp")
+    payout_check = grids.payout_crosscheck(
+        ctx.dividends, income, eps=eps, shares=ctx.shares, cash_dividends=cash_dividends
+    )
+    if payout_check.recommended is not None:
+        mean_payout = payout_check.recommended
+    # A no-dividend company is not "unreliable"; a company with events whose
+    # three payout methods disagree is.
+    payout_reliable = ctx.payout_reliable and (
+        payout_check.reliable or not ctx.dividends
+    )
 
     latest = years[-1] if years else None
     c = income.get(latest) if latest else None
     d = da.get(latest) if latest else None
     capex = statements.annual_series(rows, "cashflow", "c_pay_acq_const_fiolta")
     receivable = statements.annual_series(rows, "balance", "accounts_receiv")
-    goodwill = _latest(statements.annual_series(rows, "balance", "goodwill")) or Decimal("0")
-    total_assets = _latest(statements.annual_series(rows, "balance", "total_assets")) or Decimal("0")
+    capex_ratio = grids.capex_da_ratio(capex, da)
+    _g_rows, g_row, g_reason = grids.g_grid(
+        c, d, capex_ratio, ctx.settings.returns
+    )
 
     # ---- Factor 2: crude return --------------------------------------
     ii = returns.threshold_ii(ctx.rf_pct, ctx.code, ctx.settings.returns)
-    oe = (c + d - d * G) if c is not None and d is not None else c
-    r = (
-        returns.penetration_return(
-            Money(oe, ctx.market_cap.currency),
-            mean_payout or Decimal("0"),
-            ctx.tax_pct,
-            Money.zero(ctx.market_cap.currency),
-            ctx.market_cap,
-            Decimal("1"),
+    oe = (c + d - d * g_row.g) if c is not None and d is not None else c
+    oe_normalized = owner_earnings.normalized_owner_earnings(rows, g=g_row.g)
+    oe_used = oe_normalized if oe_normalized is not None else oe
+
+    def crude_at(tax_pct: Decimal) -> Decimal | None:
+        return (
+            returns.penetration_return(
+                Money(oe_used, ctx.market_cap.currency),
+                mean_payout or Decimal("0"),
+                tax_pct,
+                ctx.buyback or Money.zero(ctx.market_cap.currency),
+                ctx.market_cap,
+                Decimal("1"),
+            )
+            if oe_used is not None
+            else None
         )
-        if oe is not None
-        else None
-    )
+
+    r = crude_at(ctx.tax_pct)
     gate = returns.classify_return(r, ii, ctx.rf_pct)
 
     # ---- Factor 3: refined return ------------------------------------
-    recent_fcf = list(sorted(fcf.items()))[-2:]
-    aa = (
-        sum((v for _, v in recent_fcf), Decimal("0")) / Decimal(len(recent_fcf))
-        if recent_fcf
-        else None
-    )
-    gg = (
-        returns.penetration_return(
-            Money(aa, ctx.market_cap.currency),
-            mean_payout or Decimal("0"),
-            ctx.tax_pct,
-            Money.zero(ctx.market_cap.currency),
-            ctx.market_cap,
-            Decimal("1"),
+    bridge = cashflow.build_cash_bridge(rows, pdf_bridge=ctx.pdf_cash_bridge)
+    surplus = cashflow.surplus_series(bridge)
+    bridge_complete, bridge_total = cashflow.coverage(bridge)
+    aa_source_base = cashflow.bridge_label(bridge)
+    aa_all = grids.aa_variants(surplus) if surplus else grids.aa_variants(fcf)
+    aa = aa_all[0].value if aa_all else None
+    aa_source = f"{aa_all[0].label}（{aa_source_base}）" if aa_all else "不可用"
+    sbc_amount = ctx.sbc.amount if ctx.sbc is not None else Decimal("0")
+    aa_net = (aa - sbc_amount) if aa is not None else None
+
+    def refined_at(tax_pct: Decimal) -> Decimal | None:
+        return (
+            returns.penetration_return(
+                Money(aa_net, ctx.market_cap.currency),
+                mean_payout or Decimal("0"),
+                tax_pct,
+                ctx.buyback or Money.zero(ctx.market_cap.currency),
+                ctx.market_cap,
+                Decimal("1"),
+            )
+            if aa_net is not None
+            else None
         )
-        if aa is not None
-        else None
-    )
+
+    gg = refined_at(ctx.tax_pct)
     hh = (r - gg) if r is not None and gg is not None else None
     margin = (gg - ii) if gg is not None else None
+    tax_rows = [
+        (scenario.label, scenario.rate, crude_at(scenario.rate), refined_at(scenario.rate))
+        for scenario in grids.tax_scenarios(ctx.code)
+    ]
+
+    lam_series = surplus if surplus else fcf
+    lam, lam_note = grids.operating_lambda(revenue, lam_series)
+    effective_lam = lam if lam is not None and lam > 0 else None
+    sensitivity = grids.revenue_sensitivity(
+        aa,
+        revenue.get(latest) if latest else None,
+        effective_lam,
+        payout_pct=mean_payout or Decimal("0"),
+        tax_pct=ctx.tax_pct,
+        market_cap=ctx.market_cap.amount,
+        ii_pct=ii,
+    )
+    k_star = grids.break_even_revenue_multiple(
+        aa,
+        revenue.get(latest) if latest else None,
+        effective_lam,
+        payout_pct=mean_payout or Decimal("0"),
+        tax_pct=ctx.tax_pct,
+        market_cap=ctx.market_cap.amount,
+        ii_pct=ii,
+    )
 
     # ---- Factor 1A ----------------------------------------------------
     checks_1a: list[Check] = []
@@ -174,6 +233,16 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
     else:
         checks_1a.append(Check("审计意见", "unknown", "未取到审计数据"))
         checks_1a.append(Check("频繁更换审计师", "unknown", "未取到审计数据"))
+    if ctx.pledge_pct is None:
+        checks_1a.append(Check("控股股东质押率", "unknown", "未取到质押数据"))
+    else:
+        checks_1a.append(
+            Check(
+                "控股股东质押率",
+                "veto" if ctx.pledge_pct > Decimal("70") else "pass",
+                f"{ctx.pledge_pct:.2f}%（阈值 70%）",
+            )
+        )
     for name in ("财务造假或重大违规前科", "看不懂", "商业模式未被验证", "控股股东重大负面信号"):
         if name == "商业模式未被验证":
             checks_1a.append(Check(name, "unknown", "需人工/LLM 判断"))
@@ -223,11 +292,34 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
     else:
         cv = None
 
+    fcf_positive_years = sum(1 for value in fcf.values() if value > 0)
+    confidence = grids.confidence_rating(
+        revenue_cv=cv,
+        payout_years=sum(1 for value in payouts.values() if value is not None),
+        fcf_positive_years=fcf_positive_years,
+        history_years=len(years),
+        hh=hh,
+    )
+
+    consolidated_cash = cash.get(latest) if latest else None
+    parent_cash_ratio = (
+        ctx.parent_cash / consolidated_cash
+        if ctx.parent_cash is not None and consolidated_cash not in (None, 0)
+        else None
+    )
     checks_1b = [
         Check("资本消耗强度", "info", f"Capex/D&A 中位数 {_x(intensity)} → {label}"),
         Check("收款模式", "info", f"应收账款/营收 {_pct(ar_ratio)}"),
         Check("周期性", "info", f"近 5 年营收变异系数 {_pct(cv)}"),
         Check("商誉占比", "info", f"{_pct(ctx.snapshot.goodwill_ratio)}"),
+        Check(
+            "现金上游障碍",
+            "info" if parent_cash_ratio is None else ("pass" if parent_cash_ratio >= Decimal("0.5") else "veto"),
+            "未取到母公司现金"
+            if parent_cash_ratio is None
+            else f"母公司现金/合并现金 {parent_cash_ratio * 100:.1f}%"
+            + ("（<50%，现金可能滞留子公司）" if parent_cash_ratio < Decimal("0.5") else ""),
+        ),
         _qualitative_check("护城河与竞争格局", "moat", ctx.qualitative, veto_on_negative=False),
         _qualitative_check("管理层与治理", "management", ctx.qualitative),
         _qualitative_check("监管与政策", "policy", ctx.qualitative, veto_on_negative=False),
@@ -235,9 +327,12 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
     management_bad = any(
         c.name == "管理层与治理" and c.status == "veto" for c in checks_1b
     )
+    cash_upstream_bad = any(
+        c.name == "现金上游障碍" and c.status == "veto" for c in checks_1b
+    )
     passed_1b = (
         False
-        if management_bad
+        if management_bad or cash_upstream_bad
         else (None if any(c.status == "unknown" for c in checks_1b) else True)
     )
 
@@ -270,6 +365,9 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
             f"净负债/EBITDA {_x(ctx.snapshot.net_debt_ebitda)}",
         )
     )
+    trap_checks.append(_qualitative_trap("护城河正在收窄", "moat", ctx.qualitative))
+    trap_checks.append(_qualitative_trap("行业结构性衰退", "policy", ctx.qualitative))
+    trap_checks.append(_qualitative_trap("管理层损害价值", "management", ctx.qualitative))
     traps = sum(1 for c in trap_checks if c.status == "veto")
 
     price = ctx.price
@@ -286,9 +384,10 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
     trad = statements.annual_series(rows, "balance", "trad_asset")
     dps_by_year: dict[int, Decimal] = {}
     for event in ctx.dividends:
-        dps_by_year[event.fiscal_year] = (
-            dps_by_year.get(event.fiscal_year, Decimal("0")) + event.dps
-        )
+        if event.dps_reliable:
+            dps_by_year[event.fiscal_year] = (
+                dps_by_year.get(event.fiscal_year, Decimal("0")) + event.dps
+            )
     recent_dps = sorted(dps_by_year)[-3:]
     avg_dps = (
         sum((dps_by_year[y] for y in recent_dps), Decimal("0")) / Decimal(len(recent_dps))
@@ -306,43 +405,55 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
         trad_assets=trad.get(latest) if latest else None,
         debt=debt.get(latest) if latest else None,
         equity=equity.get(latest) if latest else None,
-        shares=ctx.shares,
+        shares=ctx.diluted_shares or ctx.shares,
         closes=ctx.closes,
         average_dps=avg_dps,
         min_fcf=min_fcf,
         rf_pct=ctx.rf_pct,
         dividend_floor_pct=ctx.settings.valuation.dividend_discount_floor,
     )
-    stats = valuation.floor_stats(baselines, ctx.settings.valuation.divergence_threshold)
+    composite, stats = valuation.choose_composite(
+        baselines,
+        ctx.settings.valuation.composite_method,
+        ctx.settings.valuation.divergence_threshold,
+    )
     floor_premium = (
-        valuation.premium(price, stats.median) if price is not None and stats.median else None
+        valuation.premium(price, composite) if price is not None and composite else None
     )
 
     if gg is None or margin is None:
-        position, verdict = "观察", "观察"
-    elif margin < 0:
+        position, verdict = "观察仓位", "观察"
+    elif margin < Decimal("0"):
         position, verdict = "不建仓", "排除"
-    elif margin >= Decimal("1.5") and traps == 0:
-        position, verdict = "标准仓位", "买入"
+    elif traps >= 2 and margin < Decimal("1.5"):
+        position, verdict = "不建仓", "排除"
     elif margin >= Decimal("1.5"):
-        position, verdict = "70%", "买入"
-    elif margin >= Decimal("0.5") and traps == 0:
-        position, verdict = "50%", "观察"
+        if confidence.overall == "high" and traps == 0:
+            position, verdict = "标准仓位", "买入"
+        elif traps <= 1:
+            position, verdict = "70%", "买入"
+        else:
+            position, verdict = "观察仓位", "观察"
+    elif margin >= Decimal("0.5"):
+        if confidence.overall == "high" and traps == 0:
+            position, verdict = "50%", "观察"
+        else:
+            position, verdict = "观察仓位", "观察"
     else:
         position, verdict = "观察仓位", "观察"
 
     caps: list[str] = []
     if floor_premium is not None:
         if floor_premium > Decimal("150"):
-            caps.append(f"底价溢价 {floor_premium:.0f}% > 150%")
-        elif stats.status == "divergent" and floor_premium > Decimal("80"):
-            caps.append(f"底价口径分歧且溢价 {floor_premium:.0f}% > 80%")
+            caps.append(f"底价溢价 {floor_premium:.2f}% > 150%")
+        elif stats.status == "divergent":
+            caps.append(f"底价口径分歧（均值/中位数偏离 {stats.divergence:.0f}%）")
     elif stats.status == "unavailable":
         caps.append("底价不可用")
-    if not ctx.payout_reliable:
-        caps.append("支付率数据不完整")
+    if not payout_reliable:
+        caps.append("支付率三法口径冲突（法2 含利息/少数股东股利，属上界）")
     if caps and verdict == "买入":
-        verdict, position = "观察", "观察"
+        verdict, position = "观察", "观察仓位"
 
     passed_4 = verdict != "排除"
 
@@ -362,6 +473,12 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
             title="深度定性（可计算部分）",
             passed=passed_1b,
             checks=tuple(checks_1b),
+            values=(
+                ("capex_da_ratio", intensity),
+                ("ar_ratio", ar_ratio),
+                ("revenue_cv", cv),
+                ("parent_cash_ratio", parent_cash_ratio * 100 if parent_cash_ratio is not None else None),
+            ),
             notes=("护城河、管理层、政策来自 evidence-backed 定性输入；缺失即为 unknown。",),
         ),
         "2": FactorResult(
@@ -372,33 +489,105 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
                 Check("分配能力", "pass" if sum(1 for v in fcf.values() if v > 0) >= 3 else "veto",
                       f"近 {len(fcf)} 年中 {sum(1 for v in fcf.values() if v > 0)} 年 FCF 为正"),
                 Check("回报率门槛", gate, f"R={_pct(r)} vs II={_pct(ii)}"),
+                Check(
+                    "税档敏感性",
+                    "info",
+                    "R "
+                    + " / ".join(f"{label}={_pct(value)}" for label, _rate, value, _gg in tax_rows),
+                ),
             ),
             metrics=(
-                ("Owner Earnings", f"{_m(oe)} 百万元"),
-                ("支付率均值 M", f"{_pct(mean_payout)}（{payout_years} 年）"),
+                ("Owner Earnings", f"{_m(oe_used)} 百万元（5 年正常化）")
+                if oe_normalized is not None
+                else ("Owner Earnings", f"{_m(oe)} 百万元（当期）"),
+                ("维持性 Capex 系数 G", f"{g_row.g}（{g_reason}）"),
+                ("支付率 M", f"{_pct(mean_payout)}（{payout_check.recommended_label}）"),
+                ("股息税率 Q", _pct(ctx.tax_pct)),
+                ("回购 O", f"{_m(ctx.buyback.amount) if ctx.buyback else 0} 百万元"),
                 ("粗算回报率 R", _pct(r)),
                 ("门槛 II", _pct(ii)),
             ),
-            notes=(f"维持性资本开支系数 G={G}；回购 O=0（未接入回购数据）。",),
+            values=(
+                ("r", r),
+                ("ii", ii),
+                ("owner_earnings", oe_used),
+                ("g", g_row.g),
+                ("payout", mean_payout),
+                ("owner_earnings_m", oe_used / Decimal("1000000") if oe_used is not None else None),
+                *(
+                    (f"payout.candidate.{index}", candidate.value)
+                    for index, candidate in enumerate(payout_check.candidates)
+                ),
+                ("payout.spread", _payout_spread(payout_check)),
+            ),
+            notes=(
+                f"G 由 Capex/D&A 强度选择：{g_reason}；税档："
+                + " / ".join(
+                    f"{label} {_pct(value)}" for label, _rate, value, _gg in tax_rows
+                )
+                + "（结论按当前适用税率）。",
+                f"支付率三法：{_payout_note(payout_check)}。",
+            ),
         ),
         "3": FactorResult(
             key="3",
-            title="穿透回报率精算",
+            title="穿透回报率精算（现金桥）",
             passed=aa is not None and aa > 0,
             checks=(
-                Check("现金结余 AA", "pass" if aa and aa > 0 else "veto",
-                      f"近 2 年 FCF 均值 {_m(aa)} 百万元"),
+                Check("现金结余 AA", "pass" if aa_net and aa_net > 0 else "veto",
+                      f"{aa_source} = {_m(aa_net)} 百万元" + ("（已扣 SBC）" if sbc_amount else "")),
+                Check("股份支付 SBC", "info" if sbc_amount else "unknown",
+                      f"{_m(sbc_amount)} 百万元" if sbc_amount else "未取得 SBC"),
+                Check("现金桥完整度", "pass" if bridge_complete >= 3 else "unknown",
+                      f"{bridge_complete}/{bridge_total} 年使用完整现金桥，其余回退 OCF−Capex"),
                 Check("FCF 一致性", "pass" if sum(1 for v in fcf.values() if v > 0) >= 3 else "veto",
                       f"{sum(1 for v in fcf.values() if v > 0)}/{len(fcf)} 年为正"),
+                Check("收入敏感性", "info" if sensitivity else "unknown",
+                      f"λ={_decimal(effective_lam)}；{lam_note or 'λ 可用'}"),
             ),
             metrics=(
                 ("精算回报率 GG", _pct(gg)),
                 ("粗算偏差 HH", _pct(hh)),
-                ("收入 -10% 情景", _pct(gg * Decimal("0.9")) if gg is not None else "—"),
-                ("收入 -20% 情景", _pct(gg * Decimal("0.8")) if gg is not None else "—"),
-                ("收入 -30% 情景", _pct(gg * Decimal("0.7")) if gg is not None else "—"),
+                ("AA 口径", aa_source),
+                ("股份支付 SBC", _m(sbc_amount) if sbc_amount else "—"),
+                ("稀释后股数（亿股）", f"{ctx.diluted_shares / Decimal('100000000'):,.2f}" if ctx.diluted_shares else "—"),
+                (
+                    "税档情景 R",
+                    " / ".join(f"{label} {_pct(value)}" for label, _rate, value, _gg in tax_rows),
+                ),
+                (
+                    "税档情景 GG",
+                    " / ".join(f"{label} {_pct(value)}" for label, _rate, _r, value in tax_rows),
+                ),
+                ("经营杠杆 λ", _decimal(effective_lam)),
+                ("收入 -10% 情景", _scenario(sensitivity, gg, Decimal("0.9"))),
+                ("收入 -20% 情景", _scenario(sensitivity, gg, Decimal("0.8"))),
+                ("收入 -30% 情景", _scenario(sensitivity, gg, Decimal("0.7"))),
+                ("临界收入倍数 k*", _decimal(k_star)),
             ),
-            notes=("敏感性按 AA 等比例缩放，未使用经营杠杆 λ。",),
+            values=(
+                ("gg", gg),
+                ("aa", aa),
+                ("aa_m", aa / Decimal("1000000") if aa is not None else None),
+                ("aa_net", aa_net),
+                ("aa_net_m", aa_net / Decimal("1000000") if aa_net is not None else None),
+                ("sbc", sbc_amount),
+                ("sbc_m", sbc_amount / Decimal("1000000") if sbc_amount else Decimal("0")),
+                ("hh", hh),
+                ("lambda", effective_lam),
+                ("k_star", k_star),
+                ("scenario_gg_10", gg * Decimal("0.9") if gg is not None else None),
+                ("scenario_gg_20", gg * Decimal("0.8") if gg is not None else None),
+                ("scenario_gg_30", gg * Decimal("0.7") if gg is not None else None),
+                *((f"tax_r_{index}", row[2]) for index, row in enumerate(tax_rows)),
+                *((f"tax_gg_{index}", row[3]) for index, row in enumerate(tax_rows)),
+                *((f"scenario_gg_{index}", row[2]) for index, row in enumerate(sensitivity)),
+            ),
+            notes=(
+                "AA 优先用真实现金收入−经营流出−Capex 的现金桥；组件缺失的年份回退 OCF−Capex。",
+                "敏感性优先使用 λ 外推；λ 不可用/≤0 时按 AA 等比缩放。",
+                f"AA 变体：{'、'.join(v.label for v in aa_all) or '不可用'}。",
+            ),
         ),
         "4": FactorResult(
             key="4",
@@ -406,6 +595,13 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
             passed=passed_4,
             checks=(
                 *trap_checks,
+                Check(
+                    "外推可信度",
+                    "info",
+                    f"{confidence.overall}（" + "；".join(
+                        f"{name}={level}" for name, level, _ in confidence.dimensions
+                    ) + "）",
+                ),
                 Check(
                     "底价约束",
                     "veto" if caps else "pass",
@@ -419,20 +615,83 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
                 ("净负债/EBITDA", _x(ctx.snapshot.net_debt_ebitda)),
                 ("商誉/总资产", _pct(ctx.snapshot.goodwill_ratio)),
                 ("安全边际 KK", _pct(margin)),
+                ("外推可信度", confidence.overall),
+                ("价值陷阱", f"{traps} 项"),
                 ("股价历史分位", _pct(percentile)),
                 ("门槛对应价", _num_price(target)),
                 ("底价中位数", _num_price(stats.median)),
+                ("底价（采用）", _num_price(composite)),
                 ("底价溢价", _pct(floor_premium)),
                 ("底价口径", stats.status),
                 ("仓位建议", position),
                 ("结论", verdict),
             ),
+            values=(
+                ("margin", margin),
+                ("floor", composite),
+                ("floor.mean", stats.mean),
+                ("floor.median", stats.median),
+                ("floor.divergence", stats.divergence),
+                ("premium", floor_premium),
+                ("price", ctx.price),
+                ("ev_ebitda", ctx.snapshot.ev_ebitda),
+                ("net_debt_ebitda", ctx.snapshot.net_debt_ebitda),
+                ("cash_adj_pe", ctx.snapshot.cash_adj_pe),
+                ("pb", ctx.snapshot.pb),
+                ("fcf_yield", ctx.snapshot.fcf_yield),
+                ("dividend_yield", ctx.snapshot.dividend_yield),
+                ("ebitda_margin", ctx.snapshot.ebitda_margin),
+                ("goodwill_ratio", ctx.snapshot.goodwill_ratio),
+                ("target", target),
+                ("price_percentile", percentile),
+                *(
+                    (f"floor.baseline.{index}", baseline.value)
+                    for index, baseline in enumerate(baselines)
+                ),
+            ),
             notes=(
-                f"价值陷阱触发 {traps} 项",
+                f"价值陷阱触发 {traps} 项（含护城河/行业/管理层三项定性陷阱，unknown 不计数）。",
                 "GG ≥ II 时『门槛对应价』是上限参考，不是必须等到的买点。",
             ),
         ),
     }
+
+
+def _payout_note(check: grids.PayoutCrosscheck) -> str:
+    parts = [
+        f"{candidate.label}={_pct(candidate.value)}"
+        for candidate in check.candidates
+        if candidate.value is not None
+    ]
+    return " / ".join(parts) + (f"；{check.note}" if check.note else "")
+
+
+def _payout_spread(check: grids.PayoutCrosscheck) -> Decimal | None:
+    values = [candidate.value for candidate in check.candidates if candidate.value is not None]
+    if len(values) < 2:
+        return None
+    high = max(abs(value) for value in values)
+    low = min(abs(value) for value in values)
+    if high == 0:
+        return None
+    return (high - low) / high * Decimal("100")
+
+
+def _decimal(value: Decimal | None) -> str:
+    return "—" if value is None else f"{value:,.2f}"
+
+
+def _scenario(
+    sensitivity: tuple[tuple[Decimal, Decimal | None, Decimal | None], ...],
+    gg: Decimal | None,
+    k: Decimal,
+) -> str:
+    for row_k, _aa, row_gg in sensitivity:
+        if row_k == k:
+            return _pct(row_gg)
+    if gg is None:
+        return "—"
+    return _pct(gg * k)
 
 
 def _num_price(value: Decimal | None) -> str:
@@ -459,6 +718,18 @@ def _qualitative_check(
         status,
         f"{LABELS[item.judgment]}（置信度 {item.confidence}，{len(item.evidence)} 条证据）",
     )
+
+
+def _qualitative_trap(
+    name: str, module: str, qualitative: Qualitative | None
+) -> Check:
+    """Negative evidence is a value-trap signal; missing evidence is unknown."""
+    item = qualitative.get(module) if qualitative else None
+    if item is None or item.judgment == "unknown":
+        return Check(name, "unknown", "未提供证据化判断（不计入陷阱）")
+    if item.judgment == "negative":
+        return Check(name, "veto", f"负面（置信度 {item.confidence}，{len(item.evidence)} 条证据）")
+    return Check(name, "pass", f"{LABELS[item.judgment]}（置信度 {item.confidence}）")
 
 
 def final_verdict(results: dict[str, FactorResult]) -> tuple[str, str]:

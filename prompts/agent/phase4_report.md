@@ -7,6 +7,8 @@
 - `output/<code>/analysis_report.md`（CLI 生成，结论与指标）
 - `output/<code>/data_pack.md`（数据包）
 - `output/<code>/qualitative.json`（定性判断与证据）
+- 若 Phase 2 产出了 `reported_numbers.json`，先重跑确定性报告并传入 PDF 数字：
+  `python -m turtlefw.cli report <code> --pdf-numbers output/<code>/reported_numbers.json`
 
 ## 结构（固定）
 
@@ -32,7 +34,8 @@
 1. 叙述中每个数字必须能在上述三个文件中找到；不得四则运算、不得换算单位、不得补零；
 2. 不改变 CLI 结论，也不新增仓位建议；
 3. 定性判断只能引用 `qualitative.json` 中已有的 judgment；
-4. 长度控制在 500 字以内，不堆砌指标。
+4. 长度控制在 500 字以内，不堆砌指标；
+5. 不重复 CLI 报告里的 Thesis Card/止损表；叙述只解释"为什么"，执行条件以 CLI 报告为准。
 
 ## 校验
 

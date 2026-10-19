@@ -65,33 +65,33 @@ def five_baselines(
     rf_pct: Decimal | None = None,
     dividend_floor_pct: Decimal = Decimal("3"),
 ) -> list[Baseline]:
-    """Build the valid anchors only; invalid inputs are skipped, not zeroed."""
+    """Build the valid anchors only; invalid or non-positive inputs are skipped."""
     baselines: list[Baseline] = []
     if shares and shares > 0 and cash is not None and debt is not None:
         value = net_liquid_assets_per_share(
             cash, trad_assets or Decimal("0"), debt, shares
         )
-        if value is not None:
+        if value is not None and value > 0:
             baselines.append(
                 Baseline("净流动资产/股", value, "(现金+交易性资产-有息负债)/总股本")
             )
     if shares and shares > 0 and equity is not None:
         value = book_value_per_share(equity, shares)
-        if value is not None:
+        if value is not None and value > 0:
             baselines.append(Baseline("每股净资产", value, "归母权益/总股本"))
     if closes:
         value = ten_year_low(closes)
-        if value is not None:
+        if value is not None and value > 0:
             baselines.append(Baseline("10年最低价", value, "周线最低收盘价"))
     if rf_pct is not None:
         value = dividend_implied_price(average_dps, rf_pct, dividend_floor_pct)
-        if value is not None:
+        if value is not None and value > 0:
             baselines.append(
                 Baseline("股息隐含价", value, f"3年均DPS/max(Rf,{dividend_floor_pct}%)")
             )
         if shares and shares > 0 and min_fcf is not None:
             value = pessimistic_fcf_price(min_fcf, rf_pct, shares)
-            if value is not None:
+            if value is not None and value > 0:
                 baselines.append(
                     Baseline("悲观FCF资本化", value, "min(5年FCF)/Rf/总股本")
                 )
@@ -115,6 +115,30 @@ def premium(price: Decimal, baseline: Decimal | None) -> Decimal | None:
     if baseline is None or baseline <= 0:
         return None
     return (price / baseline - Decimal("1")) * Decimal("100")
+
+
+def choose_composite(
+    baselines: Iterable[Baseline],
+    method: str = "median",
+    divergence_threshold: Decimal = Decimal("20"),
+) -> tuple[Decimal | None, "FloorStats"]:
+    """Pick the composite consistently for CLI, data pack and report.
+
+    ``median`` is the default because the five anchors include one or two
+    liquidation-style values that can be extreme. When the configured method
+    is unavailable (e.g. no valid anchor), fall back to the other one.
+    """
+    items = list(baselines)
+    stats = floor_stats(items, divergence_threshold)
+    if stats.mean is None and stats.median is None:
+        return None, stats
+    if method == "mean":
+        value = stats.mean if stats.mean is not None else stats.median
+    else:
+        value = stats.median if stats.median is not None else stats.mean
+    if value is not None and value <= 0:
+        return None, stats
+    return value, stats
 
 
 @dataclass(frozen=True, slots=True)

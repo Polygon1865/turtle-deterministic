@@ -1,9 +1,12 @@
 # 数据包 — {{ code }}
 
-> 生成时间：{{ generated_at }} ｜ 报表币种：{{ currency }} ｜ 数据源：Tushare Pro
+> 数据截至：{{ as_of or generated_at }} ｜ 报表币种：{{ currency }} ｜ 数据源：Tushare Pro
 > 数据快照：`{{ snapshot_id }}` ｜ 行情日期：{{ as_of }} ｜ 市场：{{ market }}
 {% if rf_source %}
 > 无风险利率来源：{{ rf_source }}
+{% endif %}
+{% if pit_note %}
+> PIT：{{ pit_note }}
 {% endif %}
 
 ## 1. 关键指标
@@ -13,10 +16,29 @@
 ## 2. 五年财务趋势（百万元，EPS 除外）
 
 {{ trend_table }}
+{% if interim_table %}
+
+### 2.1 最新中报/季报（年化参考）
+
+{{ interim_table }}
+
+> {{ interim_note }}
+{% endif %}
+{% if ttm_rows %}
+
+### 2.2 TTM（滚动十二个月）
+
+{{ ttm_table }}
+
+> {{ ttm_note }}
+{% endif %}
 
 ## 3. 分红历史
 
 {{ dividend_table }}
+{% if dividend_note %}
+> {{ dividend_note }}
+{% endif %}
 
 ## 4. 行情与估值
 
@@ -33,10 +55,83 @@
 **综合底价：{{ composite }} {{ currency }} ｜ 当前价溢价：{{ premium }}**
 
 {{ floor_note }}
+{% if pdf_bridge_table %}
 
-## 7. 数据问题
+### 6.1 港股 PDF 间接现金桥
+
+{{ pdf_bridge_table }}
+
+> {{ pdf_bridge_note }}
+{% endif %}
+
+## 7. 治理与资本动作
+
+{{ governance_table }}
+
+## 8. 股东与主营
+
+{% if holders_available %}**前十大股东**
+
+{{ holders_table }}
+{% endif %}
+{% if mainbz_available %}**主营/分部**
+
+{{ mainbz_table }}
+{% endif %}
+{% if not holders_available and not mainbz_available %}未接入股东/主营数据。{% endif %}
+
+{% if hk_facts_note %}> HK PDF 语义：{{ hk_facts_note }}{% endif %}
+
+## 9. 数据问题
 
 {{ issues_md }}
+
+## 10. 附注表格摘要（PDF）
+
+{% if footnote_available %}
+{{ footnote_table }}
+
+> 仅展示每节前 2 张表的表头与首行；完整结构见 `footnotes.json`。
+{% else %}
+未提供 `footnotes.json`；本节为空。
+{% endif %}
+
+## 11. 数据口径与审计
+
+- 数据截至：{{ as_of }}
+- 数据口径：{{ data_basis }}
+- PIT：{{ pit_note or "未启用；未按公告日过滤" }}
+{% if interim_note %}- 中报参考：{{ interim_note }}{% endif %}
+{% if ttm_note %}- TTM：{{ ttm_note }}{% endif %}
+- 审计：{{ audit_note }}
+
+## 12. 现金桥（AA）
+
+{{ cash_bridge_table }}
+
+> AA 口径：{{ aa_label }}；完整桥年份 {{ bridge_coverage }}。
+
+## 13. PDF 抽取状态
+
+- PDF 章节数：{{ pdf_section_count }}
+- 已识别章节：{{ pdf_section_ids or "无" }}
+{% if pdf_bridge_note %}- 现金桥说明：{{ pdf_bridge_note }}{% endif %}
+
+## 14. TTM 明细
+
+{% if ttm_rows %}
+{{ ttm_table }}
+{% else %}
+未启用 TTM；报表口径为年度。
+{% endif %}
+
+## 15. 口径与公式
+
+- 报表口径：{{ data_basis }}
+- 底价方法数：{{ methods }}
+- AA 口径：{{ aa_label }}
+- 现金桥完整度：{{ bridge_coverage }}
+- 无风险利率来源：{{ rf_source or "未提供" }}
 
 ---
 

@@ -23,6 +23,7 @@ python -m turtlefw.cli qa <code> --write
 ## 人工复核清单
 
 - [ ] 结论与 CLI 报告一致（买入/观察/排除及原因）
+- [ ] Thesis Card 的仓位、止损条件与最终结论一致
 - [ ] 抽查 2 条证据链接，确认引文可找到
 - [ ] unknown 模块在交付说明中列出
 - [ ] 数字冲突（discrepancies）已解释

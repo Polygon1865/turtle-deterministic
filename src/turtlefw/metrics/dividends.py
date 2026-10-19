@@ -18,6 +18,8 @@ def total_for(event: DividendEvent, shares: Decimal | None = None) -> Decimal | 
     """Total cash paid by one event, or ``None`` when it cannot be derived."""
     if event.total is not None:
         return event.total
+    if not event.dps_reliable:
+        return None
     if shares is None or shares <= 0:
         return None
     return event.dps * shares
@@ -40,12 +42,14 @@ def payout_by_year(
     totals: dict[int, Decimal] = defaultdict(Decimal)
     explicit: dict[int, list[Decimal]] = defaultdict(list)
     seen: set[tuple[int, str]] = set()
+    years_with_events: set[int] = set()
 
     for event in events:
         key = (event.fiscal_year, event.event_id)
         if key in seen:  # repeated announcements are idempotent
             continue
         seen.add(key)
+        years_with_events.add(event.fiscal_year)
         if event.payout_pct is not None:
             explicit[event.fiscal_year].append(event.payout_pct)
             continue
@@ -62,7 +66,8 @@ def payout_by_year(
         elif income is None or income <= 0:
             result[year] = None
         elif year not in totals:
-            result[year] = Decimal("0")
+            # An event exists but carries no derivable amount: unknown, not 0.
+            result[year] = None if year in years_with_events else Decimal("0")
         else:
             result[year] = totals[year] / income * Decimal("100")
     return result

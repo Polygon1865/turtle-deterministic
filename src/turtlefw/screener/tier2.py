@@ -5,7 +5,6 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Sequence
 
 import pandas as pd
 
@@ -109,11 +108,18 @@ def analyze_one(provider, row: pd.Series, settings: Settings, rf_pct: Decimal) -
         for item in history
         if item.get("close") is not None
     ]
+    pledge_pct = (
+        provider.pledge_ratio(code) if hasattr(provider, "pledge_ratio") else None
+    )
+    buyback_amount = (
+        provider.buyback_amount(code) if hasattr(provider, "buyback_amount") else None
+    )
+    buyback = Money(buyback_amount, currency) if buyback_amount is not None else None
     ctx = FactorContext(
         code=code, rows=rows, dividends=dividends, market_cap=market_cap, shares=shares,
         price=price, rf_pct=rf_pct, tax_pct=Decimal("0"), settings=settings,
         snapshot=snapshot, closes=closes, audit=provider.audit(code),
-        payout_reliable=payout_ok,
+        payout_reliable=payout_ok, pledge_pct=pledge_pct, buyback=buyback,
     )
     results = run(ctx)
     verdict, _ = final_verdict(results)
@@ -148,9 +154,12 @@ def analyze_one(provider, row: pd.Series, settings: Settings, rf_pct: Decimal) -
         rf_pct=rf_pct,
         dividend_floor_pct=settings.valuation.dividend_discount_floor,
     )
-    composite = valuation.composite(baselines, settings.valuation.composite_method)
-    stats = valuation.floor_stats(baselines, settings.valuation.divergence_threshold)
-    premium = valuation.premium(price, stats.median) if stats.median else None
+    chosen, stats = valuation.choose_composite(
+        baselines,
+        settings.valuation.composite_method,
+        settings.valuation.divergence_threshold,
+    )
+    premium = valuation.premium(price, chosen) if chosen else None
     if premium is not None:
         premium = premium.quantize(Decimal("0.01"))
 

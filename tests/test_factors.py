@@ -5,6 +5,7 @@ from turtlefw import demo
 from turtlefw.config import load_settings
 from turtlefw.factors.engine import FactorContext, final_verdict, run
 from turtlefw.metrics.valuation import build_valuation
+from turtlefw.qualitative import Judgment, Qualitative
 from turtlefw.types import Currency, Money
 
 
@@ -101,6 +102,59 @@ class TestEngine:
 
     def test_final_verdict_is_known(self):
         assert final_verdict(run(context()))[0] in {"买入", "观察", "排除"}
+
+    def test_g_grid_is_used_and_reported(self):
+        results = run(context())
+        metrics = dict(results["2"].metrics)
+        assert "维持性 Capex 系数 G" in metrics
+        assert metrics["维持性 Capex 系数 G"].startswith("1.15")
+
+    def test_confidence_is_reported(self):
+        results = run(context())
+        metrics = dict(results["4"].metrics)
+        assert metrics["外推可信度"] in {"high", "medium", "low"}
+        assert metrics["价值陷阱"].endswith("项")
+
+    def test_negative_moat_is_a_trap(self):
+        qualitative = Qualitative(
+            items={
+                "moat": Judgment(
+                    module="moat",
+                    judgment="negative",
+                    confidence="high",
+                    evidence=(),
+                )
+            }
+        )
+        results = run(replace(context(), qualitative=qualitative))
+        check = {c.name: c for c in results["4"].checks}["护城河正在收窄"]
+        assert check.status == "veto"
+        assert dict(results["4"].metrics)["价值陷阱"].startswith("1")
+
+    def test_pledge_above_70_is_a_veto(self):
+        results = run(replace(context(), pledge_pct=Decimal("80")))
+        assert results["1A"].passed is False
+        assert final_verdict(results)[0] == "排除"
+
+    def test_low_parent_cash_is_an_upstream_veto(self):
+        results = run(replace(context(), parent_cash=Decimal("1")))
+        check = {c.name: c for c in results["1B"].checks}["现金上游障碍"]
+        assert check.status == "veto"
+        assert results["1B"].passed is False
+
+    def test_buyback_increases_crude_return(self):
+        base = dict(run(context())["2"].metrics)["粗算回报率 R"]
+        with_buyback = dict(
+            run(replace(context(), buyback=Money(Decimal("1000000000"), Currency.CNY)))["2"].metrics
+        )["粗算回报率 R"]
+        assert Decimal(with_buyback.rstrip("%")) > Decimal(base.rstrip("%"))
+
+    def test_sbc_reduces_refined_return(self):
+        base = dict(run(context())["3"].metrics)["精算回报率 GG"]
+        with_sbc = dict(
+            run(replace(context(), sbc=Money(Decimal("1000000000"), Currency.CNY)))["3"].metrics
+        )["精算回报率 GG"]
+        assert Decimal(with_sbc.rstrip("%")) < Decimal(base.rstrip("%"))
 
 
 class TestValuationSnapshot:

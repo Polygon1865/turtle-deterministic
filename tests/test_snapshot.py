@@ -1,0 +1,118 @@
+import hashlib
+import json
+import os
+import shutil
+import tempfile
+from dataclasses import replace
+from pathlib import Path
+
+from turtlefw import demo
+from turtlefw.config import load_settings
+from turtlefw.facts import (
+    ReportManifest,
+    config_payload,
+    content_hash,
+    file_hash,
+    statement_payload,
+    template_hash,
+)
+from turtlefw.report.snapshot import ReportInputs, freeze, load, render, verify_manifest
+
+
+def _root() -> Path:
+    path = Path(tempfile.gettempdir()) / f"turtle-snapshot-test-{os.getpid()}"
+    if path.exists():
+        shutil.rmtree(path, ignore_errors=True)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _inputs() -> ReportInputs:
+    return ReportInputs(
+        code="600887.SH",
+        currency="CNY",
+        as_of="2026-10-16",
+        rows=demo.demo_rows(),
+        dividends=demo.demo_dividends(),
+        quote={"trade_date": "20261016", "close": 28.2},
+        history=[{"trade_date": "20261016", "close": 28.2, "high": 30.0, "low": 27.0}],
+        market_cap=str(demo.DEMO_MARKET_CAP),
+        shares=str(demo.DEMO_SHARES),
+        price="28.2",
+        rf_pct=str(demo.DEMO_RF),
+        rf_source="test",
+    )
+
+
+def test_snapshot_roundtrip_and_byte_identity():
+    root = _root()
+    try:
+        settings = load_settings()
+        freeze(_inputs(), settings, root)
+        inputs, loaded_settings = load(root)
+        a, _ = render(inputs, loaded_settings, snapshot_dir=root)
+        b, _ = render(inputs, loaded_settings, snapshot_dir=root)
+        assert a == b
+        assert "数据截至：2026-10-16" in a
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def test_research_section_is_rendered():
+    root = _root()
+    try:
+        research = {
+            "evidence": [{"id": "ev1", "url": "https://example.com/a", "quote": "原文"}],
+            "claims": [
+                {
+                    "claim_id": "D2.1",
+                    "dimension": "D2",
+                    "statement": "品牌护城河，R={{metric:r}}",
+                    "judgment": "positive",
+                    "confidence": "high",
+                    "evidence_ids": ["ev1"],
+                }
+            ],
+        }
+        research_path = root / "research.json"
+        research_path.write_text(json.dumps(research, ensure_ascii=False), encoding="utf-8")
+        settings = load_settings()
+        freeze(_inputs(), settings, root, research_source=research_path)
+        inputs, loaded_settings = load(root)
+        text, _ = render(inputs, loaded_settings, snapshot_dir=root)
+        assert "D2.1" in text
+        assert "{{metric:r}}" not in text
+        assert "https://example.com/a" in text
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def test_manifest_verification():
+    root = _root()
+    try:
+        settings = load_settings()
+        freeze(_inputs(), settings, root)
+        inputs, loaded_settings = load(root)
+        markdown, _ = render(inputs, loaded_settings, snapshot_dir=root)
+        manifest = ReportManifest(
+            code=inputs.code,
+            as_of=inputs.as_of,
+            currency=inputs.currency,
+            facts_hash=content_hash(statement_payload(inputs.rows)),
+            config_hash=content_hash(config_payload(loaded_settings)),
+            template_hash=template_hash(Path(__file__).parents[1] / "src/turtlefw/report/templates"),
+            report_hash=hashlib.sha256(markdown.encode("utf-8")).hexdigest(),
+        )
+        assert verify_manifest(inputs, loaded_settings, markdown, manifest, root) == []
+        bad = replace(manifest, report_hash="deadbeef")
+        assert "report_hash mismatch" in verify_manifest(inputs, loaded_settings, markdown, bad, root)
+        metrics = root / "metrics.json"
+        metrics.write_text('{"r": "1.00"}', encoding="utf-8")
+        with_metrics = replace(manifest, metrics_hash=file_hash(metrics))
+        assert verify_manifest(inputs, loaded_settings, markdown, with_metrics, root) == []
+        metrics.write_text('{"r": "2.00"}', encoding="utf-8")
+        assert "metrics_hash mismatch" in verify_manifest(
+            inputs, loaded_settings, markdown, with_metrics, root
+        )
+    finally:
+        shutil.rmtree(root, ignore_errors=True)

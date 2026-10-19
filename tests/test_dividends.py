@@ -36,6 +36,16 @@ class TestPayoutByYear:
         events = [event(2023, "final", "1.0", "1000")]
         assert payout_by_year(events, {2024: Decimal("2000")})[2024] == Decimal("0")
 
+    def test_event_without_amount_is_unknown(self):
+        hk = DividendEvent(
+            fiscal_year=2024,
+            event_id="2024",
+            dps=Decimal("2.0"),
+            currency=Currency.HKD,
+            total=None,
+        )
+        assert payout_by_year([hk], {2024: Decimal("1000")})[2024] is None
+
     def test_negative_income_is_none(self):
         events = [event(2024, "final", "1.0", "1000")]
         assert payout_by_year(events, {2024: Decimal("-5")})[2024] is None

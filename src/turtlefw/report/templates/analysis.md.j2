@@ -1,6 +1,6 @@
 # 龟龟策略分析报告 — {{ code }}
 
-> 生成时间：{{ generated_at }} ｜ 报表币种：{{ currency }} ｜ 数据快照：`{{ snapshot_id }}`
+> 数据截至：{{ as_of or generated_at }} ｜ 报表币种：{{ currency }} ｜ 数据快照：`{{ snapshot_id }}`
 > 无风险利率：{{ rf }}（来源：{{ rf_source }}）｜ 当前价：{{ price }} ｜ 总市值（百万元）：{{ market_cap }}
 
 ## 一、结论
@@ -34,6 +34,8 @@
 ## 五、因子 3：穿透回报率精算
 
 {{ f3_table }}
+
+{{ f3_checks }}
 
 > {{ notes_3 }}
 
@@ -71,16 +73,54 @@
 
 仍未验证的内容（`qualitative.json` 中为 unknown）：
 
-- 护城河类型与竞争格局
-- 管理层与治理结构
-- 行业景气与政策风险
-- 财务造假/违规前科
-- 控股股东负面信号
+{{ unknown_md }}
 
-## 九、数据来源与免责声明
+## 九、投资论点卡（Thesis Card）
+
+**核心论点**：{{ thesis_core }}
+
+**仓位建议**：{{ thesis_position }}
+
+**买入/持有理由**
+
+{{ thesis_reasons_md }}
+
+**预期催化剂**
+
+{{ thesis_catalysts_md }}
+
+**预期持有周期**：{{ thesis_holding }}
+
+**基本面止损条件**
+
+{{ thesis_stop_table }}
+
+> `状态=已触发` 的 critical 项需要立即复查论点；`持续为负` 表示入场时已为负，需结合杠杆与现金流判断；`数据未接入` 需人工跟踪。
+
+**事件监控清单**
+
+{{ thesis_monitor_md }}
+
+## 十、来源冲突决策（SourceRank）
+
+{% if resolved_md %}
+{{ resolved_md }}
+{% else %}
+未提供 PDF 候选；未执行跨源冲突决策。
+{% endif %}
+
+## 十一、研究判断（D1–D6，证据驱动）
+
+{% if research_md %}
+{{ research_md }}
+{% else %}
+未提供 `research.json`；本节为空，不影响确定性结论。
+{% endif %}
+
+## 十二、数据来源与免责声明
 
 - 财务数据：Tushare Pro（`turtlefw` 确定性管线）
 - 无风险利率：{{ rf_source }}
 - 分红：Tushare `dividend` / `hk_fina_indicator`
 
-> 本报告由确定性规则生成，未包含 LLM 定性判断，不构成投资建议。
+> {{ disclaimer }}

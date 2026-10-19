@@ -16,7 +16,12 @@ from typing import Any, Mapping
 class FileCache:
     def __init__(self, root: Path, ttl_seconds: int = 7 * 86400) -> None:
         self.root = Path(root)
-        self.root.mkdir(parents=True, exist_ok=True)
+        try:
+            self.root.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            # A read-only checkout can still use the provider; the cache is an
+            # optimisation, not a data dependency.
+            pass
         self.ttl_seconds = ttl_seconds
 
     @staticmethod
@@ -46,11 +51,16 @@ class FileCache:
     def put(self, key: str, value: Any) -> None:
         path = self._path(key)
         tmp = path.with_suffix(".json.tmp")
-        tmp.write_text(
-            json.dumps(value, ensure_ascii=False, default=str),
-            encoding="utf-8",
-        )
-        tmp.replace(path)
+        try:
+            tmp.write_text(
+                json.dumps(value, ensure_ascii=False, default=str),
+                encoding="utf-8",
+            )
+            tmp.replace(path)
+        except OSError:
+            # Cache write failures (read-only checkout, sandbox ACL) must not
+            # fail the data fetch itself.
+            pass
 
     def clear(self) -> int:
         removed = 0

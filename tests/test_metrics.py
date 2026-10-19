@@ -24,6 +24,94 @@ ROWS = make_rows(
 
 
 class TestStatements:
+    def test_ttm(self):
+        rows = make_rows(
+            {
+                ("income", "revenue"): {
+                    2024: "100",
+                    2025: "120",
+                    2026: "60",
+                },
+            }
+        )
+        from datetime import date
+
+        from turtlefw.data.protocol import StatementRow
+        from turtlefw.types import Currency
+
+        rows.append(
+            StatementRow(
+                code="600887.SH",
+                period_end=date(2025, 6, 30),
+                period_type="interim",
+                statement="income",
+                item="revenue",
+                value=Decimal("50"),
+                currency=Currency.CNY,
+                source="test",
+            )
+        )
+        rows = [
+            row for row in rows if not (row.period_end.year == 2026 and row.period_end.month == 12)
+        ]
+        rows.append(
+            StatementRow(
+                code="600887.SH",
+                period_end=date(2026, 6, 30),
+                period_type="interim",
+                statement="income",
+                item="revenue",
+                value=Decimal("70"),
+                currency=Currency.CNY,
+                source="test",
+            )
+        )
+        summary = statements.ttm(rows)
+        assert summary is not None
+        # 120 + 70 - 50
+        assert summary.values[("income", "revenue")] == Decimal("140")
+
+    def test_as_of_rows_filters_future_announcements(self):
+        from datetime import date
+
+        from turtlefw.data.protocol import StatementRow
+        from turtlefw.types import Currency
+
+        rows = [
+            StatementRow("600887.SH", date(2025, 12, 31), "annual", "income", "revenue", Decimal("100"), Currency.CNY, "test", date(2026, 3, 30)),
+            StatementRow("600887.SH", date(2025, 6, 30), "interim", "income", "revenue", Decimal("50"), Currency.CNY, "test", date(2025, 8, 30)),
+        ]
+        kept = statements.as_of_rows(rows, "2025-12-31")
+        assert len(kept) == 1
+        assert kept[0].period_end == date(2025, 6, 30)
+
+    def test_apply_ttm(self):
+        from datetime import date
+
+        from turtlefw.data.protocol import StatementRow
+        from turtlefw.types import Currency
+
+        rows = [
+            StatementRow("600887.SH", date(2025, 12, 31), "annual", "income", "revenue", Decimal("120"), Currency.CNY, "test", date(2026, 3, 30)),
+            StatementRow("600887.SH", date(2025, 6, 30), "interim", "income", "revenue", Decimal("50"), Currency.CNY, "test", date(2025, 8, 30)),
+            StatementRow("600887.SH", date(2026, 6, 30), "interim", "income", "revenue", Decimal("70"), Currency.CNY, "test", date(2026, 8, 30)),
+            StatementRow("600887.SH", date(2026, 6, 30), "interim", "balance", "total_assets", Decimal("1000"), Currency.CNY, "test", date(2026, 8, 30)),
+        ]
+        result = statements.apply_ttm(rows)
+        assert result.as_of == date(2026, 6, 30)
+        index = statements.annual_index(result.rows)
+        assert index[2026][("income", "revenue")] == Decimal("140")
+        assert index[2026][("balance", "total_assets")] == Decimal("1000")
+
+    def test_diluted_shares(self):
+        rows = make_rows(
+            {
+                ("income", "n_income_attr_p"): {2024: "1000"},
+                ("income", "diluted_eps"): {2024: "2"},
+            }
+        )
+        assert statements.diluted_shares(rows) == Decimal("500")
+
     def test_fcf(self):
         assert statements.fcf_series(ROWS) == {
             2022: Decimal("15"),

@@ -15,22 +15,49 @@ python -m turtlefw.cli fetch-report --url "<PDF_URL>" --stock-code <数字代码
   --report-type 年报 --year <年份> --save-dir output/<标准化代码>
 ```
 
-3. **解析**：
+3. **解析章节**：
 
 ```powershell
 python -m turtlefw.cli pdf --pdf output/<code>/<file>.pdf `
   --output output/<code>/pdf_sections.json --verbose
 ```
 
-4. **抽文档数字**（reported_numbers.json，单位元，只抄合并报表）：
+4. **结构化附注表格**：
+
+```powershell
+python -m turtlefw.cli pdf-footnotes --sections output/<code>/pdf_sections.json `
+  --output output/<code>/footnotes.json
+```
+
+输出每个章节的 `pages/tables/text_excerpt`；P3/P4/P6 的账龄、关联方、或有负债表可直接引用，
+但表头语义仍需 Agent 结合上下文判断。
+
+5. **自动抽取审计数字**：
+
+```powershell
+python -m turtlefw.cli pdf-numbers --pdf output/<code>/<file>.pdf `
+  --year <年份> --report-type 年报 --output output/<code>/reported_numbers.json
+```
+
+默认抽取 6 项：`revenue/net_income/ocf/capex/equity/total_assets`。港股年报还会附带
+`cash_bridge`（净利润→D&A→营运资本→经营产生现金→税→OCF→Capex）。必须人工复核
+`value/page/confidence`；抽取为空或页面对不上时，再按下面的手工格式补录：
 
 ```json
 {"items":[{"item":"revenue","value":"115931000000","source":"2025年报","page":"p.12"}]}
 ```
 
-可用 item：`revenue/net_income/ocf/capex/equity/total_assets`。
+6. **用 PDF 数字重跑数据包/报告**：
 
-5. **交叉审计**：
+```powershell
+python -m turtlefw.cli pack <code> --pdf-numbers output/<code>/reported_numbers.json
+python -m turtlefw.cli report <code> --pdf-numbers output/<code>/reported_numbers.json
+```
+
+港股有 `cash_bridge` 时，报告 AA 会标为 `PDF间接现金桥`；这是间接法，**不是**
+直接法毛利收现/付现桥。
+
+7. **交叉审计**：
 
 ```powershell
 python -m turtlefw.cli audit <code> --doc reported_numbers.json --threshold 1 `

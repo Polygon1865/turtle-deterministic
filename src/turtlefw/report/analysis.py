@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from decimal import Decimal
-from pathlib import Path
 from typing import Sequence
 
 from jinja2 import Environment, FileSystemLoader
@@ -12,9 +10,10 @@ from jinja2 import Environment, FileSystemLoader
 from ..config import Settings
 from ..factors.engine import FactorContext, FactorResult, final_verdict
 from ..metrics import statements, valuation
-from ..qualitative import JUDGMENTS, MODULES, all_evidence, summary as qual_summary
+from ..metrics import registry as metric_registry
+from ..qualitative import MODULES, all_evidence, summary as qual_summary
 from ..types import FetchIssue
-from .pack import TEMPLATE_DIR, _m, _num, _pct, _table, _x, average_dps
+from .pack import TEMPLATE_DIR, _m, _num, _pct, _table, average_dps
 
 STATUS = {"pass": "通过", "veto": "否决", "unknown": "未验证", "info": "观察"}
 
@@ -27,6 +26,10 @@ def render_analysis(
     snapshot_id: str,
     rf_source: str,
     issues: Sequence[FetchIssue] = (),
+    as_of: str = "",
+    research_md: str = "",
+    resolved_md: str = "",
+    metrics_out: dict[str, object] | None = None,
 ) -> str:
     verdict, reason = final_verdict(results)
     rows = ctx.rows
@@ -34,6 +37,7 @@ def render_analysis(
     latest = max(years) if years else None
 
     income = statements.net_income(rows)
+    revenue = statements.revenue(rows)
     fcf = statements.fcf_series(rows)
     debt = statements.interest_bearing_debt(rows)
     cash = statements.cash_and_equivalents(rows)
@@ -50,6 +54,18 @@ def render_analysis(
         if min_fcf_recent and min(min_fcf_recent.values()) > 0
         else None
     )
+    dps_by_year: dict[int, Decimal] = {}
+    for event in ctx.dividends:
+        if event.dps_reliable:
+            dps_by_year[event.fiscal_year] = (
+                dps_by_year.get(event.fiscal_year, Decimal("0")) + event.dps
+            )
+    recent_dps = sorted(dps_by_year)[-3:]
+    avg_dps = (
+        sum((dps_by_year[y] for y in recent_dps), Decimal("0")) / Decimal(len(recent_dps))
+        if recent_dps
+        else average_dps(ctx.dividends)
+    )
     baselines = valuation.five_baselines(
         cash=cash.get(latest) if latest else None,
         trad_assets=statements.annual_series(rows, "balance", "trad_asset").get(latest)
@@ -57,35 +73,36 @@ def render_analysis(
         else None,
         debt=debt.get(latest) if latest else None,
         equity=equity.get(latest) if latest else None,
-        shares=ctx.shares,
+        shares=ctx.diluted_shares or ctx.shares,
         closes=ctx.closes,
-        average_dps=average_dps(ctx.dividends),
+        average_dps=avg_dps,
         min_fcf=min_fcf,
         rf_pct=ctx.rf_pct,
         dividend_floor_pct=settings.valuation.dividend_discount_floor,
     )
-    stats = valuation.floor_stats(baselines, settings.valuation.divergence_threshold)
-    composite = (
-        stats.median
-        if stats.median is not None
-        else valuation.composite(baselines, settings.valuation.composite_method)
+    composite, stats = valuation.choose_composite(
+        baselines,
+        settings.valuation.composite_method,
+        settings.valuation.divergence_threshold,
     )
     premium = valuation.premium(ctx.price, composite) if ctx.price and composite else None
+    metric_ledger = metric_registry.build(
+        ctx, results, composite=composite, premium=premium, stats=stats
+    )
     status_label = {"stable": "口径一致", "divergent": "口径分歧", "unavailable": "不可用"}[
         stats.status
     ]
+    method_label = "中位数" if settings.valuation.composite_method == "median" else "均值"
     floor_note = (
         f"均值 {_num(stats.mean)} ｜ 中位数 {_num(stats.median)} ｜ "
-        f"分歧 {_pct(stats.divergence)}（{status_label}）"
+        f"分歧 {_pct(stats.divergence)}（{status_label}）｜ 采用{method_label}"
     )
+    if len(baselines) < 5:
+        floor_note += f"；有效锚点 {len(baselines)}/5（缺失或非正已剔除）"
     if stats.status == "divergent":
-        floor_note += "。均值受极值影响，本报告以中位数为准，且仓位不高于「观察」。"
-        if verdict == "买入":
-            verdict, reason = "观察", "底价口径分歧（均值与中位数偏离过大），仓位上限降为观察"
+        floor_note += "。均值受极值影响，建议以中位数为准，且仓位不高于「观察」。"
     elif stats.status == "unavailable":
-        floor_note += "。中位数非正，底价无意义。"
-        if verdict == "买入":
-            verdict, reason = "观察", "底价不可用，无法确认安全边际"
+        floor_note += "。底价不可用，无法据此确认安全边际。"
 
     def checks_table(result: FactorResult) -> str:
         return _table(
@@ -95,35 +112,63 @@ def render_analysis(
         )
 
     def metrics_table(result: FactorResult) -> str:
-        return _table(["指标", "数值"], [[k, v] for k, v in result.metrics], ["l", "r"])
+        ids = {
+            "粗算回报率 R": "r",
+            "精算回报率 GG": "gg",
+            "门槛 II": "ii",
+            "安全边际 KK": "margin",
+        }
+        return _table(
+            ["指标", "数值"],
+            [[k, metric_ledger.display(ids[k]) if k in ids else v] for k, v in result.metrics],
+            ["l", "r"],
+        )
+
+    def metrics_table_from(values: dict[str, str]) -> str:
+        ids = {
+            "粗算回报率 R": "r",
+            "精算回报率 GG": "gg",
+            "门槛 II": "ii",
+            "安全边际 KK": "margin",
+        }
+        return _table(
+            ["指标", "数值"],
+            [[k, metric_ledger.display(ids[k]) if k in ids else v] for k, v in values.items()],
+            ["l", "r"],
+        )
 
     f4 = results["4"]
     f4_metrics = dict(f4.metrics)
-    f2_metrics = dict(results["2"].metrics)
-    f3_metrics = dict(results["3"].metrics)
+    # The final verdict can be capped by the floor-price rules; render that
+    # final state in factor 4 instead of the pre-cap "买入/标准仓位".
+    f4_metrics["结论"] = verdict
+    if verdict == "排除":
+        f4_metrics["仓位建议"] = "不建仓"
+    elif verdict == "观察" and f4_metrics.get("仓位建议") in {"标准仓位", "70%", "50%"}:
+        f4_metrics["仓位建议"] = "观察仓位"
 
     valuation_rows = [
-        ["EV/EBITDA", _x(ctx.snapshot.ev_ebitda)],
-        ["净负债/EBITDA", _x(ctx.snapshot.net_debt_ebitda)],
-        ["扣除现金 PE", _x(ctx.snapshot.cash_adj_pe)],
-        ["P/B", _x(ctx.snapshot.pb)],
-        ["FCF 收益率", _pct(ctx.snapshot.fcf_yield)],
-        ["股息率（3 年均 DPS）", _pct(ctx.snapshot.dividend_yield)],
-        ["EBITDA 利润率", _pct(ctx.snapshot.ebitda_margin)],
-        ["商誉/总资产", _pct(ctx.snapshot.goodwill_ratio)],
-        ["底价均值", _num(stats.mean)],
-        ["底价中位数", _num(stats.median)],
-        ["口径分歧", f"{_pct(stats.divergence)}（{status_label}）"],
+        ["EV/EBITDA", metric_ledger.display("ev_ebitda")],
+        ["净负债/EBITDA", metric_ledger.display("net_debt_ebitda")],
+        ["扣除现金 PE", metric_ledger.display("cash_adj_pe")],
+        ["P/B", metric_ledger.display("pb")],
+        ["FCF 收益率", metric_ledger.display("fcf_yield")],
+        ["股息率（3 年均 DPS）", metric_ledger.display("dividend_yield")],
+        ["EBITDA 利润率", metric_ledger.display("ebitda_margin")],
+        ["商誉/总资产", metric_ledger.display("goodwill_ratio")],
+        ["底价均值", metric_ledger.display("floor.mean")],
+        ["底价中位数", metric_ledger.display("floor.median")],
+        ["口径分歧", f"{metric_ledger.display('floor.divergence')}（{status_label}）"],
     ]
     floor_rows = [[b.name, _num(b.value), b.formula] for b in baselines]
 
     if ctx.qualitative is not None:
-        rows = qual_summary(ctx.qualitative)
+        qual_rows = qual_summary(ctx.qualitative)
         qual_table = _table(
             ["模块", "判断", "置信度", "证据数"],
             [
                 [label, {"positive": "正面", "neutral": "中性", "negative": "负面", "unknown": "未验证"}[judgment], confidence, str(count)]
-                for label, judgment, confidence, count in rows
+                for label, judgment, confidence, count in qual_rows
             ],
             ["l", "l", "l", "r"],
         )
@@ -137,9 +182,16 @@ def render_analysis(
         )
         if ctx.qualitative.discrepancies:
             discrepancy_table = _table(
-                ["项目", "CLI", "文档/网页", "来源", "备注"],
+                ["项目", "CLI", "文档/网页", "来源", "源优先级", "备注"],
                 [
-                    [d.item, d.cli_value, d.doc_value, d.source, d.note]
+                    [
+                        d.item,
+                        d.cli_value,
+                        d.doc_value,
+                        d.source,
+                        str(d.source_rank or "—"),
+                        d.note,
+                    ]
                     for d in ctx.qualitative.discrepancies
                 ],
             )
@@ -150,34 +202,161 @@ def render_analysis(
         evidence_md = "未提供证据。"
         discrepancy_table = "未提供 qualitative.json。"
 
+    # -- unknown list / disclaimer / thesis card -------------------------
+    if ctx.qualitative is not None:
+        unknown_labels = [
+            label
+            for key, label in MODULES.items()
+            if (item := ctx.qualitative.get(key)) is None or item.judgment == "unknown"
+        ]
+        disclaimer = (
+            "本报告由确定性规则生成；定性判断来自 evidence-backed qualitative.json，"
+            "未通过校验的判断已降级为 unknown。不构成投资建议。"
+        )
+    else:
+        unknown_labels = list(MODULES.values())
+        disclaimer = "本报告由确定性规则生成，未提供定性输入，不构成投资建议。"
+    unknown_md = "\n".join(f"- {label}" for label in unknown_labels) or "无（所有模块均有证据化判断）。"
+
+    net_cash = statements.net_cash(rows, ctx.market_cap.currency)
+    net_cash_latest = net_cash.get(latest) if latest else None
+    net_cash_prev = net_cash.get(latest - 1) if latest is not None else None
+    net_cash_status = "数据不足"
+    if net_cash_latest is not None and net_cash_prev is not None:
+        if net_cash_latest.amount < 0 <= net_cash_prev.amount:
+            net_cash_status = "已触发"
+        elif net_cash_latest.amount < 0 and net_cash_prev.amount < 0:
+            net_cash_status = "持续为负"
+        else:
+            net_cash_status = "未触发"
+    recent_fcf = [v for _, v in sorted(fcf.items())[-3:]]
+    negative_fcf_years = sum(1 for value in recent_fcf if value <= 0)
+    revenue_yoy = None
+    if latest is not None and latest - 1 in revenue and revenue[latest - 1] > 0:
+        revenue_yoy = (revenue[latest] / revenue[latest - 1] - 1) * 100
+
+    def _triggered(value: bool | None) -> str:
+        if value is None:
+            return "数据不足"
+        return "已触发" if value else "未触发"
+
+    stop_rows = [
+        [
+            "净现金",
+            "相对上年转负（critical）",
+            metric_ledger.display("net_cash.latest"),
+            net_cash_status,
+        ],
+        [
+            "FCF 连续为负",
+            "连续 2 年 < 0（critical）",
+            f"{negative_fcf_years}/3 年为负",
+            _triggered(negative_fcf_years >= 2),
+        ],
+        [
+            "FCF 收益率",
+            "< 5%（warning）",
+            metric_ledger.display("fcf_yield"),
+            _triggered(
+                ctx.snapshot.fcf_yield is not None and ctx.snapshot.fcf_yield < Decimal("5")
+            ),
+        ],
+        [
+            "净负债/EBITDA",
+            "> 2x（warning）",
+            metric_ledger.display("net_debt_ebitda"),
+            _triggered(
+                ctx.snapshot.net_debt_ebitda is not None
+                and ctx.snapshot.net_debt_ebitda > Decimal("2")
+            ),
+        ],
+        [
+            "营收同比",
+            "< -20%（warning）",
+            metric_ledger.display("revenue.yoy"),
+            _triggered(revenue_yoy is not None and revenue_yoy < Decimal("-20")),
+        ],
+        [
+            "商誉/总资产",
+            "> 30%（warning）",
+            metric_ledger.display("goodwill_ratio"),
+            _triggered(
+                ctx.snapshot.goodwill_ratio is not None
+                and ctx.snapshot.goodwill_ratio > Decimal("30")
+            ),
+        ],
+        [
+            "质押率",
+            "> 70%（critical）",
+            _pct(ctx.pledge_pct),
+            "数据未接入"
+            if ctx.pledge_pct is None
+            else ("已触发" if ctx.pledge_pct > Decimal("70") else "未触发"),
+        ],
+    ]
+    thesis_core = (
+        f"当前价 {metric_ledger.display('price')}，GG {metric_ledger.display('gg')} vs "
+        f"II {metric_ledger.display('ii')}，安全边际 {metric_ledger.display('margin')}；"
+        f"底价溢价 {metric_ledger.display('premium')}，可信度 {f4_metrics.get('外推可信度', '—')}，"
+        f"价值陷阱 {f4_metrics.get('价值陷阱', '—')}。"
+    )
+    thesis_reasons = [
+        f"穿透回报：R {metric_ledger.display('r')} / GG {metric_ledger.display('gg')}，门槛 II {metric_ledger.display('ii')}。",
+        f"估值与安全边际：EV/EBITDA {metric_ledger.display('ev_ebitda')}，FCF 收益率 {metric_ledger.display('fcf_yield')}，底价溢价 {metric_ledger.display('premium')}。",
+        f"分配与现金：支付率 {metric_ledger.display('payout.mean')}，净现金 {metric_ledger.display('net_cash.latest')} 百万元。",
+    ]
+    thesis_monitor = [
+        "回购/增持公告（正面信号）",
+        "盈利预警/业绩预告（critical）",
+        "管理层或审计师变动（治理信号）",
+        "股息政策变化（直接影响分配意愿）",
+        "关联交易/资产注入（治理与结构风险）",
+        "诉讼、处罚、债务评级变化（尾部风险）",
+    ]
+    thesis_catalysts = [
+        f"分红率维持或提升（当前 {metric_ledger.display('payout.mean')}）",
+        f"FCF 连续为正、净现金改善（当前 {metric_ledger.display('net_cash.latest')} 百万元）",
+        "回购/增持落地" if ctx.buyback else "暂无回购/增持数据",
+        f"估值回到门槛价 {f4_metrics.get('门槛对应价', '—')} 附近",
+    ]
+    thesis_holding = (
+        "12–24 个月（等待估值修复/分红兑现）"
+        if verdict == "买入"
+        else "暂不建仓；观察 6–12 个月，等待数据或价格改善"
+    )
+
     context = {
         "code": str(ctx.code),
         "market": ctx.code.market.value,
         "currency": ctx.market_cap.currency.value,
-        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "generated_at": as_of,
+        "as_of": as_of,
+        "research_md": research_md,
+        "resolved_md": resolved_md,
         "snapshot_id": snapshot_id,
         "verdict": verdict,
         "reason": reason,
         "rf": _pct(ctx.rf_pct),
         "rf_source": rf_source,
-        "price": _num(ctx.price),
+        "price": metric_ledger.display("price"),
         "market_cap": _m(ctx.market_cap.amount),
+        "metric": metric_ledger.display,
+        "metric_registry": metric_ledger,
         "summary_table": _table(
             ["项目", "数值"],
             [
-                ["粗算回报率 R", f2_metrics.get("粗算回报率 R", "—")],
-                ["精算回报率 GG", f3_metrics.get("精算回报率 GG", "—")],
-                ["门槛 II", f2_metrics.get("门槛 II", "—")],
-                ["安全边际", f4_metrics.get("安全边际 KK", "—")],
+                ["粗算回报率 R", metric_ledger.display("r")],
+                ["精算回报率 GG", metric_ledger.display("gg")],
+                ["门槛 II", metric_ledger.display("ii")],
+                ["安全边际", metric_ledger.display("margin")],
                 [
                     "仓位建议",
-                    "不建仓"
-                    if verdict == "排除"
-                    else ("观察" if verdict == "观察" else f4_metrics.get("仓位建议", "—")),
+                    "不建仓" if verdict == "排除" else f4_metrics.get("仓位建议", "—"),
                 ],
-                ["因子4 独立结论", f4_metrics.get("结论", "—")],
-                ["底价（综合）", _num(composite)],
-                ["当前价溢价", _pct(premium)],
+                ["因子4 原始结论", dict(results["4"].metrics).get("结论", "—")],
+                ["最终结论", verdict],
+                ["底价（综合）", metric_ledger.display("floor")],
+                ["当前价溢价", metric_ledger.display("premium")],
             ],
             ["l", "r"],
         ),
@@ -188,14 +367,27 @@ def render_analysis(
         "discrepancy_table": discrepancy_table,
         "f2_table": metrics_table(results["2"]),
         "f3_table": metrics_table(results["3"]),
-        "f4_table": metrics_table(results["4"]),
+        "f3_checks": checks_table(results["3"]),
+        "f4_table": metrics_table_from(f4_metrics),
         "f4_checks": checks_table(results["4"]),
         "valuation_table": _table(["指标", "数值"], valuation_rows),
         "floor_table": _table(["方法", "价格", "公式"], floor_rows, ["l", "r", "l"]),
-        "composite": _num(composite),
-        "premium": _pct(premium),
+        "composite": metric_ledger.display("floor"),
+        "premium": metric_ledger.display("premium"),
         "floor_note": floor_note,
+        "method_label": method_label,
         "payout": _pct(mean_payout),
+        "unknown_md": unknown_md,
+        "disclaimer": disclaimer,
+        "thesis_core": thesis_core,
+        "thesis_reasons_md": "\n".join(f"- {item}" for item in thesis_reasons),
+        "thesis_stop_table": _table(
+            ["检查项", "触发条件", "当前值", "状态"], stop_rows, ["l", "l", "r", "l"]
+        ),
+        "thesis_monitor_md": "\n".join(f"- {item}" for item in thesis_monitor),
+        "thesis_position": f4_metrics.get("仓位建议", "—"),
+        "thesis_catalysts_md": "\n".join(f"- {item}" for item in thesis_catalysts),
+        "thesis_holding": thesis_holding,
         "issues_md": "\n".join(f"- {issue}" for issue in issues) or "未检测到数据问题。",
         "notes_1a": "；".join(results["1A"].notes),
         "notes_1b": "；".join(results["1B"].notes),
@@ -205,4 +397,6 @@ def render_analysis(
     }
 
     env = Environment(loader=FileSystemLoader(TEMPLATE_DIR), autoescape=False)
+    if metrics_out is not None:
+        metrics_out.update(metric_ledger.to_dict())
     return env.get_template("analysis.md.j2").render(**context)

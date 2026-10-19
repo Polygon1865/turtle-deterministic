@@ -27,6 +27,7 @@ import os
 import re
 import sys
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import pdfplumber
@@ -143,6 +144,39 @@ SECTION_KEYWORDS: Dict[str, List[str]] = {
 }
 
 # Per-section extraction parameters (overrides defaults)
+SECTION_KEYWORDS["P2"].extend(
+    [
+        "Restricted cash",
+        "Pledged deposits",
+        "Restricted assets",
+        "受限制現金",
+        "已抵押存款",
+    ]
+)
+SECTION_KEYWORDS["P3"].extend(
+    ["Trade receivables", "Ageing analysis", "Aging analysis", "應收賬款賬齡"]
+)
+SECTION_KEYWORDS["P4"].extend(
+    ["Related party transactions", "Related parties", "關聯方交易", "關連交易"]
+)
+SECTION_KEYWORDS["P6"].extend(
+    ["Contingent liabilities", "Commitments and contingencies", "或然負債"]
+)
+SECTION_KEYWORDS["P13"].extend(
+    ["Non-recurring", "Exceptional items", "非經常性損益"]
+)
+SECTION_KEYWORDS["MDA"].extend(
+    [
+        "Management Discussion and Analysis",
+        "MD&A",
+        "Business Review",
+        "管理層討論與分析",
+    ]
+)
+SECTION_KEYWORDS["SUB"].extend(
+    ["Principal subsidiaries", "Subsidiaries", "主要附屬公司"]
+)
+
 SECTION_EXTRACT_CONFIG: Dict[str, Dict[str, int]] = {
     "MDA": {"buffer_pages": 3, "max_chars": 8000},
     "SUB": {"buffer_pages": 2, "max_chars": 6000},
@@ -714,6 +748,19 @@ def _load_hints(hints_path: Optional[str]) -> Dict[str, dict]:
         return {}
 
 
+def _validate_pdf(pdf_path: str) -> tuple[bool, str]:
+    """Local PDF sanity check: exists, non-trivial size, ``%PDF-`` header."""
+    path = Path(pdf_path)
+    if not path.is_file():
+        return False, f"file not found: {path}"
+    if path.stat().st_size < 1024:
+        return False, "file is too small to be an annual report"
+    with path.open("rb") as handle:
+        if not handle.read(5).startswith(b"%PDF-"):
+            return False, "missing %PDF- header"
+    return True, ""
+
+
 def run_pipeline(pdf_path: str, output_path: str, verbose: bool = False,
                  hints_path: Optional[str] = None) -> dict:
     """Run the full extraction pipeline.
@@ -732,12 +779,9 @@ def run_pipeline(pdf_path: str, output_path: str, verbose: bool = False,
         RuntimeError: If PDF cannot be opened or is too small.
     """
     try:
-        from scripts.config import validate_pdf
-    except ModuleNotFoundError:
-        from config import validate_pdf
-
-    # Validate PDF
-    is_valid, reason = validate_pdf(pdf_path)
+        is_valid, reason = _validate_pdf(pdf_path)
+    except OSError as exc:
+        raise RuntimeError(f"Invalid PDF: {exc}") from exc
     if not is_valid:
         raise RuntimeError(f"Invalid PDF: {reason}")
 

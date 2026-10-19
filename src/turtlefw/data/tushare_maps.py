@@ -14,7 +14,7 @@ CN_INCOME_MAP: dict[str, str] = {
     "sell_exp": "sell_exp",
     "admin_exp": "admin_exp",
     "rd_exp": "rd_exp",
-    "finance_exp": "finance_exp",
+    "finance_exp": "fin_exp",
     "operate_profit": "operate_profit",
     "total_profit": "total_profit",
     "income_tax": "income_tax",
@@ -22,6 +22,7 @@ CN_INCOME_MAP: dict[str, str] = {
     "n_income_attr_p": "n_income_attr_p",
     "minority_gain": "minority_gain",
     "basic_eps": "basic_eps",
+    "diluted_eps": "diluted_eps",
     "asset_disp_income": "asset_disp_income",
     "non_oper_income": "non_oper_income",
     "oth_income": "oth_income",
@@ -43,6 +44,7 @@ CN_BALANCE_MAP: dict[str, str] = {
     "minority_int": "minority_int",
     "goodwill": "goodwill",
     "contract_liab": "contract_liab",
+    "adv_receipts": "adv_receipts",
 }
 
 CN_CASHFLOW_MAP: dict[str, str] = {
@@ -55,6 +57,11 @@ CN_CASHFLOW_MAP: dict[str, str] = {
     "lt_amort_deferred_exp": "lt_amort_deferred_exp",
     "c_pay_dist_dpcp_int_exp": "c_pay_dist_dpcp_int_exp",
     "c_paid_for_taxes": "c_paid_for_taxes",
+    "c_fr_sale_sg": "c_fr_sale_sg",
+    "c_inf_fr_operate_a": "c_inf_fr_operate_a",
+    "c_paid_goods_srv": "c_paid_goods_srv",
+    "c_paid_to_for_empl": "c_paid_to_for_empl",
+    "c_pay_oth_act": "c_pay_oth_act",
 }
 
 # Tushare column lists (what we ask the API for)
@@ -86,6 +93,7 @@ HK_INCOME_MAP: dict[str, str] = {
 HK_BALANCE_MAP: dict[str, str] = {
     "money_cap": "现金及等价物",
     "accounts_receiv": "应收帐款",
+    "prepayments": "预付款项",
     "inventories": "存货",
     "total_cur_assets": "流动资产合计",
     "fix_assets": "物业厂房及设备",
@@ -102,12 +110,12 @@ HK_BALANCE_MAP: dict[str, str] = {
     "minority_int": "少数股东权益",
 }
 
-HK_CASHFLOW_MAP: dict[str, str] = {
+HK_CASHFLOW_MAP: dict[str, str | tuple[str, ...]] = {
     "n_cashflow_act": "经营业务现金净额",
     "n_cashflow_inv_act": "投资业务现金净额",
     "n_cash_flows_fnc_act": "融资业务现金净额",
-    "c_pay_acq_const_fiolta": "购建无形资产及其他资产",
-    "depr_fa_coga_dpba": "折旧及摊销",
+    "c_pay_acq_const_fiolta": ("购建固定资产", "购建无形资产及其他资产"),
+    "depr_fa_coga_dpba": "加:折旧及摊销",
     "c_pay_dist_dpcp_int_exp": "已付股息(融资)",
     "c_paid_for_taxes": "已付税项",
 }

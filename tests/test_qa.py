@@ -1,6 +1,7 @@
 import json
 
-from turtlefw import qa
+from turtlefw import numeric_audit, qa
+from turtlefw.facts import file_hash
 
 
 def setup_run(tmp_path, with_all=True):
@@ -25,6 +26,27 @@ def setup_run(tmp_path, with_all=True):
         "discrepancies": [],
     }
     (base / "qualitative.json").write_text(json.dumps(payload), encoding="utf-8")
+    (base / "metrics.json").write_text('{"r": "7.48"}', encoding="utf-8")
+    audit = numeric_audit.audit(base / "analysis_report.md", [base / "metrics.json"])
+    audit["sources"] = ["metrics.json"]
+    (base / "numeric_audit.json").write_text(json.dumps(audit), encoding="utf-8")
+    (base / "manifest.json").write_text(
+        json.dumps(
+            {
+                "code": "600887.SH",
+                "as_of": "2026-10-16",
+                "currency": "CNY",
+                "facts_hash": "0" * 64,
+                "config_hash": "1" * 64,
+                "numeric_coverage": str(audit["coverage"]),
+                "numeric_status": str(audit["status"]),
+                "numeric_unknown": audit["unknown"],
+                "numeric_hash": file_hash(base / "numeric_audit.json"),
+                "numeric_sources": ["metrics.json"],
+            }
+        ),
+        encoding="utf-8",
+    )
     if with_all:
         (base / "narrative.md").write_text("R 为 7.48%", encoding="utf-8")
     return base
@@ -65,3 +87,33 @@ def test_all_unknown_fails(tmp_path):
     (base / "qualitative.json").write_text(json.dumps(payload), encoding="utf-8")
     rows = qa.run_qa("600887.SH", root=tmp_path)
     assert "unknown_ratio" in qa.failed(rows)
+
+
+def test_numeric_coverage_fails_below_one(tmp_path):
+    base = setup_run(tmp_path)
+    manifest = json.loads((base / "manifest.json").read_text(encoding="utf-8"))
+    manifest["numeric_coverage"] = "0.95"
+    manifest["numeric_unknown"] = ["9.99"]
+    (base / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    rows = qa.run_qa("600887.SH", root=tmp_path)
+    assert "numeric_coverage" in qa.failed(rows)
+
+
+def test_numeric_audit_hash_tamper_fails(tmp_path):
+    base = setup_run(tmp_path)
+    (base / "numeric_audit.json").write_text(
+        (base / "numeric_audit.json").read_text(encoding="utf-8") + " ",
+        encoding="utf-8",
+    )
+    rows = qa.run_qa("600887.SH", root=tmp_path)
+    assert "numeric_coverage" in qa.failed(rows)
+
+
+def test_qa_json_artifact(tmp_path):
+    base = setup_run(tmp_path)
+    rows = qa.run_qa("600887.SH", root=tmp_path)
+    target = qa.write_json("600887.SH", rows, root=tmp_path)
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    assert payload["status"] == "pass"
+    assert any(row["name"] == "numeric_coverage" for row in payload["rows"])
+    assert target.parent == base

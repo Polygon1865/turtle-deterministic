@@ -10,6 +10,7 @@ Design notes:
 
 from __future__ import annotations
 
+import tempfile
 import threading
 import time
 from datetime import date, timedelta
@@ -20,6 +21,8 @@ from typing import Any
 import pandas as pd
 
 from ..types import Currency, DividendEvent, FetchIssue, Market, StockCode
+from ..paths import output_root
+from ..metrics.prices import adjust_ohlc, factor_map
 from .cache import FileCache
 from .normalize import (
     dividend_events,
@@ -49,12 +52,12 @@ HK_DIVIDEND_FIELDS = "ts_code,end_date,dps_hkd,divi_ratio"
 DAILY_BASIC_FIELDS = (
     "ts_code,trade_date,close,pe_ttm,pb,total_mv,circ_mv,dv_ttm,turnover_rate,total_share"
 )
-STOCK_BASIC_FIELDS = "ts_code,name,industry,area,market,exchange,list_date"
+STOCK_BASIC_FIELDS = "ts_code,name,industry,area,market,exchange,list_date,delist_date"
 
 
 class TushareProvider:
     name = "tushare"
-    SCHEMA_VERSION = "turtle-1"
+    SCHEMA_VERSION = "turtle-7"
 
     def __init__(
         self,
@@ -74,7 +77,7 @@ class TushareProvider:
         self._local = threading.local()
         self._lock = threading.Lock()
         self._pro = self._new_client(token)
-        self._cache = FileCache(cache_dir or Path.cwd() / "output" / ".cache", ttl_seconds)
+        self._cache = FileCache(cache_dir or output_root() / ".cache", ttl_seconds)
         self._min_interval = min_interval
         self._max_retries = max_retries
         self._last_call = 0.0
@@ -82,6 +85,7 @@ class TushareProvider:
         self._hk_daily: dict[str, list[dict]] = {}
         self._hk_failed: set[str] = set()
         self._hk_yf: dict[str, tuple[list[dict], dict]] = {}
+        self._us_yf: dict[str, Any] = {}
         self._dividend_map: dict[str, pd.DataFrame] | None = None
 
     def _new_client(self, token: str):
@@ -163,9 +167,26 @@ class TushareProvider:
             return Currency.USD
         return Currency.CNY
 
+    def reporting_currency(self, code: StockCode) -> Currency | None:
+        """Best-effort reporting currency for a listing.
+
+        A-shares report in CNY. HK listings frequently report in CNY even
+        though they trade in HKD; Yahoo's ``financialCurrency`` is used as a
+        proxy and may be unavailable offline.
+        """
+        if code.market is Market.HK:
+            _, quote = self._yf_hk(code)
+            raw = quote.get("reporting_currency")
+            if raw in {"CNY", "HKD", "USD"}:
+                return Currency(raw)
+            return None
+        if code.market is Market.US:
+            return Currency.USD
+        return Currency.CNY
+
     # -- reference data ----------------------------------------------------
-    def stock_basic(self, code: StockCode | None = None) -> list[dict]:
-        params: dict[str, Any] = {"fields": STOCK_BASIC_FIELDS}
+    def stock_basic(self, code: StockCode | None = None, *, list_status: str = "L") -> list[dict]:
+        params: dict[str, Any] = {"fields": STOCK_BASIC_FIELDS, "list_status": list_status}
         if code is not None:
             params["ts_code"] = str(code)
         return self._safe("stock_basic", **params).to_dict("records")
@@ -182,6 +203,16 @@ class TushareProvider:
             self._issues.append(FetchIssue("yfinance", key, "yfinance not installed"))
             self._hk_yf[key] = ([], {})
             return self._hk_yf[key]
+
+        # yfinance keeps SQLite caches under the user cache dir, which is not
+        # writable in some sandboxes. Point all of its caches at a writable
+        # temp directory before the first ticker is created.
+        try:
+            cache_dir = Path(tempfile.gettempdir()) / "turtle-yf-cache"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            yf.set_tz_cache_location(str(cache_dir))
+        except Exception:  # noqa: BLE001 - cache is an optimisation only
+            pass
 
         symbol = f"{int(code.numeric):04d}.HK"
         history: list[dict] = []
@@ -222,11 +253,151 @@ class TushareProvider:
                 quote["total_share"] = float(shares) / 10000  # 万股
             if history:
                 quote["trade_date"] = history[-1]["trade_date"]
+            # Yahoo exposes the currency of the financial statements
+            # (``financialCurrency``), not the listing currency. This is the
+            # best available proxy for "reporting currency" without a PDF.
+            try:
+                info = ticker.info or {}
+                reporting = str(info.get("financialCurrency") or "").upper()
+                if reporting in {"CNY", "RMB"}:
+                    quote["reporting_currency"] = "CNY"
+                elif reporting in {"HKD", "USD"}:
+                    quote["reporting_currency"] = reporting
+            except Exception:  # noqa: BLE001 - metadata is optional
+                pass
         except Exception as exc:  # noqa: BLE001 - network/vendor errors
             self._issues.append(FetchIssue("yfinance", key, str(exc)))
 
         self._hk_yf[key] = (history, quote)
         return self._hk_yf[key]
+
+    def _yf_us(self, code: StockCode):
+        key = str(code)
+        if key not in self._us_yf:
+            import yfinance as yf
+
+            symbol = key.removesuffix(".US")
+            cache_dir = Path(tempfile.gettempdir()) / "turtle-yf-cache"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            yf.set_tz_cache_location(str(cache_dir))
+            self._us_yf[key] = yf.Ticker(symbol)
+        return self._us_yf[key]
+
+    def _yf_us_statements(self, code: StockCode) -> list[StatementRow]:
+        ticker = self._yf_us(code)
+        info = ticker.info or {}
+        currency = Currency(str(info.get("financialCurrency") or "USD"))
+        frames = {
+            "income": ticker.financials,
+            "balance": ticker.balance_sheet,
+            "cashflow": ticker.cashflow,
+        }
+        mapping: dict[tuple[str, str], tuple[str, ...]] = {
+            ("income", "revenue"): ("Total Revenue", "Operating Revenue"),
+            ("income", "n_income_attr_p"): ("Net Income Common Stockholders", "Net Income"),
+            ("income", "n_income"): ("Net Income",),
+            ("income", "operate_profit"): ("Operating Income", "EBIT"),
+            ("income", "basic_eps"): ("Basic EPS",),
+            ("income", "diluted_eps"): ("Diluted EPS",),
+            ("balance", "total_assets"): ("Total Assets",),
+            ("balance", "total_hldr_eqy_exc_min_int"): ("Stockholders Equity", "Common Stock Equity"),
+            ("balance", "st_borr"): ("Total Debt",),
+            ("balance", "goodwill"): ("Goodwill",),
+            ("balance", "total_liab"): ("Total Liabilities Net Minority Interest",),
+            ("balance", "money_cap"): ("Cash And Cash Equivalents", "Cash Cash Equivalents And Short Term Investments"),
+            ("balance", "accounts_receiv"): ("Accounts Receivable", "Gross Accounts Receivable"),
+            ("balance", "inventories"): ("Inventory",),
+            ("cashflow", "n_cashflow_act"): ("Operating Cash Flow", "Cash Flow From Continuing Operating Activities"),
+            ("cashflow", "c_pay_acq_const_fiolta"): ("Capital Expenditure",),
+            ("cashflow", "depr_fa_coga_dpba"): ("Depreciation And Amortization", "Reconciled Depreciation"),
+            ("cashflow", "sbc"): ("Share Based Compensation", "Stock Based Compensation"),
+        }
+        rows: list[StatementRow] = []
+        for statement, frame in frames.items():
+            if frame is None or frame.empty:
+                continue
+            index = {str(label): label for label in frame.index}
+            for column in frame.columns:
+                period_end = pd.Timestamp(column).date()
+                for (target_statement, canonical), labels in mapping.items():
+                    if target_statement != statement:
+                        continue
+                    label = next((index[name] for name in labels if name in index), None)
+                    if label is None:
+                        continue
+                    raw = frame.at[label, column]
+                    if pd.isna(raw):
+                        continue
+                    value = Decimal(str(raw))
+                    if canonical == "c_pay_acq_const_fiolta":
+                        value = abs(value)
+                    rows.append(
+                        StatementRow(
+                            code=str(code),
+                            period_end=period_end,
+                            period_type="annual",
+                            statement=statement,
+                            item=canonical,
+                            value=value,
+                            currency=currency,
+                            source="yfinance",
+                        )
+                    )
+        return rows
+
+    def _yf_us_history(self, code: StockCode, *, years: int = 10) -> list[dict]:
+        frame = self._yf_us(code).history(period=f"{years}y", interval="1d", auto_adjust=True)
+        if frame is None or frame.empty:
+            return []
+        records: list[dict] = []
+        for index, row in frame.iterrows():
+            records.append(
+                {
+                    "trade_date": pd.Timestamp(index).strftime("%Y%m%d"),
+                    "open": float(row["Open"]),
+                    "high": float(row["High"]),
+                    "low": float(row["Low"]),
+                    "close": float(row["Close"]),
+                }
+            )
+        return records
+
+    def _yf_us_quote(self, code: StockCode) -> dict[str, Any]:
+        ticker = self._yf_us(code)
+        info = ticker.info or {}
+        history = self._yf_us_history(code, years=1)
+        trade_date = history[-1]["trade_date"] if history else date.today().strftime("%Y%m%d")
+        price = info.get("currentPrice") or info.get("regularMarketPrice")
+        return {
+            "ts_code": str(code),
+            "trade_date": trade_date,
+            "close": price,
+            "total_mv": (info.get("marketCap") or 0) / 10000 if info.get("marketCap") else None,
+            "total_share": (info.get("sharesOutstanding") or 0) / 10000
+            if info.get("sharesOutstanding")
+            else None,
+        }
+
+    def _yf_us_dividends(self, code: StockCode, *, years: int = 6) -> list[DividendEvent]:
+        series = self._yf_us(code).dividends
+        if series is None or len(series) == 0:
+            return []
+        unit = self._default_currency(code)
+        cutoff = date.today().year - years
+        events: list[DividendEvent] = []
+        for index, value in series.items():
+            event_date = pd.Timestamp(index).date()
+            if event_date.year < cutoff:
+                continue
+            events.append(
+                DividendEvent(
+                    fiscal_year=event_date.year,
+                    event_id=event_date.isoformat(),
+                    dps=Decimal(str(value)),
+                    currency=unit,
+                )
+            )
+        return events
 
     def _hk_history(self, code: StockCode, years: int = 10) -> list[dict]:
         """Fetch HK daily bars once per session.
@@ -273,6 +444,9 @@ class TushareProvider:
                 return [{**quote, "ts_code": str(code)}]
             history = self._hk_history(code, years=1)
             return [history[-1]] if history else []
+
+        if code is not None and code.market is Market.US:
+            return [self._yf_us_quote(code)]
 
         params: dict[str, Any] = {"fields": DAILY_BASIC_FIELDS}
         if code is not None:
@@ -370,6 +544,9 @@ class TushareProvider:
             )
             return [row for row in rows if row.period_end.year >= start.year]
 
+        if code.market is Market.US:
+            return self._yf_us_statements(code)
+
         raise NotImplementedError("US statements are not supported yet")
 
     # -- dividends ---------------------------------------------------------
@@ -407,6 +584,8 @@ class TushareProvider:
         elif code.market is Market.HK:
             frame = self._safe("hk_fina_indicator", ts_code=str(code), fields=HK_DIVIDEND_FIELDS)
             events = hk_dividend_events(frame, currency=unit, dps_fx=dps_fx)
+        elif code.market is Market.US:
+            events = self._yf_us_dividends(code, years=years)
         else:
             return []
         cutoff = date.today().year - years
@@ -443,7 +622,109 @@ class TushareProvider:
             period=period,
         )
 
-    # -- audit -------------------------------------------------------------
+    # -- governance / capital actions -------------------------------------
+    def pledge(self, code: StockCode, *, years: int = 5) -> list[dict]:
+        """A-share pledge statistics, newest first; empty for HK/US or no access."""
+        if not code.is_a_share:
+            return []
+        frame = self._safe(
+            "pledge_stat",
+            ts_code=str(code),
+            fields="ts_code,end_date,pledge_ratio",
+        )
+        if frame.empty:
+            return []
+        frame = frame.sort_values("end_date", ascending=False)
+        return frame.head(years).to_dict("records")
+
+    def pledge_ratio(self, code: StockCode) -> Decimal | None:
+        rows = self.pledge(code)
+        if not rows:
+            return None
+        value = rows[0].get("pledge_ratio")
+        try:
+            return Decimal(str(value)) if value is not None else None
+        except Exception:  # noqa: BLE001 - vendor payload
+            return None
+
+    def repurchase(self, code: StockCode, *, years: int = 5) -> list[dict]:
+        """A-share buyback rows (amount is 万元 in Tushare); newest first."""
+        if not code.is_a_share:
+            return []
+        frame = self._safe(
+            "repurchase",
+            ts_code=str(code),
+            fields="ts_code,ann_date,end_date,amount,vol,proc",
+        )
+        if frame.empty:
+            return []
+        if "ann_date" in frame.columns:
+            frame = frame.sort_values("ann_date", ascending=False)
+        return frame.head(years * 4).to_dict("records")
+
+    def buyback_amount(self, code: StockCode, *, years: int = 3) -> Decimal | None:
+        """Annualised completed/implemented buyback amount in report currency.
+
+        Tushare returns ``amount`` in yuan and often several cumulative
+        snapshots of the same programme. Keep the largest amount per calendar
+        year, then average over the available years.
+        """
+        rows = self.repurchase(code)
+        if not rows:
+            return None
+        cutoff = date.today().year - years
+        by_year: dict[int, Decimal] = {}
+        for row in rows:
+            process = str(row.get("proc", "")).strip()
+            if process not in {"实施", "完成"}:
+                continue
+            raw_date = str(row.get("ann_date") or row.get("end_date") or "")[:4]
+            try:
+                year = int(raw_date)
+            except ValueError:
+                continue
+            if year < cutoff:
+                continue
+            raw = row.get("amount")
+            try:
+                amount = Decimal(str(raw)) if raw is not None else None
+            except Exception:  # noqa: BLE001 - vendor payload
+                amount = None
+            if amount is not None and amount > 0:
+                by_year[year] = max(by_year.get(year, Decimal("0")), amount)
+        if not by_year:
+            return None
+        total = sum(by_year.values(), Decimal("0"))
+        return total / Decimal(max(1, min(years, len(by_year))))
+
+    def holders(self, code: StockCode) -> list[dict]:
+        """Latest top-10 shareholder table (A-share only)."""
+        if not code.is_a_share:
+            return []
+        frame = self._safe(
+            "top10_holders",
+            ts_code=str(code),
+            fields="ts_code,end_date,holder_name,hold_amount,hold_ratio",
+        )
+        if frame.empty:
+            return []
+        latest = str(frame["end_date"].max())
+        return frame[frame["end_date"].astype(str) == latest].to_dict("records")
+
+    def main_business(self, code: StockCode) -> list[dict]:
+        """Latest revenue/profit by product/segment (A-share only)."""
+        if not code.is_a_share:
+            return []
+        frame = self._safe(
+            "fina_mainbz",
+            ts_code=str(code),
+            fields="ts_code,end_date,bz_item,bz_sales,bz_profit",
+        )
+        if frame.empty:
+            return []
+        latest = str(frame["end_date"].max())
+        return frame[frame["end_date"].astype(str) == latest].to_dict("records")
+
     def audit(self, code: StockCode, *, years: int = 5) -> list[dict]:
         """Latest audit opinions; HK/US are not covered by ``fina_audit``."""
         if not code.is_a_share:
@@ -468,6 +749,9 @@ class TushareProvider:
             # No hk_weekly endpoint: daily closes are used as the price history.
             return self._hk_history(code, years=years)
 
+        if code.market is Market.US:
+            return self._yf_us_history(code, years=years)
+
         if not code.is_a_share:
             self._issues.append(
                 FetchIssue("weekly", str(code), "price history is A-share/HK only for now")
@@ -486,6 +770,15 @@ class TushareProvider:
         records = frame.to_dict("records")
         for record in records:
             record["trade_date"] = str(record["trade_date"])
+        factors_frame = self._safe(
+            "adj_factor",
+            ts_code=str(code),
+            start_date=start_str,
+            end_date=end_str,
+            fields="ts_code,trade_date,adj_factor",
+        )
+        factors = factor_map(factors_frame.to_dict("records")) if not factors_frame.empty else {}
+        records = adjust_ohlc(records, factors)
         return sorted(records, key=lambda r: r["trade_date"])
 
     def risk_free_rate(self, code: StockCode) -> Decimal | None:

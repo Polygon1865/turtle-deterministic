@@ -12,7 +12,9 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
+from .paths import output_root
 from .types import TurtleError
 
 PHASES = (
@@ -43,12 +45,13 @@ class RunState:
     started_at: str = field(default_factory=_now)
     updated_at: str = field(default_factory=_now)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
-def path_for(code: str, root: Path | str = "output") -> Path:
-    return Path(root) / str(code) / "run_state.json"
+def path_for(code: str, root: Path | str | None = None) -> Path:
+    base = Path(root) if root is not None else output_root()
+    return base / str(code) / "run_state.json"
 
 
 def new(code: str) -> RunState:
