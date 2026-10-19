@@ -15,7 +15,7 @@ from ..types import Market, StockCode
 class Capability:
     key: str
     label: str
-    status: str  # available | partial | missing | external
+    status: str  # available | partial | pdf_optional | not_applicable | external | missing
     detail: str = ""
 
 

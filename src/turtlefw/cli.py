@@ -1640,7 +1640,7 @@ def _coverage_cmd(code_raw: str, as_json: bool) -> int:
     else:
         print(f"数据覆盖：{code}")
         for row in rows:
-            print(f"  {row.label:<18}{row.status:<10}{row.detail}")
+            print(f"  {row.label:<18} | {row.status:<14} | {row.detail}")
     return 0
 
 

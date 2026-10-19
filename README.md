@@ -4,6 +4,9 @@
 [龟龟投资框架](https://github.com/Pr0ph3tyyy/Turtle_investment_framework)，
 实现从头重写，修正了原项目在单位、币种、分红聚合、缺失值处理上的已知缺陷。
 
+> **详细逐步使用说明见 [docs/USAGE.md](docs/USAGE.md)。**
+> 本文只保留项目概览、常用命令速查和设计约束。
+
 ## 状态
 
 | 里程碑 | 内容 | 状态 |
@@ -16,6 +19,8 @@
 | M5 | 定性层（evidence-backed JSON + 校验 + 报告合并） | 完成（LLM 自动填充为可选） |
 | M6 | PDF 附注提取 | 完成（章节定位 + 6 项审计数字 + 附注表格结构化；600887/00700 2025 年报已实测） |
 | M7 | 确定性 grids、DCF/DDM、Thesis Card、SBC/税档/Owner Earnings | 完成（P0/P1 + 分析升级） |
+| M8 | D1–D6 ResearchDocument、审计、DSH/LLM 入口、HTML、provenance | 完成 |
+| M9 | 数据覆盖：SEC/HKEX 证据、港股回购、external 边界 | 部分完成（美股 10-K 分部/13F external） |
 
 ## 快速开始（Windows）
 
@@ -95,7 +100,8 @@ SBC/稀释/复权、税档/OE、附注/股东分部的实现见 [docs/analysis-u
 目标架构与 Phase 1 执行记录见 [docs/target-architecture.md](docs/target-architecture.md)；
 PIT 快照库见 [docs/pit.md](docs/pit.md)。
 
-`.claude/commands/turtle-analysis.md` 和 `.claude/skills/turtle-analysis/SKILL.md` 提供 Claude Code 入口；
+`.claude/commands/turtle-analysis.md`、`.claude/skills/turtle-analysis/SKILL.md` 和
+`.agents/skills/turtle-research/SKILL.md` 提供 Claude Code / DSH 入口；
 流程仍以 `prompts/agent/coordinator.md` 为准。
 
 `--rf/--rf-source` 用于 `yc_cb` 无权限时传入带出处的无风险利率（例如券商/银行日报）。
@@ -142,8 +148,10 @@ turtle valuation 600887
 - PDF 6 项审计数字可自动抽取（`pdf-numbers`）；`pdf-footnotes` 只做表格结构化，账龄/关联方/或有负债的科目级语义仍需人工/Agent 解释。
 - `screen --as-of` 只把上市状态/行情切到该日；财务指标仍是最新报表，不是完整 point-in-time。
 - SBC 目前主要来自 PDF（港股权益结算口径）；A 股无稳定字段，回购注销后的净股数也未完全建模。
-- 股东/主营只覆盖 A 股（Tushare `top10_holders` / `fina_mainbz`）；港股无对应接口。
-- 美股走 yfinance（近 4 个年度报表），字段可能随供应商变化；质押/股东/主营暂缺。
+- 股东/主营：A 股有结构化接口；港股为 PDF `P4`/`MDA` partial；美股 13F/分部标记 `external`。
+- 美股走 yfinance（近 4 个年度报表），字段可能随供应商变化；母公司/质押 `not_applicable`，回购 `partial`。
+- 港股母公司：`pdf_optional`（年报 Company-level statement evidence），不伪造金额。
+- 港股质押：`not_applicable`；港股回购：`partial`（`hk_cashflow` + HKEXnews 公告）。
 - Tushare 字段/权限逐项状态见 [docs/tushare-fields.md](docs/tushare-fields.md)。
 - clean-room/CI 的落地条件见 [docs/cleanroom-ci-plan.md](docs/cleanroom-ci-plan.md)。
 

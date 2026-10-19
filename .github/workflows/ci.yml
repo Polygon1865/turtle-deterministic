@@ -50,4 +50,9 @@ jobs:
             src/turtlefw/state.py \
             src/turtlefw/agent/research_agent.py \
             src/turtlefw/metrics/source_resolver.py \
-            src/turtlefw/numeric_audit.py
+            src/turtlefw/numeric_audit.py \
+            src/turtlefw/data/sec.py \
+            src/turtlefw/data/coverage.py \
+            src/turtlefw/data/hkexnews.py \
+            src/turtlefw/agent/research_prompt.py \
+            src/turtlefw/agent/llm.py
