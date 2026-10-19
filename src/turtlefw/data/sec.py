@@ -10,8 +10,12 @@ from __future__ import annotations
 import json
 import os
 import urllib.request
+from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any, Mapping, Protocol, Sequence
+
+from ..types import Currency, StockCode
+from .protocol import StatementRow
 
 TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 FACTS_URL = "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json"
@@ -22,10 +26,24 @@ TAGS: dict[str, tuple[str, ...]] = {
         "SalesRevenueNet",
     ),
     "net_income": ("NetIncomeLoss",),
+    "operate_profit": ("OperatingIncomeLoss",),
     "total_assets": ("Assets",),
     "equity": ("StockholdersEquity",),
+    "cash": ("CashAndCashEquivalentsAtCarryingValue",),
+    "debt": ("LongTermDebtNoncurrent", "LongTermDebt", "DebtCurrent"),
+    "goodwill": ("Goodwill",),
     "ocf": ("NetCashProvidedByUsedInOperatingActivities",),
     "capex": ("PaymentsToAcquirePropertyPlantAndEquipment",),
+    "da": (
+        "DepreciationDepletionAndAmortization",
+        "DepreciationAmortizationAndAccretionNet",
+    ),
+    "sbc": ("ShareBasedCompensation",),
+}
+STATEMENT_ITEMS = {
+    "income": ("revenue", "net_income", "operate_profit"),
+    "balance": ("total_assets", "equity", "cash", "debt", "goodwill"),
+    "cashflow": ("ocf", "capex", "da", "sbc"),
 }
 
 
@@ -109,6 +127,65 @@ def annual_facts(payload: Mapping[str, Any]) -> dict[str, dict[int, Decimal]]:
         if values:
             result[item] = values
     return result
+
+
+def statement_rows(
+    payload: Mapping[str, Any],
+    code: StockCode,
+) -> list[StatementRow]:
+    """Build annual StatementRows from SEC companyfacts.
+
+    The SEC facts do not contain every provider field; missing items are omitted
+    rather than filled with zero. Period end uses the fiscal year end (Dec 31)
+    because companyfacts exposes ``fy`` but not a uniform fiscal calendar.
+    """
+    facts = annual_facts(payload)
+    years = sorted(
+        {
+            year
+            for values in facts.values()
+            for year in values
+        }
+    )[-5:]
+    rows: list[StatementRow] = []
+    for year in years:
+        for statement, items in STATEMENT_ITEMS.items():
+            for item in items:
+                value = facts.get(item, {}).get(year)
+                if value is None:
+                    continue
+                canonical = {
+                    "net_income": "n_income_attr_p",
+                    "equity": "total_hldr_eqy_exc_min_int",
+                    "cash": "money_cap",
+                    "debt": "st_borr",
+                    "da": "depr_fa_coga_dpba",
+                    "capex": "c_pay_acq_const_fiolta",
+                }.get(item, item)
+                if item == "capex":
+                    value = abs(value)
+                rows.append(
+                    StatementRow(
+                        code=str(code),
+                        period_end=date(year, 12, 31),
+                        period_type="annual",
+                        statement=statement,
+                        item=canonical,
+                        value=value,
+                        currency=Currency.USD,
+                        source="sec",
+                    )
+                )
+    return rows
+
+
+def fetch_companyfacts(
+    cik: int,
+    transport: Transport | None = None,
+) -> Mapping[str, Any]:
+    return (transport or UrllibTransport()).get(
+        FACTS_URL.format(cik=cik), _headers()
+    )
 
 
 def compare_rows(

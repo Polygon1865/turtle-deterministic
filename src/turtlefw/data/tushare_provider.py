@@ -284,6 +284,28 @@ class TushareProvider:
         return self._us_yf[key]
 
     def _yf_us_statements(self, code: StockCode) -> list[StatementRow]:
+        try:
+            rows = self._yf_us_statements_primary(code)
+            if rows:
+                return rows
+        except (OSError, ValueError, KeyError, ImportError) as exc:
+            self._issues.append(FetchIssue("yfinance", str(code), f"US statements failed: {exc}"))
+        return self._sec_us_statements(code)
+
+    def _sec_us_statements(self, code: StockCode) -> list[StatementRow]:
+        """Independent SEC fallback when yfinance statements are unavailable."""
+        try:
+            from .sec import cik_for_ticker, fetch_companyfacts, statement_rows
+
+            cik = cik_for_ticker(str(code))
+            rows = statement_rows(fetch_companyfacts(cik), code)
+            if rows:
+                return rows
+        except Exception as exc:  # noqa: BLE001 - optional external source
+            self._issues.append(FetchIssue("sec", str(code), str(exc)))
+        return []
+
+    def _yf_us_statements_primary(self, code: StockCode) -> list[StatementRow]:
         ticker = self._yf_us(code)
         info = ticker.info or {}
         currency = Currency(str(info.get("financialCurrency") or "USD"))

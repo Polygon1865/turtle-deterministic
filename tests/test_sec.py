@@ -1,6 +1,7 @@
 from decimal import Decimal
 
-from turtlefw.data.sec import annual_facts, compare_rows
+from turtlefw.data.sec import annual_facts, compare_rows, statement_rows
+from turtlefw.types import StockCode
 
 
 def _payload():
@@ -52,3 +53,15 @@ def test_compare_rows_reports_difference_without_mutation():
     income = next(item for item in result if item["item"] == "net_income")
     assert income["status"] == "review"
     assert rows[0]["value"] == "1005"
+
+
+def test_statement_rows_from_sec_facts():
+    rows = statement_rows(_payload(), StockCode.parse("AAPL.US"))
+    revenue = next(
+        row
+        for row in rows
+        if row.item == "revenue" and row.period_end.year == 2025
+    )
+    assert revenue.value == Decimal("1000")
+    assert revenue.source == "sec"
+    assert revenue.statement == "income"
