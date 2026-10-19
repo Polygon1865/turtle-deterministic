@@ -1,0 +1,94 @@
+{
+  "evidence": [
+    {
+      "id": "ev_stcn_2025",
+      "url": "https://stcn.com/article/detail/3892659.html",
+      "quote": "2025年，公司实现营业总收入1159.31亿元；利润总额130亿元，同比增长28.31%；归母净利润115.65亿元，同比增长36.82%。",
+      "source_type": "web",
+      "page": ""
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "D1.1",
+      "dimension": "D1",
+      "statement": "公司以液体乳为基本盘，奶粉及奶制品与冷饮形成多品类结构；收入与利润受原奶周期和消费需求分化影响，穿透回报为{{metric:r}}。",
+      "judgment": "neutral",
+      "confidence": "high",
+      "evidence_ids": ["ev_stcn_2025"],
+      "unknowns": []
+    },
+    {
+      "claim_id": "D2.1",
+      "dimension": "D2",
+      "statement": "品牌、渠道与规模构成主要护城河；液体乳份额领先，奶粉业务份额提升，但行业竞争仍激烈。",
+      "judgment": "positive",
+      "confidence": "medium",
+      "evidence_ids": ["ev_stcn_2025"],
+      "unknowns": []
+    },
+    {
+      "claim_id": "D3.1",
+      "dimension": "D3",
+      "statement": "原奶周期与消费分化是主要外部变量；行业整体承压时公司仍保持经营基本盘和份额。",
+      "judgment": "neutral",
+      "confidence": "medium",
+      "evidence_ids": ["ev_stcn_2025"],
+      "unknowns": []
+    },
+    {
+      "claim_id": "D4.1",
+      "dimension": "D4",
+      "statement": "管理层通过分红与回购兑现股东回报，支付率为{{metric:payout.mean}}；长期资本配置仍需结合后续再投资回报观察。",
+      "judgment": "positive",
+      "confidence": "medium",
+      "evidence_ids": ["ev_stcn_2025"],
+      "unknowns": ["缺少完整管理层任期与关联交易明细"]
+    },
+    {
+      "claim_id": "D5.1",
+      "dimension": "D5",
+      "statement": "MD&A 显示新品收入占比提升、销售费用效率改善；但缺少完整历史指引与实际值对照，指引可信度只能给中性判断。",
+      "judgment": "neutral",
+      "confidence": "medium",
+      "evidence_ids": ["ev_stcn_2025"],
+      "unknowns": ["历史指引逐项对照未接入"]
+    },
+    {
+      "claim_id": "D6.1",
+      "dimension": "D6",
+      "statement": "当前快照未提供母公司现金、质押与完整控股结构，控股结构判断标记为 unknown。",
+      "judgment": "unknown",
+      "confidence": "low",
+      "evidence_ids": [],
+      "unknowns": ["港股/美股母公司口径未接入", "质押/回购明细未接入"]
+    }
+  ],
+  "params": [
+    {
+      "param_id": "thesis.core",
+      "label": "核心论点",
+      "value": "多品类乳企龙头，护城河来自品牌与渠道；穿透回报{{metric:r}}，但增长受原奶周期约束。",
+      "dimension": "D2",
+      "evidence_ids": ["ev_stcn_2025"],
+      "confidence": "medium"
+    },
+    {
+      "param_id": "thesis.catalysts",
+      "label": "催化",
+      "value": "奶粉份额提升、新品放量、分红与回购延续。",
+      "dimension": "D5",
+      "evidence_ids": ["ev_stcn_2025"],
+      "confidence": "medium"
+    },
+    {
+      "param_id": "thesis.risks",
+      "label": "风险",
+      "value": "原奶价格波动、消费需求分化、行业竞争加剧。",
+      "dimension": "D3",
+      "evidence_ids": ["ev_stcn_2025"],
+      "confidence": "medium"
+    }
+  ],
+  "decisions": []
+}
