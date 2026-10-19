@@ -127,7 +127,7 @@ def render_dimensions(
     return sections
 
 
-def quality(document: ResearchDocument) -> dict[str, object]:
+def quality(document: ResearchDocument) -> dict[str, Any]:
     dimensions = {
         dimension: sum(1 for claim in document.claims if claim.dimension == dimension)
         for dimension in DIMENSIONS

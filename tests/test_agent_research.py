@@ -52,6 +52,36 @@ def test_research_agent_retries_invalid_schema():
     assert llm.calls == 2
 
 
+def test_research_agent_retries_insufficient_quality():
+    class Flaky:
+        def __init__(self):
+            self.calls = 0
+
+        def complete(self, system, payload):
+            self.calls += 1
+            data = _valid_payload()
+            if self.calls == 1:
+                return data
+            data["claims"].append(
+                {
+                    "claim_id": "D1.1",
+                    "dimension": "D1",
+                    "statement": "资本强度{{metric:r}}",
+                    "judgment": "neutral",
+                    "confidence": "medium",
+                    "evidence_ids": ["ev1"],
+                }
+            )
+            return data
+
+    llm = Flaky()
+    document = ResearchAgent(llm).run(
+        {"code": "600887"}, retries=1, min_claims=2, min_dimensions=2
+    )
+    assert len(document.claims) == 2
+    assert llm.calls == 2
+
+
 def test_research_agent_rejects_raw_numbers():
     payload = _valid_payload()
     payload["claims"][0]["statement"] = "市场份额 30%"

@@ -38,12 +38,42 @@ class ResearchAgent:
     def __init__(self, llm: LLM) -> None:
         self.llm = llm
 
-    def run(self, context: Mapping[str, Any], *, retries: int = 0) -> ResearchDocument:
+    def run(
+        self,
+        context: Mapping[str, Any],
+        *,
+        retries: int = 0,
+        min_claims: int = 0,
+        min_dimensions: int = 0,
+    ) -> ResearchDocument:
+        from ..research import quality
+
         last_error: Exception | None = None
+        current = dict(context)
         for _attempt in range(max(0, retries) + 1):
-            payload = self.llm.complete(self.SYSTEM, context)
+            payload = self.llm.complete(self.SYSTEM, current)
             try:
-                return load_payload(payload)
+                document = load_payload(payload)
             except (ValueError, TypeError, KeyError) as exc:
                 last_error = exc
+                current = {
+                    **current,
+                    "quality_feedback": f"invalid research output: {exc}",
+                }
+                continue
+            stats = quality(document)
+            dimensions = len(stats["covered_dimensions"])
+            if stats["claims"] >= min_claims and dimensions >= min_dimensions:
+                return document
+            last_error = AgentError(
+                f"research quality insufficient: claims={stats['claims']} "
+                f"dimensions={dimensions}"
+            )
+            current = {
+                **current,
+                "quality_feedback": (
+                    f"{last_error}. Fill at least {min_claims} claims and "
+                    f"{min_dimensions} D1-D6 dimensions with evidence."
+                ),
+            }
         raise AgentError(f"invalid research output: {last_error}") from last_error
