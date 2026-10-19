@@ -19,7 +19,8 @@ Hard rules:
 3. Decisions may only select from candidates already supplied in the context;
    never invent a candidate or a number.
 4. If a dimension lacks data, use judgment="unknown" and explain the gap in
-   unknowns. Do not fabricate.
+   unknowns. Do not fabricate. If context.coverage marks a capability
+   partial/missing, treat it as unavailable unless evidence exists.
 
 Cover D1-D6:
 - D1: business model, revenue mix, unit economics, capital intensity, cyclicality.
