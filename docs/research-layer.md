@@ -58,6 +58,7 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
 - 未解析 metric/fact、非 unknown 无证据、非法 decision 均失败。
 - 报告 research 区增加：
   - 研究覆盖（claims/params/decisions/evidence/unknown）；
+  - D1–D6 维度覆盖表（claims/unknown/evidence）；
   - 证据索引（id/来源/页/引文）。
 
 ## 红线

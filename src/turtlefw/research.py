@@ -174,7 +174,22 @@ def coverage_markdown(document: ResearchDocument) -> str:
         f"- params：{len(document.params)}",
         f"- decisions：{len(document.decisions)}",
         f"- evidence：{len(document.evidence)}",
+        "",
+        "| 维度 | claims | unknown | evidence |",
+        "|:--|--:|--:|--:|",
     ]
+    for dimension, label in DIMENSIONS.items():
+        claims = [claim for claim in document.claims if claim.dimension == dimension]
+        dimension_evidence = {
+            evidence_id
+            for claim in claims
+            for evidence_id in claim.evidence_ids
+        }
+        dim_unknown = sum(1 for claim in claims if claim.judgment == "unknown")
+        lines.append(
+            f"| {dimension} {label} | {len(claims)} | {dim_unknown} | "
+            f"{len(dimension_evidence)} |"
+        )
     if unknown:
         lines.append(
             "- unknown claims："
