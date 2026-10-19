@@ -58,7 +58,7 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
 
 ## Phase 6（部分完成）：claim-level audit
 
-- `research-audit`：校验 claim/param/decision 的 metric/fact 占位符。
+- `research-audit` 增加 `--min-claims` / `--min-dimensions` 和 quality 统计。
 - `qa` 增加 `research_refs` 行：用 snapshot 的 metrics/evidence 复算引用。
 - 未解析 metric/fact、非 unknown 无证据、非法 decision 均失败。
 - 报告支持 `--html` 同时输出 HTML（D1–D6 章节/证据表可直接渲染）。

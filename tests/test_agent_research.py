@@ -1,7 +1,7 @@
 import pytest
 
 from turtlefw.agent import AgentError, FakeLLM, ResearchAgent
-from turtlefw.research import audit, load_payload, render_markdown
+from turtlefw.research import audit, load_payload, quality, render_markdown
 
 
 def _valid_payload():
@@ -98,3 +98,12 @@ def test_research_audit_reports_unresolved_refs():
     assert any("unresolved metric" in error for error in result["errors"])
     passed = audit(document, metrics={"r": "3.36%"}, facts={})
     assert passed["status"] == "pass"
+    assert passed["quality"]["covered_dimensions"] == ["D2"]
+
+
+def test_research_quality_ratio():
+    document = load_payload(_valid_payload())
+    result = quality(document)
+    assert result["claims"] == 1
+    assert result["dimensions"]["D1"] == 0
+    assert result["evidence_ratio"] == 1.0

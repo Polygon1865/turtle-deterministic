@@ -1589,6 +1589,8 @@ def _research_audit_cmd(
     metrics_path: str | None,
     facts_path: str | None,
     out: str | None,
+    min_claims: int = 0,
+    min_dimensions: int = 0,
 ) -> int:
     import json
 
@@ -1617,6 +1619,20 @@ def _research_audit_cmd(
                     item.get("quote", item.get("value", ""))
                 )
     result = audit(document, metrics, facts)
+    quality = result["quality"]
+    errors = list(result["errors"])
+    if len(document.claims) < min_claims:
+        errors.append(
+            f"claims {len(document.claims)} < min_claims {min_claims}"
+        )
+    if len(quality["covered_dimensions"]) < min_dimensions:
+        errors.append(
+            f"covered dimensions {len(quality['covered_dimensions'])} "
+            f"< min_dimensions {min_dimensions}"
+        )
+    if errors:
+        result["status"] = "review"
+        result["errors"] = errors
     text = json.dumps(result, ensure_ascii=False, indent=2)
     if out:
         target = Path(out)
@@ -2378,6 +2394,8 @@ def build_parser() -> argparse.ArgumentParser:
     research_audit.add_argument("--metrics", default=None, help="metrics.json")
     research_audit.add_argument("--facts", default=None, help="evidence.json / reported_numbers.json")
     research_audit.add_argument("--out", default=None, help="审计 JSON 输出")
+    research_audit.add_argument("--min-claims", type=int, default=0)
+    research_audit.add_argument("--min-dimensions", type=int, default=0)
 
     sec_audit = sub.add_parser("sec-audit", help="用 SEC companyfacts 复核美股 snapshot")
     sec_audit.add_argument("--snapshot", required=True, help="snapshot 目录")
@@ -2658,7 +2676,12 @@ def main(argv: list[str] | None = None) -> int:
             return _research_cmd(args.file)
         if args.command == "research-audit":
             return _research_audit_cmd(
-                args.file, args.metrics, args.facts, args.out
+                args.file,
+                args.metrics,
+                args.facts,
+                args.out,
+                args.min_claims,
+                args.min_dimensions,
             )
         if args.command == "sec-audit":
             return _sec_audit_cmd(

@@ -127,6 +127,33 @@ def render_dimensions(
     return sections
 
 
+def quality(document: ResearchDocument) -> dict[str, object]:
+    dimensions = {
+        dimension: sum(1 for claim in document.claims if claim.dimension == dimension)
+        for dimension in DIMENSIONS
+    }
+    unknown = sum(1 for claim in document.claims if claim.judgment == "unknown")
+    evidence_backed = sum(
+        1
+        for claim in document.claims
+        if claim.judgment != "unknown" and claim.evidence_ids
+    )
+    non_unknown = len(document.claims) - unknown
+    return {
+        "claims": len(document.claims),
+        "dimensions": dimensions,
+        "covered_dimensions": [key for key, count in dimensions.items() if count],
+        "unknown": unknown,
+        "evidence_backed": evidence_backed,
+        "evidence_ratio": (
+            round(evidence_backed / non_unknown, 4) if non_unknown else 1.0
+        ),
+        "params": len(document.params),
+        "decisions": len(document.decisions),
+        "evidence": len(document.evidence),
+    }
+
+
 def summary_markdown(document: ResearchDocument) -> str:
     covered = sorted({claim.dimension for claim in document.claims})
     decisions = "；".join(
@@ -226,6 +253,7 @@ def audit(
         "metric_refs": sorted(metric_refs),
         "fact_refs": sorted(fact_refs),
         "errors": errors,
+        "quality": quality(document),
     }
 
 
