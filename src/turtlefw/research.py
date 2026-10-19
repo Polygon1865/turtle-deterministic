@@ -35,6 +35,9 @@ def render_markdown(
     document: ResearchDocument,
     metrics: Mapping[str, str],
     facts: Mapping[str, str] | None = None,
+    *,
+    include_meta: bool = True,
+    include_heading: bool = True,
 ) -> str:
     """Render D1–D6 claims, params and decisions; unresolved refs fail loudly."""
     lines: list[str] = []
@@ -58,7 +61,7 @@ def render_markdown(
         claims = by_dimension.get(dimension, [])
         if not claims:
             continue
-        lines.extend(["", f"### {dimension} {label}", ""])
+        lines.extend(["", f"### {dimension} {label}", ""] if include_heading else [""])
         for claim in claims:
             statement = resolve(claim.statement)
             lines.append(
@@ -91,7 +94,42 @@ def render_markdown(
     evidence_table = evidence_markdown(document)
     if evidence_table:
         parts.append(evidence_table)
+    if not include_meta:
+        return "\n".join(lines).strip()
     return "\n\n".join(part for part in parts if part).strip()
+
+
+def render_dimensions(
+    document: ResearchDocument,
+    metrics: Mapping[str, str],
+    facts: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    sections: dict[str, str] = {}
+    for dimension in DIMENSIONS:
+        claims = tuple(
+            claim for claim in document.claims if claim.dimension == dimension
+        )
+        if not claims:
+            continue
+        params = tuple(
+            param for param in document.params if param.dimension == dimension
+        )
+        filtered = ResearchDocument(
+            claims=claims,
+            evidence=document.evidence,
+            params=params,
+        )
+        body = render_markdown(
+            filtered, metrics, facts, include_meta=False, include_heading=False
+        )
+        if body:
+            sections[dimension] = body
+    return sections
+
+
+def render_meta(document: ResearchDocument) -> str:
+    parts = [coverage_markdown(document), evidence_markdown(document)]
+    return "\n\n".join(part for part in parts if part)
 
 
 @dataclass(frozen=True, slots=True)

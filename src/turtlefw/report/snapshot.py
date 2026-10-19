@@ -43,6 +43,16 @@ def resolve_markdown(payload: list[dict[str, Any]]) -> str:
     return render_markdown(payload)
 
 
+RESEARCH_SECTION_TITLES = {
+    "D1": "D1 商业模式与资本特征",
+    "D2": "D2 护城河与竞争格局",
+    "D3": "D3 外部环境与政策",
+    "D4": "D4 管理层与治理",
+    "D5": "D5 MD&A 与前瞻信号",
+    "D6": "D6 控股结构与股东",
+}
+
+
 @dataclass(slots=True)
 class ReportInputs:
     code: str
@@ -385,9 +395,11 @@ def render(
         "price": f"{price:.2f}" if price is not None else "—",
     }
     research_md = ""
+    research_sections: list[tuple[str, str]] = []
+    research_meta_md = ""
     fact_map = dict(facts or {})
     if research_document is not None:
-        from ..research import render_markdown
+        from ..research import render_dimensions, render_markdown, render_meta
 
         if not fact_map and snapshot_dir is not None:
             reported = Path(snapshot_dir) / "reported_numbers.json"
@@ -409,6 +421,13 @@ def render(
                         if isinstance(item, dict) and item.get("id"):
                             fact_map[str(item["id"])] = str(item.get("quote", ""))
         research_md = render_markdown(research_document, metric_map, fact_map)
+        section_map = render_dimensions(research_document, metric_map, fact_map)
+        research_sections = [
+            (RESEARCH_SECTION_TITLES[dimension], body)
+            for dimension, body in section_map.items()
+            if dimension in RESEARCH_SECTION_TITLES
+        ]
+        research_meta_md = render_meta(research_document)
     markdown = render_analysis(
         ctx,
         results,
@@ -418,6 +437,8 @@ def render(
         issues=inputs.issues,
         as_of=inputs.as_of,
         research_md=research_md,
+        research_sections=research_sections,
+        research_meta_md=research_meta_md,
         metrics_out=metrics_out,
         resolved_md=resolve_markdown(inputs.resolved_facts),
     )

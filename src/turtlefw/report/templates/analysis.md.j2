@@ -111,7 +111,14 @@
 
 ## 十一、研究判断（D1–D6，证据驱动）
 
-{% if research_md %}
+{% if research_sections %}
+{{ research_meta_md }}
+{% for heading, body in research_sections %}
+### {{ heading }}
+
+{{ body }}
+{% endfor %}
+{% elif research_md %}
 {{ research_md }}
 {% else %}
 未提供 `research.json`；本节为空，不影响确定性结论。

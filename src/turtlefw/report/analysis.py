@@ -28,6 +28,8 @@ def render_analysis(
     issues: Sequence[FetchIssue] = (),
     as_of: str = "",
     research_md: str = "",
+    research_sections: list[tuple[str, str]] | None = None,
+    research_meta_md: str = "",
     resolved_md: str = "",
     metrics_out: dict[str, object] | None = None,
 ) -> str:
@@ -332,6 +334,8 @@ def render_analysis(
         "generated_at": as_of,
         "as_of": as_of,
         "research_md": research_md,
+        "research_sections": research_sections or [],
+        "research_meta_md": research_meta_md,
         "resolved_md": resolved_md,
         "snapshot_id": snapshot_id,
         "verdict": verdict,
