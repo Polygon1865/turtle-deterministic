@@ -1431,6 +1431,16 @@ def _research_context(
     if manifest.is_file():
         manifest_payload = json.loads(manifest.read_text(encoding="utf-8-sig"))
         context["snapshot_id"] = manifest_payload.get("snapshot_id", "")
+    try:
+        from .data.coverage import capabilities
+        from .types import StockCode
+
+        context["coverage"] = [
+            {"key": row.key, "label": row.label, "status": row.status, "detail": row.detail}
+            for row in capabilities(StockCode.parse(str(context["code"])))
+        ]
+    except (KeyError, ValueError):
+        context["coverage"] = []
     metrics_path = root / "metrics.json"
     if metrics_path.is_file():
         context["metrics"] = json.loads(metrics_path.read_text(encoding="utf-8-sig"))
