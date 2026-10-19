@@ -122,6 +122,7 @@ def test_research_params_and_decisions():
     rendered = render_markdown(document, {"r": "3.36%"})
     assert "护城河评级" in rendered
     assert "1.15" in rendered
+    assert "0.85, 1.15, 1.50" in rendered
 
 
 def test_research_rejects_invalid_decision_candidate():

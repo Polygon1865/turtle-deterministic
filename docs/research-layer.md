@@ -27,7 +27,7 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
 - claim 可绑定 `pdf:section:MDA` / `P4` / `SUB` 等，报告显示页号与引文。
 - `ResearchParam` / `ResearchDecision` 已完成契约与校验；engine 接入留在 Phase 3。
 
-## Phase 3（部分完成）：方法深度
+## Phase 3（完成）：方法深度
 
 - G 网格、M 三法、AA 变体、税档、悲观情景 k 已预计算为 Decision candidates。
 - engine 已读取 `decisions`：
@@ -38,6 +38,7 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
   - `scenario` 必须属于 0.9/0.8/0.7；
   - 非法选择直接报错，不静默回退。
 - 默认无 Decision 时保持原确定性路径。
+- 报告研究决策表显示完整 candidates / selected / reason。
 
 ## Phase 4（部分完成）：数据覆盖
 
@@ -66,7 +67,7 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
 - `qa` 增加 `research_refs` 行：用 snapshot 的 metrics/evidence 复算引用。
 - 未解析 metric/fact、非 unknown 无证据、非法 decision 均失败。
 - 报告支持 `--html` 同时输出 HTML（D1–D6 章节/证据表可直接渲染）。
-- 仍待补：执行摘要、行业/竞对独立章节、Thesis Card 展开。
+- 仍待补：行业/竞对独立章节、claim 覆盖率统计。
 
 ## 红线
 

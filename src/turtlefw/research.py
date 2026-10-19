@@ -85,10 +85,20 @@ def render_markdown(
                 f"| {param.label or param.param_id} | {resolve(param.value)} | {param.confidence} |"
             )
     if document.decisions:
-        lines.extend(["", "### 研究决策", "", "| 决策 | 选择 | 理由 |", "|:--|:--|:--|"])
+        lines.extend(
+            [
+                "",
+                "### 研究决策",
+                "",
+                "| 决策 | 候选 | 选择 | 理由 |",
+                "|:--|:--|:--|:--|",
+            ]
+        )
         for decision in document.decisions:
             lines.append(
-                f"| {decision.metric_id} | {decision.selected} | {resolve(decision.reason)} |"
+                f"| {decision.metric_id} | "
+                f"{', '.join(decision.candidates)} | "
+                f"{decision.selected} | {resolve(decision.reason)} |"
             )
     parts = [coverage_markdown(document), "\n".join(lines).strip()]
     evidence_table = evidence_markdown(document)
