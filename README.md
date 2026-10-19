@@ -65,6 +65,7 @@ notepad .env
 .\.venv\Scripts\python.exe -m turtlefw.cli sec-audit --snapshot output\AAPL.US\snapshot --ticker AAPL --out output\AAPL.US\sec_audit.json
 .\.venv\Scripts\python.exe -m turtlefw.cli sec-evidence --ticker AAPL --out output\AAPL.US\evidence.json
 .\.venv\Scripts\python.exe -m turtlefw.cli coverage AAPL
+.\.venv\Scripts\python.exe -m turtlefw.cli hkex-news --code 00700 --out output\00700.HK\hkex_buyback.json
 .\.venv\Scripts\python.exe -m turtlefw.cli snapshot 600887 --as-of 2025-12-31 --out output\600887.SH\manifest.json
 .\.venv\Scripts\python.exe -m turtlefw.cli report 600887 --save-snapshot output\600887.SH\snapshot `
   --research output\600887.SH\research.json

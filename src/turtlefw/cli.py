@@ -1644,6 +1644,58 @@ def _coverage_cmd(code_raw: str, as_json: bool) -> int:
     return 0
 
 
+def _hkex_news_cmd(
+    code_raw: str,
+    from_date: str,
+    to_date: str,
+    keyword: str,
+    out: str,
+) -> int:
+    import json
+
+    from .data.hkexnews import (
+        UrllibTransport,
+        buyback_evidence,
+        search_announcements,
+        stock_id_map,
+    )
+
+    code = code_raw.split(".")[0].zfill(5)
+    transport = UrllibTransport()
+    try:
+        mapping = stock_id_map(
+            transport.get(
+                "https://www.hkexnews.hk/ncms/script/eds/activestock_sehk_e.json"
+            )
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"HKEXnews 股票映射失败：{exc}", file=sys.stderr)
+        return 2
+    stock_id = mapping.get(code)
+    if not stock_id:
+        print(f"HKEXnews 找不到股票：{code}", file=sys.stderr)
+        return 2
+    try:
+        rows = search_announcements(
+            stock_id,
+            from_date=from_date,
+            to_date=to_date,
+            title_keyword=keyword,
+            transport=transport,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"HKEXnews 查询失败：{exc}", file=sys.stderr)
+        return 2
+    evidence = buyback_evidence(rows)
+    target = Path(out)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(
+        (json.dumps(evidence, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    )
+    print(f"HKEXnews evidence 已写入 {target.resolve()}（{len(evidence)} 条）")
+    return 0
+
+
 def _sec_evidence_cmd(
     ticker: str | None,
     cik: int | None,
@@ -2587,6 +2639,15 @@ def build_parser() -> argparse.ArgumentParser:
     coverage.add_argument("code", help="股票代码")
     coverage.add_argument("--json", action="store_true", help="JSON 输出")
 
+    hkex_news = sub.add_parser(
+        "hkex-news", help="搜索 HKEXnews 回购公告并生成 evidence"
+    )
+    hkex_news.add_argument("--code", required=True, help="港股代码，如 00700")
+    hkex_news.add_argument("--from", dest="from_date", default="20240101")
+    hkex_news.add_argument("--to", dest="to_date", default="20261231")
+    hkex_news.add_argument("--keyword", default="Next Day Disclosure")
+    hkex_news.add_argument("--out", required=True, help="evidence.json 输出")
+
     research_agent = sub.add_parser(
         "research-agent", help="用 OpenAI-compatible LLM 生成 research.json"
     )
@@ -2884,6 +2945,10 @@ def main(argv: list[str] | None = None) -> int:
             return _sec_evidence_cmd(args.ticker, args.cik, args.out)
         if args.command == "coverage":
             return _coverage_cmd(args.code, args.json)
+        if args.command == "hkex-news":
+            return _hkex_news_cmd(
+                args.code, args.from_date, args.to_date, args.keyword, args.out
+            )
         if args.command == "research-agent":
             return _research_agent_cmd(
                 args.snapshot,

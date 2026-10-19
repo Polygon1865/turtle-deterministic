@@ -35,7 +35,17 @@ python -m turtlefw.cli research-audit `
 ```
 
 6. Fix only `research.json` and re-run until it passes, or mark gaps as `unknown`.
-7. Continue with:
+7. Record provenance:
+
+```powershell
+python -m turtlefw.cli research-provenance `
+  --research <snapshot>/research.json `
+  --snapshot <snapshot> `
+  --provider dsh --model <model> `
+  --out <snapshot>/research_provenance.json
+```
+
+8. Continue with:
 
 ```powershell
 python -m turtlefw.cli report <code> --snapshot <snapshot> --research <snapshot>/research.json

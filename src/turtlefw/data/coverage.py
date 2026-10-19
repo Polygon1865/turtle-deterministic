@@ -44,7 +44,7 @@ def capabilities(code: StockCode) -> list[Capability]:
                 Capability("segments", "业务分部", "partial", "PDF MDA 提取"),
                 Capability("parent_cash", "母公司现金", "pdf_optional", "年报 Company-level statement 可抽取"),
                 Capability("pledge", "质押", "not_applicable", "港股无标准化质押比例接口"),
-                Capability("buyback", "回购", "partial", "Tushare hk_cashflow 回购股份"),
+                Capability("buyback", "回购", "partial", "hk_cashflow + HKEXnews 公告 evidence"),
                 Capability("pit", "PIT 本地快照", "partial", "本地 snapshot，非 vendor 历史"),
             ]
         )
