@@ -1453,6 +1453,24 @@ def _research_context(
         evidence_payload = json.loads(evidence.read_text(encoding="utf-8-sig"))
         if isinstance(evidence_payload, list):
             context["facts"] = list(context["facts"]) + evidence_payload
+    governance = context["governance"]
+    if isinstance(governance, dict) and any(governance.values()):
+        facts = context["facts"]
+        if isinstance(facts, list):
+            facts.append(
+                {
+                    "id": "data:governance",
+                    "url": "",
+                    "page": "",
+                    "source_type": "data",
+                    "quote": (
+                        f"parent_cash={governance.get('parent_cash')}; "
+                        f"pledge_pct={governance.get('pledge_pct')}; "
+                        f"buyback={governance.get('buyback')}; "
+                        f"audit={governance.get('audit')}"
+                    ),
+                }
+            )
     if data_pack and Path(data_pack).is_file():
         context["data_pack"] = Path(data_pack).read_text(encoding="utf-8-sig")[:40000]
     elif (root / "data_pack.md").is_file():

@@ -261,10 +261,11 @@ def build(
             formula_id=f"factor.{metric_id}",
             period=period,
             display=(
-                f"{typed_value:.1f}%"
-                if metric_id
-                in {"parent_cash_ratio", "pledge_pct", "buyback_ratio", "payout.spread"}
+                f"{typed_value:.2f}%"
+                if metric_id in {"pledge_pct", "buyback_ratio", "payout.spread"}
                 and typed_value is not None
+                else f"{typed_value:.1f}%"
+                if metric_id == "parent_cash_ratio" and typed_value is not None
                 else None
             ),
         )

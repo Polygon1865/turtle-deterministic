@@ -6,6 +6,13 @@
       "quote": "2025年，公司实现营业总收入1159.31亿元；利润总额130亿元，同比增长28.31%；归母净利润115.65亿元，同比增长36.82%。",
       "source_type": "web",
       "page": ""
+    },
+    {
+      "id": "data:governance",
+      "url": "",
+      "quote": "parent_cash=25404255558.6; pledge_pct=6.29; buyback=588949353.23; audit=标准无保留意见",
+      "source_type": "data",
+      "page": ""
     }
   ],
   "claims": [
@@ -57,11 +64,11 @@
     {
       "claim_id": "D6.1",
       "dimension": "D6",
-      "statement": "当前快照未提供母公司现金、质押与完整控股结构，控股结构判断标记为 unknown。",
-      "judgment": "unknown",
-      "confidence": "low",
-      "evidence_ids": [],
-      "unknowns": ["港股/美股母公司口径未接入", "质押/回购明细未接入"]
+      "statement": "控股股东质押率为{{metric:pledge_pct}}，回购/市值为{{metric:buyback_ratio}}，母公司现金/市值为{{metric:parent_cash_ratio}}；审计意见为标准无保留，完整控股结构仍需补充。",
+      "judgment": "positive",
+      "confidence": "medium",
+      "evidence_ids": ["data:governance"],
+      "unknowns": ["完整控股结构未接入"]
     }
   ],
   "params": [

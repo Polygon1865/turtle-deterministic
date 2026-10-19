@@ -32,6 +32,7 @@ def test_research_context_collects_snapshot_sources(tmp_path):
     assert context["code"] == "600887.SH"
     assert context["snapshot_id"] == "snap-1"
     assert context["governance"]["parent_cash"] == "100"
+    assert any(row["id"] == "data:governance" for row in context["facts"])
     assert any(row["key"] == "parent_cash" for row in context["coverage"])
     assert context["metrics"]["r"]["display"] == "3.36%"
     assert context["facts"][0]["id"] == "pdf:section:MDA"

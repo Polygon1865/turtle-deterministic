@@ -394,6 +394,47 @@ def render(
         "floor": dict(results["4"].metrics).get("底价（综合）", "—"),
         "price": f"{price:.2f}" if price is not None else "—",
     }
+    for result in results.values():
+        for key, value in result.values:
+            if value is None or key in metric_map:
+                continue
+            is_percent = key in {
+                "payout",
+                "payout.mean",
+                "payout.spread",
+                "parent_cash_ratio",
+                "pledge_pct",
+                "buyback_ratio",
+                "ar_ratio",
+                "revenue_cv",
+                "hh",
+                "price_percentile",
+            } or key.startswith(("tax_", "scenario_"))
+            metric_map[key] = (
+                f"{value:.2f}%" if is_percent else f"{value:,.2f}"
+            )
+    if ctx.pledge_pct is not None:
+        metric_map.setdefault("pledge_pct", f"{ctx.pledge_pct:.2f}%")
+    if ctx.buyback is not None and ctx.market_cap.amount:
+        metric_map.setdefault(
+            "buyback_ratio",
+            f"{ctx.buyback.amount / ctx.market_cap.amount * Decimal('100'):.2f}%",
+        )
+    if ctx.parent_cash is not None and ctx.market_cap.amount:
+        metric_map.setdefault(
+            "parent_cash_ratio",
+            f"{ctx.parent_cash / ctx.market_cap.amount * Decimal('100'):.1f}%",
+        )
+    if "payout.mean" not in metric_map:
+        from ..metrics import dividends as div_metrics
+
+        income_series = statements.net_income(ctx.rows)
+        payouts = div_metrics.payout_by_year(
+            ctx.dividends, income_series, shares=ctx.shares
+        )
+        mean_payout, _ = div_metrics.mean_payout(payouts)
+        if mean_payout is not None:
+            metric_map["payout.mean"] = f"{mean_payout:.2f}%"
     if research_path is not None:
         metrics_file = Path(research_path).with_name("metrics.json")
     elif snapshot_dir is not None:
