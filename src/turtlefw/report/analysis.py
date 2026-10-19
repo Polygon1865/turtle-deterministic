@@ -31,6 +31,7 @@ def render_analysis(
     research_sections: list[tuple[str, str]] | None = None,
     research_meta_md: str = "",
     research_summary_md: str = "",
+    research_thesis_md: str = "",
     resolved_md: str = "",
     metrics_out: dict[str, object] | None = None,
 ) -> str:
@@ -338,6 +339,7 @@ def render_analysis(
         "research_sections": research_sections or [],
         "research_meta_md": research_meta_md,
         "research_summary_md": research_summary_md,
+        "research_thesis_md": research_thesis_md,
         "resolved_md": resolved_md,
         "snapshot_id": snapshot_id,
         "verdict": verdict,

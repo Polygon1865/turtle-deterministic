@@ -1,7 +1,7 @@
 import pytest
 
 from turtlefw.agent import AgentError, FakeLLM, ResearchAgent
-from turtlefw.research import audit, load_payload, quality, render_markdown
+from turtlefw.research import audit, load_payload, quality, render_markdown, thesis_markdown
 
 
 def _valid_payload():
@@ -154,3 +154,20 @@ def test_research_quality_ratio():
     assert result["claims"] == 1
     assert result["dimensions"]["D1"] == 0
     assert result["evidence_ratio"] == 1.0
+
+
+def test_research_thesis_params_render():
+    payload = _valid_payload()
+    payload["params"] = [
+        {
+            "param_id": "thesis.core",
+            "label": "核心论点",
+            "value": "R={{metric:r}} 且护城河稳定",
+            "dimension": "D2",
+            "evidence_ids": ["ev1"],
+        }
+    ]
+    document = load_payload(payload)
+    text = thesis_markdown(document, {"r": "3.36%"})
+    assert "3.36%" in text
+    assert "护城河稳定" in text

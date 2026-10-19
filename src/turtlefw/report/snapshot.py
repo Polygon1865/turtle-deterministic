@@ -398,6 +398,7 @@ def render(
     research_sections: list[tuple[str, str]] = []
     research_meta_md = ""
     research_summary_md = ""
+    research_thesis_md = ""
     fact_map = dict(facts or {})
     if research_document is not None:
         from ..research import (
@@ -405,6 +406,7 @@ def render(
             render_markdown,
             render_meta,
             summary_markdown,
+            thesis_markdown,
         )
 
         if not fact_map and snapshot_dir is not None:
@@ -435,6 +437,9 @@ def render(
         ]
         research_meta_md = render_meta(research_document)
         research_summary_md = summary_markdown(research_document)
+        research_thesis_md = thesis_markdown(
+            research_document, metric_map, fact_map
+        )
     markdown = render_analysis(
         ctx,
         results,
@@ -447,6 +452,7 @@ def render(
         research_sections=research_sections,
         research_meta_md=research_meta_md,
         research_summary_md=research_summary_md,
+        research_thesis_md=research_thesis_md,
         metrics_out=metrics_out,
         resolved_md=resolve_markdown(inputs.resolved_facts),
     )

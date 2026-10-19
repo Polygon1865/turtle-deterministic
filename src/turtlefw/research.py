@@ -154,6 +154,38 @@ def quality(document: ResearchDocument) -> dict[str, Any]:
     }
 
 
+def thesis_markdown(
+    document: ResearchDocument,
+    metrics: Mapping[str, str] | None = None,
+    facts: Mapping[str, str] | None = None,
+) -> str:
+    metric_map = metrics or {}
+    fact_map = facts or {}
+    rows = [
+        param
+        for param in document.params
+        if param.param_id.startswith("thesis.")
+    ]
+    if not rows:
+        return ""
+
+    def resolve(text: str) -> str:
+        def replace(match: re.Match[str]) -> str:
+            kind, key = match.group(1), match.group(2).strip()
+            if kind == "metric" and key in metric_map:
+                return metric_map[key]
+            if kind == "fact" and key in fact_map:
+                return fact_map[key]
+            raise ValueError(f"unresolved placeholder {match.group(0)}")
+
+        return _PLACEHOLDER.sub(replace, text)
+
+    lines = ["| 项目 | 内容 |", "|:--|:--|"]
+    for param in rows:
+        lines.append(f"| {param.label or param.param_id} | {resolve(param.value)} |")
+    return "\n".join(lines)
+
+
 def summary_markdown(document: ResearchDocument) -> str:
     covered = sorted({claim.dimension for claim in document.claims})
     decisions = "；".join(

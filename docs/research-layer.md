@@ -59,6 +59,7 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
 ## Phase 6（部分完成）：claim-level audit
 
 - 新增 `coverage` 能力矩阵，data pack 第 16 段显示 available/partial/missing。
+- Thesis Card 支持 `thesis.*` params 表格（核心论点/催化/风险等）。
 - `research-agent --response`：离线回放 LLM JSON，用于 eval/回归，不发网络请求。
 - `research-agent --min-claims/--min-dimensions`：不足时把反馈加入 prompt 重试。
 - `qa` 增加 `research_quality` 和 `data_coverage`：显示研究覆盖和缺失数据能力。
