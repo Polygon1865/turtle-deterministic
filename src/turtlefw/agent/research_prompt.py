@@ -36,6 +36,11 @@ Use params for structured ratings and facts (e.g. moat_rating,
 industry_cr4, roe_5y_avg, management_rating, guidance_credibility,
 ownership_structure). Values that are numbers must use placeholders.
 Use claims for evidence-backed judgments. Keep claim_ids stable and semantic.
+Also add thesis params when evidence supports them:
+- thesis.core: one-sentence thesis using placeholders;
+- thesis.catalysts: catalysts;
+- thesis.risks: risks;
+- thesis.monitor: monitoring KPIs.
 """
 
 
