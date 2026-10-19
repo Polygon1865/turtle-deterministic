@@ -59,6 +59,7 @@ notepad .env
 .\.venv\Scripts\python.exe -m turtlefw.cli research --file output\600887.SH\research.json
 .\.venv\Scripts\python.exe -m turtlefw.cli research-agent --snapshot output\600887.SH\snapshot --out output\600887.SH\research.json --model <model>
 .\.venv\Scripts\python.exe -m turtlefw.cli research-audit --file output\600887.SH\research.json --metrics output\600887.SH\snapshot\metrics.json --facts output\600887.SH\snapshot\evidence.json
+.\.venv\Scripts\python.exe -m turtlefw.cli sec-audit --snapshot output\AAPL.US\snapshot --ticker AAPL --out output\AAPL.US\sec_audit.json
 .\.venv\Scripts\python.exe -m turtlefw.cli snapshot 600887 --as-of 2025-12-31 --out output\600887.SH\manifest.json
 .\.venv\Scripts\python.exe -m turtlefw.cli report 600887 --save-snapshot output\600887.SH\snapshot `
   --research output\600887.SH\research.json

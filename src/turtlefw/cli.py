@@ -1472,6 +1472,58 @@ def _research_agent_cmd(
     return 0
 
 
+def _sec_audit_cmd(
+    snapshot: str,
+    ticker: str | None,
+    cik: int | None,
+    out: str | None,
+    tolerance: float,
+) -> int:
+    import json
+
+    from .data.sec import annual_facts, cik_for_ticker, compare_rows, UrllibTransport
+
+    inputs_path = Path(snapshot) / "inputs.json"
+    if not inputs_path.is_file():
+        print(f"找不到 snapshot inputs：{inputs_path}", file=sys.stderr)
+        return 2
+    payload = json.loads(inputs_path.read_text(encoding="utf-8-sig"))
+    if cik is None:
+        if not ticker:
+            print("需要 --ticker 或 --cik", file=sys.stderr)
+            return 2
+        try:
+            cik = cik_for_ticker(ticker)
+        except Exception as exc:  # noqa: BLE001
+            print(f"SEC CIK 查询失败：{exc}", file=sys.stderr)
+            return 2
+    try:
+        facts_payload = UrllibTransport().get(
+            f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json",
+            {"User-Agent": "turtle-deterministic/0.1 research@example.com"},
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"SEC companyfacts 查询失败：{exc}", file=sys.stderr)
+        return 2
+    result = {
+        "cik": cik,
+        "rows": compare_rows(
+            payload.get("rows", []),
+            annual_facts(facts_payload),
+            tolerance_pct=Decimal(str(tolerance)),
+        ),
+    }
+    text = json.dumps(result, ensure_ascii=False, indent=2)
+    if out:
+        target = Path(out)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((text + "\n").encode("utf-8"))
+        print(f"SEC audit：{target.resolve()}")
+    else:
+        print(text)
+    return 0
+
+
 def _research_audit_cmd(
     path: str,
     metrics_path: str | None,
@@ -2260,6 +2312,13 @@ def build_parser() -> argparse.ArgumentParser:
     research_audit.add_argument("--facts", default=None, help="evidence.json / reported_numbers.json")
     research_audit.add_argument("--out", default=None, help="审计 JSON 输出")
 
+    sec_audit = sub.add_parser("sec-audit", help="用 SEC companyfacts 复核美股 snapshot")
+    sec_audit.add_argument("--snapshot", required=True, help="snapshot 目录")
+    sec_audit.add_argument("--ticker", default=None, help="美股 ticker，如 AAPL")
+    sec_audit.add_argument("--cik", type=int, default=None, help="SEC CIK")
+    sec_audit.add_argument("--out", default=None, help="JSON 输出")
+    sec_audit.add_argument("--tolerance", type=float, default=1.0, help="差异阈值 %%")
+
     research_agent = sub.add_parser(
         "research-agent", help="用 OpenAI-compatible LLM 生成 research.json"
     )
@@ -2525,6 +2584,10 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "research-audit":
             return _research_audit_cmd(
                 args.file, args.metrics, args.facts, args.out
+            )
+        if args.command == "sec-audit":
+            return _sec_audit_cmd(
+                args.snapshot, args.ticker, args.cik, args.out, args.tolerance
             )
         if args.command == "research-agent":
             return _research_agent_cmd(

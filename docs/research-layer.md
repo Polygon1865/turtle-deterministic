@@ -39,10 +39,11 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
   - 非法选择直接报错，不静默回退。
 - 默认无 Decision 时保持原确定性路径。
 
-## Phase 4：数据覆盖
+## Phase 4（部分完成）：数据覆盖
 
-- US SEC；港股母公司/股东/分部；质押/回购；PIT 历史。
-- 先补数据契约，再补报告章节。
+- 新增 `sec-audit`：用 SEC companyfacts 独立复核美股年表，不覆盖本地数据。
+- 支持 revenue / net_income / assets / equity / OCF / capex。
+- 仍待补：SEC 全量 provider、港股母公司/股东/分部、质押/回购、PIT 历史。
 
 ## Phase 5（部分完成）：LLM / Agent
 
