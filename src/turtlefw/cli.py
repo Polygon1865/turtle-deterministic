@@ -1729,6 +1729,7 @@ def _report(
     source_policy: str = "record-only",
     strict_numeric: bool = False,
     evidence_path: str | None = None,
+    html_out: bool = False,
 ) -> int:
     from .data.tushare_provider import TushareProvider
     from .metrics import statements
@@ -2097,6 +2098,11 @@ def _report(
             print("strict numeric gate 未通过", file=sys.stderr)
 
     print(f"分析报告已写入 {path.resolve()}")
+    if html_out:
+        from .report.html import convert_file
+
+        html_path = convert_file(path, path.with_suffix(".html"), title=code_text)
+        print(f"HTML 已写入 {html_path.resolve()}")
     print(f"结论：{verdict} ｜ 字节数：{len(markdown.encode('utf-8')):,}")
     return 1 if gate_failed else 0
 
@@ -2317,6 +2323,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     report.add_argument("--pdf-numbers", default=None, help="reported_numbers.json（含 cash_bridge）")
     report.add_argument("--evidence", default=None, help="pdf-evidence 生成的 evidence.json")
+    report.add_argument("--html", action="store_true", help="同时生成 HTML 报告")
     report.add_argument("--save-snapshot", default=None, help="把报告输入冻结到目录")
     report.add_argument("--snapshot", default=None, help="从冻结的 snapshot 目录离线渲染")
     report.add_argument("--research", default=None, help="D1-D6 research.json 路径")
@@ -2631,6 +2638,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.source_policy,
                 args.strict_numeric,
                 args.evidence,
+                args.html,
             )
         if args.command == "valuation":
             return _valuation(args.code, args.currency, args.rf, args.rf_source, args.ttm)

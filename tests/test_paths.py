@@ -40,3 +40,10 @@ def test_agent_command_does_not_shadow_dispatch():
     )
     assert args.command == "agent"
     assert args.phase_commands == ["data=echo x"]
+
+
+def test_report_html_flag():
+    parser = cli.build_parser()
+    args = parser.parse_args(["report", "600887", "--html"])
+    assert args.command == "report"
+    assert args.html is True

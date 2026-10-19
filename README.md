@@ -37,7 +37,7 @@ notepad .env
 .\.venv\Scripts\python.exe -m turtlefw.cli analyze AAPL
 .\.venv\Scripts\python.exe -m turtlefw.cli smoke --codes 600887,00700.HK,AAPL --rf 1.6516 --rf-source "smoke"
 .\.venv\Scripts\python.exe -m turtlefw.cli pack 600887
-.\.venv\Scripts\python.exe -m turtlefw.cli report 600887 --rf 1.6516 --rf-source "ICBC 2026-10-15"
+.\.venv\Scripts\python.exe -m turtlefw.cli report 600887 --rf 1.6516 --rf-source "ICBC 2026-10-15" --html
 .\.venv\Scripts\python.exe -m turtlefw.cli valuation 600887
 .\.venv\Scripts\python.exe -m turtlefw.cli html --input output\600887.SH\analysis_report.md
 .\.venv\Scripts\python.exe -m turtlefw.cli pdf-numbers --pdf output\600887.SH\2025年报.pdf --year 2025
