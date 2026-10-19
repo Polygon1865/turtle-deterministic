@@ -56,8 +56,8 @@ def capabilities(code: StockCode) -> list[Capability]:
                 Capability("parent_cash", "母公司现金", "not_applicable", "US GAAP 无标准母公司报表"),
                 Capability("pledge", "质押", "not_applicable", "美股无对应制度"),
                 Capability("buyback", "回购", "partial", "SEC companyfacts / yfinance"),
-                Capability("holders", "主要股东", "missing", "未接入 13F"),
-                Capability("segments", "业务分部", "missing", "未解析 10-K 分部"),
+                Capability("holders", "主要股东", "external", "需 SEC 13F bulk 或第三方 API"),
+                Capability("segments", "业务分部", "external", "需 10-K XBRL dimensions/正文解析"),
                 Capability("pit", "PIT 历史", "missing", "本地无美股 PIT"),
             ]
         )

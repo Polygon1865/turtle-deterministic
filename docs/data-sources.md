@@ -69,23 +69,16 @@ quote = 公告日期 + 标题
 
 `pdf-evidence` 识别 Company-level statement，输出 `pdf:parent_company`，不解析金额。
 
-## 仍未完成
+## 标记为 external
 
-### 10-K 分部
+以下能力不由本地 provider 硬做：
 
-- companyfacts 不含 XBRL dimensions；
-- 需要 10-K 正文或 `edgartools` 等维度解析；
-- 当前 `segments` 仍 missing。
+| 能力 | 状态 | 原因 |
+|:--|:--|:--|
+| 美股 10-K 分部 | external | companyfacts 无 dimensions；需 XBRL 正文/维度解析或供应商 |
+| 美股 13F 股东 | external | 需 SEC 13F bulk dataset 或第三方 API |
 
-### 13F
-
-- 需要 SEC 13F bulk dataset 或第三方 API；
-- 工作量和数据体积大；
-- 当前 `holders` 仍 missing。
-
-### P1 剩余边界
-
-这两项不是“免费 API 一接就有”，需要外部数据样本/供应商。当前没有把缺失数据伪装成 available。
+`coverage` 与 QA 会显示 `external`，不把它们伪装成 `available`，也不把它们算作本地 missing。
 
 ## 关键参考
 

@@ -14,7 +14,8 @@ def test_us_marks_parent_and_holder_gaps():
     assert rows["statements_sec"].status == "partial"
     assert rows["sec_evidence"].status == "available"
     assert rows["parent_cash"].status == "not_applicable"
-    assert rows["holders"].status == "missing"
+    assert rows["holders"].status == "external"
+    assert rows["segments"].status == "external"
 
 
 def test_hk_buyback_is_partial_and_parent_is_not_applicable():
