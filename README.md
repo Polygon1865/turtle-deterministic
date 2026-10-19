@@ -58,6 +58,7 @@ notepad .env
 .\.venv\Scripts\python.exe -m turtlefw.cli screen --as-of 2025-06-30
 .\.venv\Scripts\python.exe -m turtlefw.cli research --file output\600887.SH\research.json
 .\.venv\Scripts\python.exe -m turtlefw.cli research-context --snapshot output\600887.SH\snapshot --out output\600887.SH\research_context.json
+.\.venv\Scripts\python.exe -m turtlefw.cli research-provenance --research output\600887.SH\snapshot\research.json --snapshot output\600887.SH\snapshot --provider dsh --model deepseek-v4-flash --out output\600887.SH\snapshot\research_provenance.json
 .\.venv\Scripts\python.exe -m turtlefw.cli research-agent --snapshot output\600887.SH\snapshot --out output\600887.SH\research.json --response tests\fixtures\research_response.json
 .\.venv\Scripts\python.exe -m turtlefw.cli research-agent --snapshot output\600887.SH\snapshot --out output\600887.SH\research.json --model <model>
 .\.venv\Scripts\python.exe -m turtlefw.cli research-audit --file output\600887.SH\research.json --metrics output\600887.SH\snapshot\metrics.json --facts output\600887.SH\snapshot\evidence.json

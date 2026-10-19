@@ -1509,6 +1509,45 @@ def _research_context_cmd(
     return 0
 
 
+def _research_provenance_cmd(
+    research_path: str,
+    snapshot: str,
+    provider: str,
+    model: str,
+    out: str,
+    generated_at: str | None,
+) -> int:
+    import hashlib
+    import json
+    from datetime import datetime, timezone
+
+    source = Path(research_path)
+    if not source.is_file():
+        print(f"找不到 research.json：{source}", file=sys.stderr)
+        return 2
+    context_path = Path(snapshot) / "research_context.json"
+    context_hash = ""
+    if context_path.is_file():
+        context_hash = hashlib.sha256(context_path.read_bytes()).hexdigest()
+    payload = {
+        "provider": provider,
+        "model": model,
+        "generated_at": generated_at
+        or datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "research_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+        "context_sha256": context_hash,
+    }
+    target = Path(out)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(
+        (json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode(
+            "utf-8"
+        )
+    )
+    print(f"research provenance 已写入 {target.resolve()}")
+    return 0
+
+
 def _research_agent_cmd(
     snapshot: str,
     out: str,
@@ -2520,6 +2559,16 @@ def build_parser() -> argparse.ArgumentParser:
     research_context.add_argument("--out", required=True, help="context.json 输出")
     research_context.add_argument("--data-pack", default=None, help="可选 data_pack.md")
 
+    research_provenance = sub.add_parser(
+        "research-provenance", help="记录 DSH/LLM research provenance"
+    )
+    research_provenance.add_argument("--research", required=True, help="research.json")
+    research_provenance.add_argument("--snapshot", required=True, help="snapshot 目录")
+    research_provenance.add_argument("--provider", default="dsh")
+    research_provenance.add_argument("--model", default="")
+    research_provenance.add_argument("--generated-at", default=None)
+    research_provenance.add_argument("--out", required=True, help="provenance JSON")
+
     sec_audit = sub.add_parser("sec-audit", help="用 SEC companyfacts 复核美股 snapshot")
     sec_audit.add_argument("--snapshot", required=True, help="snapshot 目录")
     sec_audit.add_argument("--ticker", default=None, help="美股 ticker，如 AAPL")
@@ -2818,6 +2867,15 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.command == "research-context":
             return _research_context_cmd(args.snapshot, args.out, args.data_pack)
+        if args.command == "research-provenance":
+            return _research_provenance_cmd(
+                args.research,
+                args.snapshot,
+                args.provider,
+                args.model,
+                args.out,
+                args.generated_at,
+            )
         if args.command == "sec-audit":
             return _sec_audit_cmd(
                 args.snapshot, args.ticker, args.cik, args.out, args.tolerance

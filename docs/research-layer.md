@@ -66,6 +66,7 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
   - `.claude/commands/turtle-research.md`
   - `research-context` 导出 snapshot_id / metrics / facts / governance / coverage / data pack / PDF sections。
   - DSH 模型直接写 `research.json`，项目负责 validator/gate，不需要项目持有 API key。
+- `research-provenance` 记录 provider/model/research_sha256/context_sha256。
 - DSH 研究样本回归：`tests/fixtures/dsh_research_sample.json` 验证 D1–D6 / evidence ratio / gate。
 - `research-agent --response`：离线回放 LLM JSON，用于 eval/回归，不发网络请求。
 - `research-agent --min-claims/--min-dimensions`：不足时把反馈加入 prompt 重试。
