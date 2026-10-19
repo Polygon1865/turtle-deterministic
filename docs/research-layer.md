@@ -56,7 +56,9 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
 - `research-audit`：校验 claim/param/decision 的 metric/fact 占位符。
 - `qa` 增加 `research_refs` 行：用 snapshot 的 metrics/evidence 复算引用。
 - 未解析 metric/fact、非 unknown 无证据、非法 decision 均失败。
-- 仍待补：报告章节深度、HTML、claim 覆盖率统计。
+- 报告 research 区增加：
+  - 研究覆盖（claims/params/decisions/evidence/unknown）；
+  - 证据索引（id/来源/页/引文）。
 
 ## 红线
 

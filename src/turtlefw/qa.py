@@ -185,22 +185,23 @@ def run_qa(code: str, root: Path | str | None = None) -> list[tuple[str, str, st
                 if not path.is_file():
                     continue
                 payload = json.loads(path.read_text(encoding="utf-8-sig"))
-                items = (
+                raw_items = (
                     payload
                     if isinstance(payload, list)
                     else payload.get("document_facts", [])
                 )
-                for item in items:
+                for item in raw_items:
                     if isinstance(item, dict) and item.get("id"):
                         facts[str(item["id"])] = str(
                             item.get("quote", item.get("value", ""))
                         )
-            result = research_audit(load_research(research_file), metrics, facts)
+            audit_result = research_audit(load_research(research_file), metrics, facts)
             add(
                 "research_refs",
-                result["status"] == "pass",
-                f"metrics={len(result['metric_refs'])} facts={len(result['fact_refs'])} "
-                f"errors={len(result['errors'])}",
+                audit_result["status"] == "pass",
+                f"metrics={len(audit_result['metric_refs'])} "
+                f"facts={len(audit_result['fact_refs'])} "
+                f"errors={len(audit_result['errors'])}",
             )
         except Exception as exc:
             add("research_refs", False, str(exc))

@@ -87,7 +87,11 @@ def render_markdown(
             lines.append(
                 f"| {decision.metric_id} | {decision.selected} | {resolve(decision.reason)} |"
             )
-    return "\n".join(lines).strip()
+    parts = [coverage_markdown(document), "\n".join(lines).strip()]
+    evidence_table = evidence_markdown(document)
+    if evidence_table:
+        parts.append(evidence_table)
+    return "\n\n".join(part for part in parts if part).strip()
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,7 +123,7 @@ def audit(
     document: ResearchDocument,
     metrics: Mapping[str, str] | None = None,
     facts: Mapping[str, str] | None = None,
-) -> dict[str, object]:
+) -> dict[str, Any]:
     """Check claim/param/decision references against rendered value maps."""
     metric_map = metrics or {}
     fact_map = facts or {}
@@ -159,6 +163,43 @@ def audit(
         "fact_refs": sorted(fact_refs),
         "errors": errors,
     }
+
+
+def coverage_markdown(document: ResearchDocument) -> str:
+    unknown = sum(1 for claim in document.claims if claim.judgment == "unknown")
+    lines = [
+        "**研究覆盖**",
+        "",
+        f"- claims：{len(document.claims)}（unknown {unknown}）",
+        f"- params：{len(document.params)}",
+        f"- decisions：{len(document.decisions)}",
+        f"- evidence：{len(document.evidence)}",
+    ]
+    if unknown:
+        lines.append(
+            "- unknown claims："
+            + "、".join(
+                claim.claim_id for claim in document.claims if claim.judgment == "unknown"
+            )
+        )
+    return "\n".join(lines)
+
+
+def evidence_markdown(document: ResearchDocument) -> str:
+    if not document.evidence:
+        return ""
+    lines = [
+        "**证据索引**",
+        "",
+        "| id | 来源 | 页 | 引文 |",
+        "|:--|:--|:--|:--|",
+    ]
+    for evidence_id, item in sorted(document.evidence.items()):
+        url = str(item.get("url", ""))
+        page = str(item.get("page", ""))
+        quote = " ".join(str(item.get("quote", "")).split())[:180]
+        lines.append(f"| {evidence_id} | {url} | {page} | {quote} |")
+    return "\n".join(lines)
 
 
 def to_payload(document: ResearchDocument) -> dict[str, Any]:    return {
