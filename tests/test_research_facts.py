@@ -1,6 +1,6 @@
 import json
 
-from turtlefw.pdf.research_facts import fact_map, section_facts, write
+from turtlefw.pdf.research_facts import fact_map, hk_facts, section_facts, write
 
 
 def _payload():
@@ -38,3 +38,22 @@ def test_write_and_fact_map(tmp_path):
     assert len(loaded) == len(facts)
     mapped = fact_map(loaded)
     assert "pdf:section:MDA" in mapped
+
+
+def test_hk_holder_and_segment_evidence():
+    payload = {
+        "metadata": {"section_pages": {"P4": [78], "MDA": [8]}},
+        "P4": (
+            "INTERESTS OF SUBSTANTIAL SHAREHOLDERS\n"
+            "MIH Internet Holdings B.V. Long position 2,079,512,000 22.80%\n"
+        ),
+        "MDA": (
+            "revenues of the Group and its segments\n"
+            "VAS 369,281 319,168 16% 49% 49%\n"
+            "The Group 751,766 660,257 14% 100% 100%\n"
+        ),
+    }
+    facts = hk_facts(payload)
+    ids = {item["id"] for item in facts}
+    assert "pdf:holder:MIH Internet Holdings B.V." in ids
+    assert "pdf:segment:VAS" in ids

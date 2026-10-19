@@ -44,7 +44,8 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
 - 新增 `sec-audit`：用 SEC companyfacts 独立复核美股年表，不覆盖本地数据。
 - 新增 SEC statement fallback：yfinance 美股报表为空时，用 SEC companyfacts 生成 `StatementRow`。
 - 支持 revenue / net_income / operating profit / assets / equity / cash / debt / goodwill / OCF / capex / D&A / SBC。
-- 仍待补：SEC 股价/分红/文档事实、港股母公司/股东/分部、质押/回购、PIT 历史。
+- 新增 HK PDF evidence：`pdf:holder:<name>`、`pdf:segment:<name>`，带 P4/MDA 页号。
+- SEC evidence 增加 `dividend_per_share` / `dividends_paid` / `shares_outstanding`。
 
 ## Phase 5（部分完成）：LLM / Agent
 

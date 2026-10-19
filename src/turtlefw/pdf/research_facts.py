@@ -13,6 +13,8 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
+from .hk_facts import extract as extract_hk_facts
+
 SECTION_LABELS = {
     "P2": "受限现金/资产",
     "P3": "应收账款账龄",
@@ -74,7 +76,62 @@ def section_facts(
 def load(path: Path | str) -> list[dict[str, object]]:
     source = Path(path)
     payload = json.loads(source.read_text(encoding="utf-8-sig"))
-    return section_facts(payload, document_hash=_document_hash(source))
+    facts = section_facts(payload, document_hash=_document_hash(source))
+    facts.extend(hk_facts(payload))
+    return facts
+
+
+def hk_facts(payload: Mapping[str, Any]) -> list[dict[str, object]]:
+    """Turn HK shareholder/segment prose into addressable evidence rows."""
+    extracted = extract_hk_facts(payload)
+    metadata = payload.get("metadata", {})
+    pages = metadata.get("section_pages", {}) if isinstance(metadata, Mapping) else {}
+    p4_page = pages.get("P4", [None])[0] if isinstance(pages, Mapping) else None
+    mda_page = pages.get("MDA", [None])[0] if isinstance(pages, Mapping) else None
+    rows: list[dict[str, object]] = []
+    for holder in extracted.holders:
+        name = str(holder.get("holder_name", ""))
+        if not name:
+            continue
+        rows.append(
+            {
+                "id": f"pdf:holder:{name}",
+                "document_hash": "",
+                "page": p4_page,
+                "section": "P4",
+                "label": name,
+                "value": str(holder.get("hold_ratio")),
+                "unit": "%",
+                "quote": (
+                    f"{name} holds {holder.get('hold_ratio')}% "
+                    f"({holder.get('hold_amount')} shares)"
+                ),
+                "confidence": "medium",
+                "source_rank": 1,
+            }
+        )
+    for segment in extracted.segments:
+        name = str(segment.get("bz_item", ""))
+        if not name:
+            continue
+        rows.append(
+            {
+                "id": f"pdf:segment:{name}",
+                "document_hash": "",
+                "page": mda_page,
+                "section": "MDA",
+                "label": name,
+                "value": str(segment.get("bz_sales")),
+                "unit": "元",
+                "quote": (
+                    f"{name} revenue {segment.get('bz_sales')} "
+                    f"share {segment.get('share_pct')}%"
+                ),
+                "confidence": "medium",
+                "source_rank": 1,
+            }
+        )
+    return rows
 
 
 def write(
