@@ -297,6 +297,26 @@ def _pdf_bridge(path: str | None) -> dict[int, dict[str, str | None]] | None:
     return None
 
 
+def _pdf_facts(path: str | None) -> dict[str, str]:
+    """Map document fact ids to display values for research placeholders."""
+    if not path:
+        return {}
+    import json
+
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        return {}
+    facts: dict[str, str] = {}
+    for item in payload.get("document_facts", []):
+        fact_id = str(item.get("id", ""))
+        if fact_id:
+            facts[fact_id] = (
+                f"{item.get('value', '')} {item.get('unit', '')}".strip()
+            )
+    return facts
+
+
 def _sbc_from_rows(rows: list[StatementRow], unit: Currency) -> Money | None:
     series = statements.annual_series(rows, "cashflow", "sbc")
     if not series:
@@ -1724,6 +1744,7 @@ def _report(
             qualitative_path=qual_path,
             research_path=research_file,
             metrics_out=metrics_out,
+            facts=_pdf_facts(pdf_numbers),
         )
 
     code_text = inputs.code

@@ -117,3 +117,47 @@ def test_qa_json_artifact(tmp_path):
     assert payload["status"] == "pass"
     assert any(row["name"] == "numeric_coverage" for row in payload["rows"])
     assert target.parent == base
+
+
+def test_research_artifact_is_validated(tmp_path):
+    base = setup_run(tmp_path)
+    (base / "research.json").write_text(
+        json.dumps(
+            {
+                "evidence": [
+                    {"id": "ev1", "url": "https://example.com/a", "quote": "原文"}
+                ],
+                "claims": [
+                    {
+                        "claim_id": "D2.1",
+                        "dimension": "D2",
+                        "statement": "护城河 R={{metric:r}}",
+                        "judgment": "positive",
+                        "confidence": "high",
+                        "evidence_ids": ["ev1"],
+                    }
+                ],
+                "params": [
+                    {
+                        "param_id": "d2.rating",
+                        "label": "护城河评级",
+                        "value": "neutral",
+                        "dimension": "D2",
+                        "evidence_ids": ["ev1"],
+                    }
+                ],
+                "decisions": [
+                    {
+                        "decision_id": "g",
+                        "metric_id": "g",
+                        "selected": "1.15",
+                        "candidates": ["0.85", "1.15", "1.50"],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    rows = qa.run_qa("600887.SH", root=tmp_path)
+    assert "research" not in qa.failed(rows)
+    assert any(name == "research" and status == "PASS" for name, status, _ in rows)

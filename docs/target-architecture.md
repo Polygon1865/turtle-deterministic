@@ -235,7 +235,7 @@ Agent 只能调用白名单工具：
 - **可关闭**：无 LLM 时仍生成完整的确定性报告；
 - **数据**：period/annualized/source_rank 在数据包可见；
 - **审计**：numeric/citation/consistency 三类失败可定位到 artifact；
-- **测试**：fake LLM 契约测试 + 现有 303 测试不回退。
+- **测试**：fake LLM 契约测试 + 现有 306 测试不回退。
 
 ## 9. 明确不做
 
@@ -280,11 +280,12 @@ Agent 只能调用白名单工具：
 - **DSH 输出根**：`TURTLE_OUTPUT_DIR` / `--output-dir`，受限沙箱可写 `.runs/`；
 - **本地 smoke**：`turtle smoke --codes 600887,00700.HK,AAPL`，检查取数/report/snapshot/manifest；
 - **manifest 校验**：`report --snapshot` 校验 facts/config/research/template/report hash；
-- **测试**：`tests/conftest.py` 提供沙箱可写临时目录，303 收集 / 303 通过 / 0 setup error；
+- **测试**：`tests/conftest.py` 提供沙箱可写临时目录，306 收集 / 306 通过 / 0 setup error；
 - **00700 已知差异**：收入 1.09% 解释为 Others 8,077，分区 4/7 是报告结构差异，见 `docs/00700-known-differences.md`。
 
 尚未完成：
 
+- **ResearchDocument v2**：D1–D6 claims + `params`（研究参数）+ `decisions`（G/M/AA/税档候选选择）；claim 只允许 `{{metric:id}}` / `{{fact:id}}`，不写裸数字；fact 来自 PDF `document_facts`；
 - **全量 numeric guard**：`report --save-snapshot` 自动运行 numeric-audit，写入 `numeric_audit.json`、`numeric_hash`、`numeric_sources`；`qa` 校 hash 并**重算** coverage/unknown，不信任 manifest 摘要；600887/00700 达到 100%；
 - **Agent phase runner**：`agent --command phase=cmd` 按 data/document/research/compose/audit 执行命令、校验 artifact、写 `.agent/*.log` 与 `agent_state.json`；无命令阶段只校验，不伪造 research；
 - 数据包附注文本/表格摘要不进入数字 ledger（只做证据展示）；

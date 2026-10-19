@@ -295,6 +295,7 @@ def render(
     qualitative_path: Path | str | None = None,
     research_path: Path | str | None = None,
     metrics_out: dict[str, object] | None = None,
+    facts: dict[str, str] | None = None,
 ) -> tuple[str, str]:
     code = StockCode.parse(inputs.code)
     currency = Currency(inputs.currency)
@@ -369,6 +370,7 @@ def render(
         "price": f"{price:.2f}" if price is not None else "—",
     }
     research_md = ""
+    fact_map = dict(facts or {})
     candidate = (
         Path(snapshot_dir) / "research.json"
         if snapshot_dir is not None
@@ -378,7 +380,17 @@ def render(
         from ..research import load as load_research
         from ..research import render_markdown
 
-        research_md = render_markdown(load_research(candidate), metric_map)
+        if not fact_map and snapshot_dir is not None:
+            reported = Path(snapshot_dir) / "reported_numbers.json"
+            if reported.is_file():
+                import json
+
+                payload = json.loads(reported.read_text(encoding="utf-8-sig"))
+                for item in payload.get("document_facts", []):
+                    fact_id = str(item.get("id", ""))
+                    if fact_id:
+                        fact_map[fact_id] = f"{item.get('value', '')} {item.get('unit', '')}".strip()
+        research_md = render_markdown(load_research(candidate), metric_map, fact_map)
     markdown = render_analysis(
         ctx,
         results,

@@ -104,6 +104,11 @@ turtle report 600887                 # 自动读取同目录 qualitative.json
 
 规则：`judgment` 必须是 `positive/neutral/negative/unknown`；非 unknown 但**没有证据**会被自动降级为 `unknown`；证据必须含 http(s) URL 与非空引文。LLM 或人工填写走同一套校验。
 
+`research.json` 还支持：
+
+- `params`：研究参数表（如护城河评级、行业、CR4），值只能使用 `{{metric:id}}` / `{{fact:id}}`；
+- `decisions`：G/M/AA/税档等**有限候选选择**，`selected` 必须属于 `candidates`，LLM 不能自造数值。
+
 ### 确定性 grids 与绝对估值
 
 `report` 不再由 LLM 选 G/M/AA：`metrics/grids.py` 用 Capex/D&A 强度选 G，用三法交叉校验

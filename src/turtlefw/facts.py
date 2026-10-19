@@ -253,6 +253,26 @@ class ResearchClaim:
 
 
 @dataclass(frozen=True, slots=True)
+class ResearchParam:
+    param_id: str
+    label: str
+    value: str
+    dimension: str = ""
+    evidence_ids: tuple[str, ...] = ()
+    confidence: str = "medium"
+
+
+@dataclass(frozen=True, slots=True)
+class ResearchDecision:
+    decision_id: str
+    metric_id: str
+    selected: str
+    candidates: tuple[str, ...]
+    reason: str = ""
+    evidence_ids: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class ReportManifest:
     code: str
     as_of: str

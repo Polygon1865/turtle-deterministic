@@ -65,6 +65,22 @@ def run_qa(code: str, root: Path | str | None = None) -> list[tuple[str, str, st
     else:
         add("narrative", True, "未提供（可选）")
 
+    rpath = base / "research.json"
+    if rpath.is_file():
+        from .research import load as load_research
+
+        try:
+            document = load_research(rpath)
+            add(
+                "research",
+                True,
+                f"{len(document.claims)} claims, "
+                f"{len(document.params)} params, "
+                f"{len(document.decisions)} decisions",
+            )
+        except Exception as exc:
+            add("research", False, str(exc))
+
     if loaded is not None and unknown and unknown == len(loaded.items):
         add("unknown_ratio", False, "全部模块 unknown，定性分析未完成")
 

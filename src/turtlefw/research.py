@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from .facts import ResearchClaim
+from .facts import ResearchClaim, ResearchDecision, ResearchParam
 
 DIMENSIONS = {
     "D1": "商业模式与资本特征",
@@ -34,25 +34,33 @@ _PLACEHOLDER = re.compile(r"\{\{(metric|fact):([^}]+)\}\}")
 def render_markdown(
     document: ResearchDocument,
     metrics: Mapping[str, str],
+    facts: Mapping[str, str] | None = None,
 ) -> str:
-    """Render D1–D6 claims with citations; unresolved placeholders fail loudly."""
+    """Render D1–D6 claims, params and decisions; unresolved refs fail loudly."""
     lines: list[str] = []
+    fact_map = facts or {}
     by_dimension: dict[str, list[ResearchClaim]] = {}
     for claim in document.claims:
         by_dimension.setdefault(claim.dimension, []).append(claim)
+
+    def resolve(text: str) -> str:
+        def replace(match: re.Match[str]) -> str:
+            kind, key = match.group(1), match.group(2).strip()
+            if kind == "metric" and key in metrics:
+                return metrics[key]
+            if kind == "fact" and key in fact_map:
+                return fact_map[key]
+            raise ValueError(f"unresolved placeholder {match.group(0)}")
+
+        return _PLACEHOLDER.sub(replace, text)
+
     for dimension, label in DIMENSIONS.items():
         claims = by_dimension.get(dimension, [])
         if not claims:
             continue
         lines.extend(["", f"### {dimension} {label}", ""])
         for claim in claims:
-            def replace(match: re.Match[str]) -> str:
-                kind, key = match.group(1), match.group(2).strip()
-                if kind == "metric" and key in metrics:
-                    return metrics[key]
-                raise ValueError(f"{claim.claim_id}: unresolved placeholder {match.group(0)}")
-
-            statement = _PLACEHOLDER.sub(replace, claim.statement)
+            statement = resolve(claim.statement)
             lines.append(
                 f"- **{claim.claim_id}**（{claim.judgment} / {claim.confidence}）：{statement}"
             )
@@ -67,6 +75,18 @@ def render_markdown(
                 lines.append(f"  - 证据：{label} — “{quote}”")
             if claim.unknowns:
                 lines.append(f"  - 未验证：{'、'.join(claim.unknowns)}")
+    if document.params:
+        lines.extend(["", "### 研究参数", "", "| 参数 | 值 | 置信度 |", "|:--|:--|:--|"])
+        for param in document.params:
+            lines.append(
+                f"| {param.label or param.param_id} | {resolve(param.value)} | {param.confidence} |"
+            )
+    if document.decisions:
+        lines.extend(["", "### 研究决策", "", "| 决策 | 选择 | 理由 |", "|:--|:--|:--|"])
+        for decision in document.decisions:
+            lines.append(
+                f"| {decision.metric_id} | {decision.selected} | {resolve(decision.reason)} |"
+            )
     return "\n".join(lines).strip()
 
 
@@ -74,6 +94,8 @@ def render_markdown(
 class ResearchDocument:
     claims: tuple[ResearchClaim, ...]
     evidence: dict[str, dict[str, object]]
+    params: tuple[ResearchParam, ...] = ()
+    decisions: tuple[ResearchDecision, ...] = ()
 
 
 def _raw_numbers(text: str) -> list[str]:
@@ -143,7 +165,70 @@ def load_payload(payload: Mapping[str, Any]) -> ResearchDocument:
                 unknowns=tuple(str(x) for x in raw.get("unknowns", [])),
             )
         )
-    return ResearchDocument(claims=tuple(claims), evidence=evidence)
+
+    params: list[ResearchParam] = []
+    for raw in payload.get("params", []):
+        param_id = str(raw.get("param_id", "")).strip()
+        label = str(raw.get("label", "")).strip()
+        value = str(raw.get("value", "")).strip()
+        dimension = str(raw.get("dimension", "")).strip().upper()
+        if not param_id or not value:
+            raise ValueError("param missing param_id/value")
+        if dimension and dimension not in DIMENSIONS:
+            raise ValueError(f"{param_id}: invalid dimension {dimension!r}")
+        evidence_ids = tuple(str(x) for x in raw.get("evidence_ids", []))
+        for evidence_id in evidence_ids:
+            if evidence_id not in evidence:
+                raise ValueError(f"{param_id}: unknown evidence {evidence_id!r}")
+        numbers = _raw_numbers(value)
+        if numbers:
+            raise ValueError(
+                f"{param_id}: raw numbers in param {numbers}; use {{{{metric:...}}}}"
+            )
+        params.append(
+            ResearchParam(
+                param_id=param_id,
+                label=label or param_id,
+                value=value,
+                dimension=dimension,
+                evidence_ids=evidence_ids,
+                confidence=str(raw.get("confidence", "medium")).strip().lower(),
+            )
+        )
+
+    decisions: list[ResearchDecision] = []
+    for raw in payload.get("decisions", []):
+        decision_id = str(raw.get("decision_id", "")).strip()
+        metric_id = str(raw.get("metric_id", "")).strip()
+        selected = str(raw.get("selected", "")).strip()
+        candidates = tuple(str(item) for item in raw.get("candidates", []))
+        reason = str(raw.get("reason", "")).strip()
+        evidence_ids = tuple(str(x) for x in raw.get("evidence_ids", []))
+        if not decision_id or not metric_id or not selected:
+            raise ValueError("decision missing decision_id/metric_id/selected")
+        if not candidates or selected not in candidates:
+            raise ValueError(f"{decision_id}: selected must be one of candidates")
+        for evidence_id in evidence_ids:
+            if evidence_id not in evidence:
+                raise ValueError(f"{decision_id}: unknown evidence {evidence_id!r}")
+        if _raw_numbers(reason):
+            raise ValueError(f"{decision_id}: raw numbers in decision reason")
+        decisions.append(
+            ResearchDecision(
+                decision_id=decision_id,
+                metric_id=metric_id,
+                selected=selected,
+                candidates=candidates,
+                reason=reason,
+                evidence_ids=evidence_ids,
+            )
+        )
+    return ResearchDocument(
+        claims=tuple(claims),
+        evidence=evidence,
+        params=tuple(params),
+        decisions=tuple(decisions),
+    )
 
 
 def validate_evidence(items: Iterable[Mapping[str, object]]) -> None:
