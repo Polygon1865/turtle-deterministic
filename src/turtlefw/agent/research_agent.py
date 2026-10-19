@@ -38,9 +38,12 @@ class ResearchAgent:
     def __init__(self, llm: LLM) -> None:
         self.llm = llm
 
-    def run(self, context: Mapping[str, Any]) -> ResearchDocument:
-        payload = self.llm.complete(self.SYSTEM, context)
-        try:
-            return load_payload(payload)
-        except (ValueError, TypeError, KeyError) as exc:
-            raise AgentError(f"invalid research output: {exc}") from exc
+    def run(self, context: Mapping[str, Any], *, retries: int = 0) -> ResearchDocument:
+        last_error: Exception | None = None
+        for _attempt in range(max(0, retries) + 1):
+            payload = self.llm.complete(self.SYSTEM, context)
+            try:
+                return load_payload(payload)
+            except (ValueError, TypeError, KeyError) as exc:
+                last_error = exc
+        raise AgentError(f"invalid research output: {last_error}") from last_error

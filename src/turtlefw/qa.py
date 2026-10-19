@@ -203,6 +203,18 @@ def run_qa(code: str, root: Path | str | None = None) -> list[tuple[str, str, st
                 f"facts={len(audit_result['fact_refs'])} "
                 f"errors={len(audit_result['errors'])}",
             )
+            quality = audit_result.get("quality", {})
+            claims = int(quality.get("claims", 0)) if isinstance(quality, dict) else 0
+            dimensions = (
+                len(quality.get("covered_dimensions", []))
+                if isinstance(quality, dict)
+                else 0
+            )
+            add(
+                "research_quality",
+                claims >= 1 and dimensions >= 1,
+                f"claims={claims} dimensions={dimensions}",
+            )
         except Exception as exc:
             add("research_refs", False, str(exc))
     return rows

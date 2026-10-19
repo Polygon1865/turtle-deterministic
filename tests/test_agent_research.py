@@ -35,6 +35,23 @@ def test_research_agent_accepts_schema():
     assert document.claims[0].claim_id == "D2.1"
 
 
+def test_research_agent_retries_invalid_schema():
+    class Flaky:
+        def __init__(self):
+            self.calls = 0
+
+        def complete(self, system, payload):
+            self.calls += 1
+            if self.calls == 1:
+                return {"claims": [{"claim_id": "bad"}]}
+            return _valid_payload()
+
+    llm = Flaky()
+    document = ResearchAgent(llm).run({"code": "600887"}, retries=1)
+    assert document.claims[0].claim_id == "D2.1"
+    assert llm.calls == 2
+
+
 def test_research_agent_rejects_raw_numbers():
     payload = _valid_payload()
     payload["claims"][0]["statement"] = "市场份额 30%"

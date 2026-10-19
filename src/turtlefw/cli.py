@@ -1410,6 +1410,7 @@ def _research_agent_cmd(
     model: str | None,
     api_key: str | None,
     data_pack: str | None = None,
+    retries: int = 0,
 ) -> int:
     import json
     import os
@@ -1470,7 +1471,7 @@ def _research_agent_cmd(
         return 2
     llm = OpenAICompatibleLLM(base_url=url, model=model_name, api_key=key)
     try:
-        document = ResearchAgent(llm).run(context)
+        document = ResearchAgent(llm).run(context, retries=retries)
     except AgentError as exc:
         print(f"research agent 失败：{exc}", file=sys.stderr)
         return 2
@@ -2454,6 +2455,7 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent.add_argument("--model", default=None, help="模型名")
     research_agent.add_argument("--api-key", default=None, help="API key（建议用环境变量）")
     research_agent.add_argument("--data-pack", default=None, help="可选 data_pack.md")
+    research_agent.add_argument("--retries", type=int, default=0, help="schema 失败重试次数")
 
     snapshot = sub.add_parser("snapshot", help="生成不可变 ReportSnapshot manifest")
     snapshot.add_argument("code", help="股票代码")
@@ -2733,6 +2735,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.model,
                 args.api_key,
                 args.data_pack,
+                args.retries,
             )
         if args.command == "snapshot":
             return _snapshot_cmd(
