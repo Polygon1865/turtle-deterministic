@@ -226,8 +226,17 @@ def build(
                     )
                 )
 
+    if ctx.pledge_pct is not None:
+        typed_values["pledge_pct"] = ctx.pledge_pct
+    if ctx.buyback is not None and ctx.market_cap.amount:
+        typed_values["buyback_ratio"] = (
+            ctx.buyback.amount / ctx.market_cap.amount * Decimal("100")
+        )
+
     percent_ids = {
         "parent_cash_ratio",
+        "pledge_pct",
+        "buyback_ratio",
         "ar_ratio",
         "revenue_cv",
         "hh",
@@ -253,7 +262,8 @@ def build(
             period=period,
             display=(
                 f"{typed_value:.1f}%"
-                if metric_id in {"parent_cash_ratio", "payout.spread"}
+                if metric_id
+                in {"parent_cash_ratio", "pledge_pct", "buyback_ratio", "payout.spread"}
                 and typed_value is not None
                 else None
             ),
