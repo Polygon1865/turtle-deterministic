@@ -19,6 +19,8 @@ from .protocol import StatementRow
 
 TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 FACTS_URL = "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json"
+SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik:010d}.json"
+ARCHIVE_URL = "https://www.sec.gov/Archives/edgar/data/{cik}/{accession}/{document}"
 TAGS: dict[str, tuple[str, ...]] = {
     "revenue": (
         "Revenues",
@@ -214,6 +216,60 @@ def evidence_facts(
                 }
             )
     return rows
+
+
+def fetch_submissions(
+    cik: int,
+    transport: Transport | None = None,
+) -> Mapping[str, Any]:
+    return (transport or UrllibTransport()).get(
+        SUBMISSIONS_URL.format(cik=cik), _headers()
+    )
+
+
+def filing_evidence(
+    payload: Mapping[str, Any],
+    *,
+    cik: int,
+    forms: tuple[str, ...] = ("10-K", "10-K/A"),
+) -> list[dict[str, object]]:
+    """Latest annual filing as a research evidence row."""
+    filings = payload.get("filings", {})
+    recent = filings.get("recent", {}) if isinstance(filings, Mapping) else {}
+    if not isinstance(recent, Mapping):
+        return []
+    forms_list = recent.get("form", [])
+    dates = recent.get("filingDate", [])
+    accessions = recent.get("accessionNumber", [])
+    documents = recent.get("primaryDocument", [])
+    latest: int | None = None
+    for index, form in enumerate(forms_list if isinstance(forms_list, list) else []):
+        if str(form) in forms and (latest is None or str(dates[index]) > str(dates[latest])):
+            latest = index
+    if latest is None:
+        return []
+    accession = str(accessions[latest])
+    document = str(documents[latest])
+    url = ARCHIVE_URL.format(
+        cik=cik, accession=accession.replace("-", ""), document=document
+    )
+    return [
+        {
+            "id": f"sec:filing:{accession}",
+            "page": "",
+            "section": "SEC 10-K",
+            "label": f"{forms_list[latest]} {dates[latest]}",
+            "value": None,
+            "unit": "",
+            "quote": (
+                f"SEC {forms_list[latest]} filed {dates[latest]} "
+                f"(accession {accession})"
+            ),
+            "confidence": "high",
+            "source_rank": 2,
+            "source_url": url,
+        }
+    ]
 
 
 def compare_rows(

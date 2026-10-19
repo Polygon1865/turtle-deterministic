@@ -1496,7 +1496,13 @@ def _sec_evidence_cmd(
 ) -> int:
     import json
 
-    from .data.sec import cik_for_ticker, evidence_facts, fetch_companyfacts
+    from .data.sec import (
+        cik_for_ticker,
+        evidence_facts,
+        fetch_companyfacts,
+        fetch_submissions,
+        filing_evidence,
+    )
 
     if cik is None:
         if not ticker:
@@ -1512,9 +1518,13 @@ def _sec_evidence_cmd(
     except Exception as exc:  # noqa: BLE001
         print(f"SEC companyfacts 查询失败：{exc}", file=sys.stderr)
         return 2
+    facts = evidence_facts(payload, cik=cik)
+    try:
+        facts.extend(filing_evidence(fetch_submissions(cik), cik=cik))
+    except Exception:  # noqa: BLE001 - filing metadata is optional
+        pass
     target = Path(out)
     target.parent.mkdir(parents=True, exist_ok=True)
-    facts = evidence_facts(payload, cik=cik)
     target.write_bytes(
         (json.dumps(facts, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     )

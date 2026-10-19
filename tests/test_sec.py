@@ -1,6 +1,12 @@
 from decimal import Decimal
 
-from turtlefw.data.sec import annual_facts, compare_rows, evidence_facts, statement_rows
+from turtlefw.data.sec import (
+    annual_facts,
+    compare_rows,
+    evidence_facts,
+    filing_evidence,
+    statement_rows,
+)
 from turtlefw.types import StockCode
 
 
@@ -73,3 +79,24 @@ def test_evidence_facts_are_addressable():
     assert "1000" in str(revenue["quote"])
     assert revenue["source_rank"] == 2
     assert "CIK0000320193" in str(revenue["source_url"])
+
+
+def test_latest_10k_filing_evidence():
+    payload = {
+        "filings": {
+            "recent": {
+                "form": ["10-Q", "10-K", "10-K/A"],
+                "filingDate": ["2025-08-01", "2025-11-01", "2026-01-10"],
+                "accessionNumber": [
+                    "0001-25-000001",
+                    "0001-25-000002",
+                    "0001-26-000003",
+                ],
+                "primaryDocument": ["q.htm", "k.htm", "ka.htm"],
+            }
+        }
+    }
+    facts = filing_evidence(payload, cik=320193)
+    assert len(facts) == 1
+    assert facts[0]["id"] == "sec:filing:0001-26-000003"
+    assert "ka.htm" in str(facts[0]["source_url"])

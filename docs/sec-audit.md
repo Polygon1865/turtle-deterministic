@@ -59,6 +59,18 @@ research claim 可绑定：
 
 `research-agent` 会读取 snapshot 的 `evidence.json` 作为 fact 上下文。
 
+### 10-K filing
+
+`sec-evidence` 同时追加最新 `10-K / 10-K/A` 元数据：
+
+```text
+sec:filing:<accession>
+source_url = SEC Archives 原文
+quote = SEC 10-K filed YYYY-MM-DD
+```
+
+它只提供 filing 入口，不解析 10-K 正文。
+
 ## 边界
 
 - 只做年表复核，不提供股价/股本/分红；
