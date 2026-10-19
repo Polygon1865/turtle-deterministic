@@ -73,7 +73,8 @@ quote = SEC 10-K filed YYYY-MM-DD
 
 ## 边界
 
-- 只做年表复核，不提供股价/股本/分红；
+- 不提供股价；
+- companyfacts 可提供 `dividend_per_share`、`dividends_paid`、`shares_outstanding` 作为 evidence，但不进入 StatementRow；
 - SEC tag 可能因公司而异，缺失即不比较；
 - 需要 `SEC_USER_AGENT`（建议设置为联系方式）；
 - 差异不是自动修正，必须经 source resolver/人工确认。

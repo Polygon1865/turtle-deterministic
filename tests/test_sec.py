@@ -26,6 +26,16 @@ def _payload():
                 "NetIncomeLoss": {
                     "units": {"USD": [{"form": "10-K", "fy": 2025, "val": 100}]}
                 },
+                "CommonStockDividendsPerShareDeclared": {
+                    "units": {
+                        "USD/shares": [{"form": "10-K", "fy": 2025, "val": 1.25}]
+                    }
+                },
+                "CommonStockSharesOutstanding": {
+                    "units": {
+                        "shares": [{"form": "10-K", "fy": 2025, "val": 1000000}]
+                    }
+                },
             }
         }
     }
@@ -79,6 +89,10 @@ def test_evidence_facts_are_addressable():
     assert "1000" in str(revenue["quote"])
     assert revenue["source_rank"] == 2
     assert "CIK0000320193" in str(revenue["source_url"])
+    dividend = next(item for item in facts if item["id"] == "sec:dividend_per_share:2025")
+    assert dividend["unit"] == "USD/shares"
+    shares = next(item for item in facts if item["id"] == "sec:shares_outstanding:2025")
+    assert shares["unit"] == "shares"
 
 
 def test_latest_10k_filing_evidence():

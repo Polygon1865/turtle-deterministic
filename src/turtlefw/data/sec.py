@@ -41,6 +41,9 @@ TAGS: dict[str, tuple[str, ...]] = {
         "DepreciationAmortizationAndAccretionNet",
     ),
     "sbc": ("ShareBasedCompensation",),
+    "dividend_per_share": ("CommonStockDividendsPerShareDeclared",),
+    "dividends_paid": ("PaymentsOfDividendsCommonStock",),
+    "shares_outstanding": ("CommonStockSharesOutstanding",),
 }
 STATEMENT_ITEMS = {
     "income": ("revenue", "net_income", "operate_profit"),
@@ -109,7 +112,7 @@ def annual_facts(payload: Mapping[str, Any]) -> dict[str, dict[int, Decimal]]:
             if not isinstance(fact, Mapping):
                 continue
             for unit, rows in _units(fact).items():
-                if str(unit).upper() not in {"USD", "USD/SHARES"}:
+                if str(unit).upper() not in {"USD", "USD/SHARES", "SHARES"}:
                     continue
                 for row in rows if isinstance(rows, list) else []:
                     if not isinstance(row, Mapping):
@@ -199,6 +202,11 @@ def evidence_facts(
     facts = annual_facts(payload)
     source_url = FACTS_URL.format(cik=cik) if cik is not None else ""
     rows: list[dict[str, object]] = []
+    units = {
+        "dividend_per_share": "USD/shares",
+        "shares_outstanding": "shares",
+        "dividends_paid": "USD",
+    }
     for item, values in sorted(facts.items()):
         for year, value in sorted(values.items()):
             rows.append(
@@ -208,7 +216,7 @@ def evidence_facts(
                     "section": "SEC",
                     "label": f"SEC {item} FY{year}",
                     "value": str(value),
-                    "unit": "USD",
+                    "unit": units.get(item, "USD"),
                     "quote": f"SEC companyfacts {item} FY{year} = {value}",
                     "confidence": "high",
                     "source_rank": 2,
