@@ -160,6 +160,50 @@ def run_qa(code: str, root: Path | str | None = None) -> list[tuple[str, str, st
                     )
         except Exception as exc:
             add("numeric_coverage", False, f"numeric audit 复算失败：{exc}")
+
+    research_file = base / "research.json"
+    if research_file.is_file() and matching:
+        try:
+            import json
+
+            from .research import audit as research_audit
+            from .research import load as load_research
+
+            snapshot_dir = matching[0][0].parent
+            metrics: dict[str, str] = {}
+            metrics_path = snapshot_dir / "metrics.json"
+            if metrics_path.is_file():
+                payload = json.loads(metrics_path.read_text(encoding="utf-8-sig"))
+                for key, point in payload.items():
+                    if isinstance(point, dict):
+                        metrics[str(key)] = str(
+                            point.get("display", point.get("value", ""))
+                        )
+            facts: dict[str, str] = {}
+            for name in ("evidence.json", "reported_numbers.json"):
+                path = snapshot_dir / name
+                if not path.is_file():
+                    continue
+                payload = json.loads(path.read_text(encoding="utf-8-sig"))
+                items = (
+                    payload
+                    if isinstance(payload, list)
+                    else payload.get("document_facts", [])
+                )
+                for item in items:
+                    if isinstance(item, dict) and item.get("id"):
+                        facts[str(item["id"])] = str(
+                            item.get("quote", item.get("value", ""))
+                        )
+            result = research_audit(load_research(research_file), metrics, facts)
+            add(
+                "research_refs",
+                result["status"] == "pass",
+                f"metrics={len(result['metric_refs'])} facts={len(result['fact_refs'])} "
+                f"errors={len(result['errors'])}",
+            )
+        except Exception as exc:
+            add("research_refs", False, str(exc))
     return rows
 
 

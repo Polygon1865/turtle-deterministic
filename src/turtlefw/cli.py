@@ -1472,6 +1472,50 @@ def _research_agent_cmd(
     return 0
 
 
+def _research_audit_cmd(
+    path: str,
+    metrics_path: str | None,
+    facts_path: str | None,
+    out: str | None,
+) -> int:
+    import json
+
+    from .research import audit, load
+
+    try:
+        document = load(path)
+    except (OSError, ValueError) as exc:
+        print(f"research 加载失败：{exc}", file=sys.stderr)
+        return 2
+    metrics: dict[str, str] = {}
+    if metrics_path and Path(metrics_path).is_file():
+        payload = json.loads(Path(metrics_path).read_text(encoding="utf-8-sig"))
+        for key, point in payload.items():
+            if isinstance(point, dict):
+                metrics[str(key)] = str(point.get("display", point.get("value", "")))
+            else:
+                metrics[str(key)] = str(point)
+    facts: dict[str, str] = {}
+    if facts_path and Path(facts_path).is_file():
+        payload = json.loads(Path(facts_path).read_text(encoding="utf-8-sig"))
+        items = payload if isinstance(payload, list) else payload.get("document_facts", [])
+        for item in items:
+            if isinstance(item, dict) and item.get("id"):
+                facts[str(item["id"])] = str(
+                    item.get("quote", item.get("value", ""))
+                )
+    result = audit(document, metrics, facts)
+    text = json.dumps(result, ensure_ascii=False, indent=2)
+    if out:
+        target = Path(out)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((text + "\n").encode("utf-8"))
+        print(f"research audit：{target.resolve()}")
+    else:
+        print(text)
+    return 0 if result["status"] == "pass" else 1
+
+
 def _research_cmd(path: str) -> int:
     from .research import load
 
@@ -2210,6 +2254,12 @@ def build_parser() -> argparse.ArgumentParser:
     research = sub.add_parser("research", help="校验 D1-D6 research.json（证据/占位符）")
     research.add_argument("--file", required=True, help="research.json 路径")
 
+    research_audit = sub.add_parser("research-audit", help="校验 research 占位符/决策")
+    research_audit.add_argument("--file", required=True, help="research.json")
+    research_audit.add_argument("--metrics", default=None, help="metrics.json")
+    research_audit.add_argument("--facts", default=None, help="evidence.json / reported_numbers.json")
+    research_audit.add_argument("--out", default=None, help="审计 JSON 输出")
+
     research_agent = sub.add_parser(
         "research-agent", help="用 OpenAI-compatible LLM 生成 research.json"
     )
@@ -2472,6 +2522,10 @@ def main(argv: list[str] | None = None) -> int:
             return _qualitative_cmd(args.code, args.init, args.check, args.out)
         if args.command == "research":
             return _research_cmd(args.file)
+        if args.command == "research-audit":
+            return _research_audit_cmd(
+                args.file, args.metrics, args.facts, args.out
+            )
         if args.command == "research-agent":
             return _research_agent_cmd(
                 args.snapshot,

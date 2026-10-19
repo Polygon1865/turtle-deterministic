@@ -115,8 +115,53 @@ def load(path: Path | str) -> ResearchDocument:
     return load_payload(payload)
 
 
-def to_payload(document: ResearchDocument) -> dict[str, Any]:
+def audit(
+    document: ResearchDocument,
+    metrics: Mapping[str, str] | None = None,
+    facts: Mapping[str, str] | None = None,
+) -> dict[str, object]:
+    """Check claim/param/decision references against rendered value maps."""
+    metric_map = metrics or {}
+    fact_map = facts or {}
+    errors: list[str] = []
+    metric_refs: set[str] = set()
+    fact_refs: set[str] = set()
+
+    def check_text(label: str, text: str) -> None:
+        for match in _PLACEHOLDER.finditer(text):
+            kind, key = match.group(1), match.group(2).strip()
+            if kind == "metric":
+                metric_refs.add(key)
+                if key not in metric_map:
+                    errors.append(f"{label}: unresolved metric {key!r}")
+            else:
+                fact_refs.add(key)
+                if key not in fact_map:
+                    errors.append(f"{label}: unresolved fact {key!r}")
+
+    for claim in document.claims:
+        check_text(claim.claim_id, claim.statement)
+        if claim.judgment != "unknown" and not claim.evidence_ids:
+            errors.append(f"{claim.claim_id}: non-unknown claim has no evidence")
+    for param in document.params:
+        check_text(param.param_id, param.value)
+    for decision in document.decisions:
+        check_text(decision.decision_id, decision.reason)
+        if decision.selected not in decision.candidates:
+            errors.append(f"{decision.decision_id}: selected is not a candidate")
     return {
+        "status": "pass" if not errors else "review",
+        "claims": len(document.claims),
+        "params": len(document.params),
+        "decisions": len(document.decisions),
+        "evidence": len(document.evidence),
+        "metric_refs": sorted(metric_refs),
+        "fact_refs": sorted(fact_refs),
+        "errors": errors,
+    }
+
+
+def to_payload(document: ResearchDocument) -> dict[str, Any]:    return {
         "evidence": list(document.evidence.values()),
         "claims": [
             {

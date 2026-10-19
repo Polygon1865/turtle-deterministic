@@ -51,6 +51,13 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
 - `agent` phase runner 可执行 `research=research-agent ...`。
 - 仍待补：真实 D1–D6 prompt 模板、重试/成本预算、LLM 输出质量回归。
 
+## Phase 6（部分完成）：claim-level audit
+
+- `research-audit`：校验 claim/param/decision 的 metric/fact 占位符。
+- `qa` 增加 `research_refs` 行：用 snapshot 的 metrics/evidence 复算引用。
+- 未解析 metric/fact、非 unknown 无证据、非法 decision 均失败。
+- 仍待补：报告章节深度、HTML、claim 覆盖率统计。
+
 ## 红线
 
 1. 报告数字只能来自 Metric/DocumentFact。

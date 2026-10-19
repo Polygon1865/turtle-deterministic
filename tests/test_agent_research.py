@@ -1,7 +1,7 @@
 import pytest
 
 from turtlefw.agent import AgentError, FakeLLM, ResearchAgent
-from turtlefw.research import load_payload, render_markdown
+from turtlefw.research import audit, load_payload, render_markdown
 
 
 def _valid_payload():
@@ -80,3 +80,12 @@ def test_research_rejects_invalid_decision_candidate():
     ]
     with pytest.raises(ValueError, match="selected must be one of candidates"):
         load_payload(payload)
+
+
+def test_research_audit_reports_unresolved_refs():
+    document = load_payload(_valid_payload())
+    result = audit(document, metrics={}, facts={})
+    assert result["status"] == "review"
+    assert any("unresolved metric" in error for error in result["errors"])
+    passed = audit(document, metrics={"r": "3.36%"}, facts={})
+    assert passed["status"] == "pass"
