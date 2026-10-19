@@ -20,6 +20,15 @@ def _valid_payload():
     }
 
 
+def test_research_prompt_covers_d1_to_d6():
+    from turtlefw.agent import ResearchAgent
+
+    for dimension in ("D1", "D2", "D3", "D4", "D5", "D6"):
+        assert dimension in ResearchAgent.SYSTEM
+    assert "Never write a raw number" in ResearchAgent.SYSTEM
+    assert "final report" not in ResearchAgent.SYSTEM.lower()
+
+
 def test_research_agent_accepts_schema():
     document = ResearchAgent(FakeLLM(_valid_payload())).run({"code": "600887"})
     assert len(document.claims) == 1

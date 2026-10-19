@@ -49,9 +49,11 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
 ## Phase 5（部分完成）：LLM / Agent
 
 - 新增 `OpenAICompatibleLLM`（transport 可注入，测试不联网）。
+- 新增 D1–D6 专用 system prompt：业务/护城河/外部/管理层/MD&A/控股。
 - 新增 `research-agent --snapshot --out`：用 LLM 生成 `research.json`，再由 `load_payload` 校验。
+- snapshot 有 `pdf_sections.json` / `data_pack.md` / `evidence.json` 时自动注入上下文。
 - `agent` phase runner 可执行 `research=research-agent ...`。
-- 仍待补：真实 D1–D6 prompt 模板、重试/成本预算、LLM 输出质量回归。
+- 仍待补：真实 LLM 输出回归、重试/成本预算。
 
 ## Phase 6（部分完成）：claim-level audit
 

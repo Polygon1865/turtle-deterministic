@@ -1444,6 +1444,18 @@ def _research_agent_cmd(
             context["facts"] = list(context["facts"]) + evidence_payload
     if data_pack and Path(data_pack).is_file():
         context["data_pack"] = Path(data_pack).read_text(encoding="utf-8-sig")[:40000]
+    elif (root / "data_pack.md").is_file():
+        context["data_pack"] = (root / "data_pack.md").read_text(
+            encoding="utf-8-sig"
+        )[:40000]
+    pdf_sections = root / "pdf_sections.json"
+    if pdf_sections.is_file():
+        sections = json.loads(pdf_sections.read_text(encoding="utf-8-sig"))
+        context["pdf_sections"] = {
+            str(key): str(value)[:12000]
+            for key, value in sections.items()
+            if key != "metadata" and isinstance(value, str)
+        }
 
     key = api_key or os.environ.get("TURTLE_LLM_API_KEY", "")
     url = base_url or os.environ.get(
