@@ -61,6 +61,11 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
 
 - 新增 `coverage` 能力矩阵，data pack 第 16 段显示 available/partial/missing。
 - Thesis Card 支持 `thesis.*` params 表格（核心论点/催化/风险等）。
+- 新增 DSH 原生路径：
+  - `.agents/skills/turtle-research/SKILL.md`
+  - `.claude/commands/turtle-research.md`
+  - `research-context` 导出 snapshot 上下文；
+  - DSH 模型直接写 `research.json`，项目负责 validator/gate，不需要项目持有 API key。
 - `research-agent --response`：离线回放 LLM JSON，用于 eval/回归，不发网络请求。
 - `research-agent --min-claims/--min-dimensions`：不足时把反馈加入 prompt 重试。
 - `qa` 增加 `research_quality` 和 `data_coverage`：显示研究覆盖和缺失数据能力。

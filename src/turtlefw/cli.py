@@ -1403,29 +1403,16 @@ def _snapshot_cmd(
     return 0
 
 
-def _research_agent_cmd(
+def _research_context(
     snapshot: str,
-    out: str,
-    base_url: str | None,
-    model: str | None,
-    api_key: str | None,
     data_pack: str | None = None,
-    retries: int = 0,
-    min_claims: int = 0,
-    min_dimensions: int = 0,
-    response: str | None = None,
-) -> int:
+) -> dict[str, object]:
     import json
-    import os
-
-    from .agent import AgentError, FakeLLM, OpenAICompatibleLLM, ResearchAgent
-    from .research import to_payload
 
     root = Path(snapshot)
     inputs_path = root / "inputs.json"
     if not inputs_path.is_file():
-        print(f"找不到 snapshot inputs：{inputs_path}", file=sys.stderr)
-        return 2
+        raise FileNotFoundError(f"找不到 snapshot inputs：{inputs_path}")
     payload = json.loads(inputs_path.read_text(encoding="utf-8-sig"))
     context: dict[str, object] = {
         "code": payload.get("code", ""),
@@ -1460,6 +1447,54 @@ def _research_agent_cmd(
             for key, value in sections.items()
             if key != "metadata" and isinstance(value, str)
         }
+    return context
+
+
+def _research_context_cmd(
+    snapshot: str,
+    out: str,
+    data_pack: str | None,
+) -> int:
+    import json
+
+    try:
+        context = _research_context(snapshot, data_pack)
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"research context 失败：{exc}", file=sys.stderr)
+        return 2
+    target = Path(out)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(
+        (json.dumps(context, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    )
+    print(f"research context 已写入 {target.resolve()}")
+    return 0
+
+
+def _research_agent_cmd(
+    snapshot: str,
+    out: str,
+    base_url: str | None,
+    model: str | None,
+    api_key: str | None,
+    data_pack: str | None = None,
+    retries: int = 0,
+    min_claims: int = 0,
+    min_dimensions: int = 0,
+    response: str | None = None,
+) -> int:
+    import json
+    import os
+
+    from .agent import AgentError, FakeLLM, LLM, OpenAICompatibleLLM, ResearchAgent
+    from .research import to_payload
+
+    root = Path(snapshot)
+    try:
+        context = _research_context(snapshot, data_pack)
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"找不到 snapshot context：{exc}", file=sys.stderr)
+        return 2
 
     key = api_key or os.environ.get("TURTLE_LLM_API_KEY", "")
     url = base_url or os.environ.get(
@@ -1467,7 +1502,7 @@ def _research_agent_cmd(
     )
     model_name = model or os.environ.get("TURTLE_LLM_MODEL", "")
     if response and Path(response).is_file():
-        llm = FakeLLM(
+        llm: LLM = FakeLLM(
             json.loads(Path(response).read_text(encoding="utf-8-sig"))
         )
     elif not key or not model_name:
@@ -2441,6 +2476,13 @@ def build_parser() -> argparse.ArgumentParser:
     research_audit.add_argument("--min-claims", type=int, default=0)
     research_audit.add_argument("--min-dimensions", type=int, default=0)
 
+    research_context = sub.add_parser(
+        "research-context", help="导出 DSH/LLM 研究上下文 JSON"
+    )
+    research_context.add_argument("--snapshot", required=True, help="snapshot 目录")
+    research_context.add_argument("--out", required=True, help="context.json 输出")
+    research_context.add_argument("--data-pack", default=None, help="可选 data_pack.md")
+
     sec_audit = sub.add_parser("sec-audit", help="用 SEC companyfacts 复核美股 snapshot")
     sec_audit.add_argument("--snapshot", required=True, help="snapshot 目录")
     sec_audit.add_argument("--ticker", default=None, help="美股 ticker，如 AAPL")
@@ -2737,6 +2779,8 @@ def main(argv: list[str] | None = None) -> int:
                 args.min_claims,
                 args.min_dimensions,
             )
+        if args.command == "research-context":
+            return _research_context_cmd(args.snapshot, args.out, args.data_pack)
         if args.command == "sec-audit":
             return _sec_audit_cmd(
                 args.snapshot, args.ticker, args.cik, args.out, args.tolerance
