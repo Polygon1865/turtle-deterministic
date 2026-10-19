@@ -115,6 +115,47 @@ def load(path: Path | str) -> ResearchDocument:
     return load_payload(payload)
 
 
+def to_payload(document: ResearchDocument) -> dict[str, Any]:
+    return {
+        "evidence": list(document.evidence.values()),
+        "claims": [
+            {
+                "claim_id": claim.claim_id,
+                "dimension": claim.dimension,
+                "statement": claim.statement,
+                "judgment": claim.judgment,
+                "confidence": claim.confidence,
+                "evidence_ids": list(claim.evidence_ids),
+                "as_of": claim.as_of,
+                "unknowns": list(claim.unknowns),
+            }
+            for claim in document.claims
+        ],
+        "params": [
+            {
+                "param_id": param.param_id,
+                "label": param.label,
+                "value": param.value,
+                "dimension": param.dimension,
+                "evidence_ids": list(param.evidence_ids),
+                "confidence": param.confidence,
+            }
+            for param in document.params
+        ],
+        "decisions": [
+            {
+                "decision_id": decision.decision_id,
+                "metric_id": decision.metric_id,
+                "selected": decision.selected,
+                "candidates": list(decision.candidates),
+                "reason": decision.reason,
+                "evidence_ids": list(decision.evidence_ids),
+            }
+            for decision in document.decisions
+        ],
+    }
+
+
 def load_payload(payload: Mapping[str, Any]) -> ResearchDocument:
     evidence_raw = payload.get("evidence", [])
     evidence: dict[str, dict[str, object]] = {}

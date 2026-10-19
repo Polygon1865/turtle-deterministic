@@ -33,9 +33,10 @@ class FakeLLM:
 
 class ResearchAgent:
     SYSTEM = (
-        "You write only D1-D6 claims and evidence. Never write report numbers; "
-        "use {{metric:id}} or {{fact:id}} placeholders. Return JSON matching the "
-        "research schema."
+        "You write only D1-D6 claims, params and decisions. Never write report numbers; "
+        "use {{metric:id}} or {{fact:id}} placeholders. Return JSON matching the research "
+        "schema with evidence for every non-unknown claim. Decisions may only select "
+        "one of the supplied candidates; never invent a value."
     )
 
     def __init__(self, llm: LLM) -> None:

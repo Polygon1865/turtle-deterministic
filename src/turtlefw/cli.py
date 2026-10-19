@@ -1403,6 +1403,75 @@ def _snapshot_cmd(
     return 0
 
 
+def _research_agent_cmd(
+    snapshot: str,
+    out: str,
+    base_url: str | None,
+    model: str | None,
+    api_key: str | None,
+    data_pack: str | None = None,
+) -> int:
+    import json
+    import os
+
+    from .agent import AgentError, OpenAICompatibleLLM, ResearchAgent
+    from .research import to_payload
+
+    root = Path(snapshot)
+    inputs_path = root / "inputs.json"
+    if not inputs_path.is_file():
+        print(f"找不到 snapshot inputs：{inputs_path}", file=sys.stderr)
+        return 2
+    payload = json.loads(inputs_path.read_text(encoding="utf-8-sig"))
+    context: dict[str, object] = {
+        "code": payload.get("code", ""),
+        "as_of": payload.get("as_of", ""),
+        "currency": payload.get("currency", ""),
+        "metrics": {},
+        "facts": [],
+    }
+    metrics_path = root / "metrics.json"
+    if metrics_path.is_file():
+        context["metrics"] = json.loads(metrics_path.read_text(encoding="utf-8-sig"))
+    reported = root / "reported_numbers.json"
+    if reported.is_file():
+        report_payload = json.loads(reported.read_text(encoding="utf-8-sig"))
+        context["facts"] = report_payload.get("document_facts", [])
+    if data_pack and Path(data_pack).is_file():
+        context["data_pack"] = Path(data_pack).read_text(encoding="utf-8-sig")[:40000]
+
+    key = api_key or os.environ.get("TURTLE_LLM_API_KEY", "")
+    url = base_url or os.environ.get(
+        "TURTLE_LLM_BASE_URL", "https://api.openai.com/v1"
+    )
+    model_name = model or os.environ.get("TURTLE_LLM_MODEL", "")
+    if not key or not model_name:
+        print(
+            "缺少 LLM 配置：设置 TURTLE_LLM_API_KEY / TURTLE_LLM_MODEL（或 --api-key/--model）",
+            file=sys.stderr,
+        )
+        return 2
+    llm = OpenAICompatibleLLM(base_url=url, model=model_name, api_key=key)
+    try:
+        document = ResearchAgent(llm).run(context)
+    except AgentError as exc:
+        print(f"research agent 失败：{exc}", file=sys.stderr)
+        return 2
+    target = Path(out)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(
+        (
+            json.dumps(to_payload(document), ensure_ascii=False, indent=2) + "\n"
+        ).encode("utf-8")
+    )
+    print(
+        f"research.json 已写入 {target.resolve()}："
+        f"{len(document.claims)} claims，{len(document.params)} params，"
+        f"{len(document.decisions)} decisions"
+    )
+    return 0
+
+
 def _research_cmd(path: str) -> int:
     from .research import load
 
@@ -2141,6 +2210,16 @@ def build_parser() -> argparse.ArgumentParser:
     research = sub.add_parser("research", help="校验 D1-D6 research.json（证据/占位符）")
     research.add_argument("--file", required=True, help="research.json 路径")
 
+    research_agent = sub.add_parser(
+        "research-agent", help="用 OpenAI-compatible LLM 生成 research.json"
+    )
+    research_agent.add_argument("--snapshot", required=True, help="snapshot 目录")
+    research_agent.add_argument("--out", required=True, help="research.json 输出")
+    research_agent.add_argument("--base-url", default=None, help="LLM base URL")
+    research_agent.add_argument("--model", default=None, help="模型名")
+    research_agent.add_argument("--api-key", default=None, help="API key（建议用环境变量）")
+    research_agent.add_argument("--data-pack", default=None, help="可选 data_pack.md")
+
     snapshot = sub.add_parser("snapshot", help="生成不可变 ReportSnapshot manifest")
     snapshot.add_argument("code", help="股票代码")
     snapshot.add_argument("--as-of", required=True, help="数据截止日 YYYY-MM-DD")
@@ -2393,6 +2472,15 @@ def main(argv: list[str] | None = None) -> int:
             return _qualitative_cmd(args.code, args.init, args.check, args.out)
         if args.command == "research":
             return _research_cmd(args.file)
+        if args.command == "research-agent":
+            return _research_agent_cmd(
+                args.snapshot,
+                args.out,
+                args.base_url,
+                args.model,
+                args.api_key,
+                args.data_pack,
+            )
         if args.command == "snapshot":
             return _snapshot_cmd(
                 args.code, args.as_of, args.out, args.report, args.research

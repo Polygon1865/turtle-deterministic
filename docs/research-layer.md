@@ -44,11 +44,12 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
 - US SEC；港股母公司/股东/分部；质押/回购；PIT 历史。
 - 先补数据契约，再补报告章节。
 
-## Phase 5：LLM/Agent
+## Phase 5（部分完成）：LLM / Agent
 
-- 真实 LLM adapter；research phase 输出 ResearchDocument。
-- phase runner：data → document → research → compose → audit。
-- 无 LLM 时仍可产出确定性简版报告。
+- 新增 `OpenAICompatibleLLM`（transport 可注入，测试不联网）。
+- 新增 `research-agent --snapshot --out`：用 LLM 生成 `research.json`，再由 `load_payload` 校验。
+- `agent` phase runner 可执行 `research=research-agent ...`。
+- 仍待补：真实 D1–D6 prompt 模板、重试/成本预算、LLM 输出质量回归。
 
 ## 红线
 

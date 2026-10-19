@@ -57,6 +57,7 @@ notepad .env
 .\.venv\Scripts\python.exe -m turtlefw.cli report 00700.HK --pdf-numbers output\00700.HK\reported_numbers.json
 .\.venv\Scripts\python.exe -m turtlefw.cli screen --as-of 2025-06-30
 .\.venv\Scripts\python.exe -m turtlefw.cli research --file output\600887.SH\research.json
+.\.venv\Scripts\python.exe -m turtlefw.cli research-agent --snapshot output\600887.SH\snapshot --out output\600887.SH\research.json --model <model>
 .\.venv\Scripts\python.exe -m turtlefw.cli snapshot 600887 --as-of 2025-12-31 --out output\600887.SH\manifest.json
 .\.venv\Scripts\python.exe -m turtlefw.cli report 600887 --save-snapshot output\600887.SH\snapshot `
   --research output\600887.SH\research.json
