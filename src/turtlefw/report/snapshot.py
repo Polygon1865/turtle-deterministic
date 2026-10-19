@@ -397,9 +397,15 @@ def render(
     research_md = ""
     research_sections: list[tuple[str, str]] = []
     research_meta_md = ""
+    research_summary_md = ""
     fact_map = dict(facts or {})
     if research_document is not None:
-        from ..research import render_dimensions, render_markdown, render_meta
+        from ..research import (
+            render_dimensions,
+            render_markdown,
+            render_meta,
+            summary_markdown,
+        )
 
         if not fact_map and snapshot_dir is not None:
             reported = Path(snapshot_dir) / "reported_numbers.json"
@@ -428,6 +434,7 @@ def render(
             if dimension in RESEARCH_SECTION_TITLES
         ]
         research_meta_md = render_meta(research_document)
+        research_summary_md = summary_markdown(research_document)
     markdown = render_analysis(
         ctx,
         results,
@@ -439,6 +446,7 @@ def render(
         research_md=research_md,
         research_sections=research_sections,
         research_meta_md=research_meta_md,
+        research_summary_md=research_summary_md,
         metrics_out=metrics_out,
         resolved_md=resolve_markdown(inputs.resolved_facts),
     )

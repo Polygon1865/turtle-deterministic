@@ -127,6 +127,32 @@ def render_dimensions(
     return sections
 
 
+def summary_markdown(document: ResearchDocument) -> str:
+    covered = sorted({claim.dimension for claim in document.claims})
+    decisions = "；".join(
+        f"{decision.metric_id}={decision.selected}"
+        for decision in document.decisions
+    )
+    unknown = sum(1 for claim in document.claims if claim.judgment == "unknown")
+    lines = [
+        "**研究摘要**",
+        "",
+        f"- 覆盖维度：{'、'.join(covered) if covered else '无'}",
+        f"- claims：{len(document.claims)}（unknown {unknown}）",
+        f"- params：{len(document.params)}；evidence：{len(document.evidence)}",
+    ]
+    if decisions:
+        lines.append(f"- 关键决策：{decisions}")
+    if unknown:
+        lines.append(
+            "- 未验证："
+            + "、".join(
+                claim.claim_id for claim in document.claims if claim.judgment == "unknown"
+            )
+        )
+    return "\n".join(lines)
+
+
 def render_meta(document: ResearchDocument) -> str:
     parts = [coverage_markdown(document), evidence_markdown(document)]
     return "\n\n".join(part for part in parts if part)
