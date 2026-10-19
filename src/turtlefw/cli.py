@@ -1489,7 +1489,6 @@ def _research_agent_cmd(
     from .agent import AgentError, FakeLLM, LLM, OpenAICompatibleLLM, ResearchAgent
     from .research import to_payload
 
-    root = Path(snapshot)
     try:
         context = _research_context(snapshot, data_pack)
     except (OSError, ValueError, KeyError) as exc:

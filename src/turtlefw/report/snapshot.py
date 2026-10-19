@@ -394,6 +394,18 @@ def render(
         "floor": dict(results["4"].metrics).get("底价（综合）", "—"),
         "price": f"{price:.2f}" if price is not None else "—",
     }
+    if research_path is not None:
+        metrics_file = Path(research_path).with_name("metrics.json")
+    elif snapshot_dir is not None:
+        metrics_file = Path(snapshot_dir) / "metrics.json"
+    else:
+        metrics_file = None
+    if metrics_file is not None and metrics_file.is_file():
+        stored = json.loads(metrics_file.read_text(encoding="utf-8-sig"))
+        if isinstance(stored, dict):
+            for key, value in stored.items():
+                if isinstance(value, dict) and value.get("display"):
+                    metric_map[str(key)] = str(value["display"])
     research_md = ""
     research_sections: list[tuple[str, str]] = []
     research_meta_md = ""
@@ -412,8 +424,6 @@ def render(
         if not fact_map and snapshot_dir is not None:
             reported = Path(snapshot_dir) / "reported_numbers.json"
             if reported.is_file():
-                import json
-
                 payload = json.loads(reported.read_text(encoding="utf-8-sig"))
                 for item in payload.get("document_facts", []):
                     fact_id = str(item.get("id", ""))
@@ -421,8 +431,6 @@ def render(
                         fact_map[fact_id] = f"{item.get('value', '')} {item.get('unit', '')}".strip()
             evidence = Path(snapshot_dir) / "evidence.json"
             if evidence.is_file():
-                import json
-
                 payload = json.loads(evidence.read_text(encoding="utf-8-sig"))
                 if isinstance(payload, list):
                     for item in payload:
