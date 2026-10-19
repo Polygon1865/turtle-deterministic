@@ -29,6 +29,20 @@ def run_qa(code: str, root: Path | str | None = None) -> list[tuple[str, str, st
     add("run_state", state.is_file(), "" if state.is_file() else "缺少 run_state.json")
     add("report", (base / "analysis_report.md").is_file())
 
+    try:
+        from .data.coverage import capabilities
+        from .types import StockCode
+
+        cap_rows = capabilities(StockCode.parse(str(code)))
+        missing = [row.label for row in cap_rows if row.status == "missing"]
+        add(
+            "data_coverage",
+            True,
+            "missing: " + ",".join(missing) if missing else "no missing capabilities",
+        )
+    except Exception as exc:
+        add("data_coverage", False, str(exc))
+
     qpath = base / "qualitative.json"
     unknown = 0
     loaded = None

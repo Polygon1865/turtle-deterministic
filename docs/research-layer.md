@@ -61,7 +61,7 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
 - 新增 `coverage` 能力矩阵，data pack 第 16 段显示 available/partial/missing。
 - `research-agent --retries`：schema/质量失败可重试。
 - `research-agent --min-claims/--min-dimensions`：不足时把反馈加入 prompt 重试。
-- `qa` 增加 `research_quality`：至少 1 个 claim、1 个覆盖维度。
+- `qa` 增加 `research_quality` 和 `data_coverage`：显示研究覆盖和缺失数据能力。
 - `qa` 增加 `research_refs` 行：用 snapshot 的 metrics/evidence 复算引用。
 - 未解析 metric/fact、非 unknown 无证据、非法 decision 均失败。
 - 报告支持 `--html` 同时输出 HTML（D1–D6 章节/证据表可直接渲染）。
