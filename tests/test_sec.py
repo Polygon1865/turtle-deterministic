@@ -36,6 +36,11 @@ def _payload():
                         "shares": [{"form": "10-K", "fy": 2025, "val": 1000000}]
                     }
                 },
+                "PaymentsForRepurchaseOfCommonStock": {
+                    "units": {
+                        "USD": [{"form": "10-K", "fy": 2025, "val": 50}]
+                    }
+                },
             }
         }
     }
@@ -81,6 +86,13 @@ def test_statement_rows_from_sec_facts():
     assert revenue.value == Decimal("1000")
     assert revenue.source == "sec"
     assert revenue.statement == "income"
+    buyback = next(
+        row
+        for row in rows
+        if row.item == "buyback" and row.period_end.year == 2025
+    )
+    assert buyback.value == Decimal("50")
+    assert buyback.statement == "cashflow"
 
 
 def test_evidence_facts_are_addressable():

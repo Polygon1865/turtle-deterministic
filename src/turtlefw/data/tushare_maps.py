@@ -115,6 +115,7 @@ HK_CASHFLOW_MAP: dict[str, str | tuple[str, ...]] = {
     "n_cashflow_inv_act": "投资业务现金净额",
     "n_cash_flows_fnc_act": "融资业务现金净额",
     "c_pay_acq_const_fiolta": ("购建固定资产", "购建无形资产及其他资产"),
+    "buyback": "回购股份",
     "depr_fa_coga_dpba": "加:折旧及摊销",
     "c_pay_dist_dpcp_int_exp": "已付股息(融资)",
     "c_paid_for_taxes": "已付税项",

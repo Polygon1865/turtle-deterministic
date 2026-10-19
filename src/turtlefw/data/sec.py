@@ -36,6 +36,10 @@ TAGS: dict[str, tuple[str, ...]] = {
     "goodwill": ("Goodwill",),
     "ocf": ("NetCashProvidedByUsedInOperatingActivities",),
     "capex": ("PaymentsToAcquirePropertyPlantAndEquipment",),
+    "buyback": (
+        "PaymentsForRepurchaseOfCommonStock",
+        "StockRepurchasedAndRetiredDuringPeriodValue",
+    ),
     "da": (
         "DepreciationDepletionAndAmortization",
         "DepreciationAmortizationAndAccretionNet",
@@ -48,7 +52,7 @@ TAGS: dict[str, tuple[str, ...]] = {
 STATEMENT_ITEMS = {
     "income": ("revenue", "net_income", "operate_profit"),
     "balance": ("total_assets", "equity", "cash", "debt", "goodwill"),
-    "cashflow": ("ocf", "capex", "da", "sbc"),
+    "cashflow": ("ocf", "capex", "buyback", "da", "sbc"),
 }
 
 

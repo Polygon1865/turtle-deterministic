@@ -13,8 +13,15 @@ def test_us_marks_parent_and_holder_gaps():
     rows = {row.key: row for row in capabilities(StockCode.parse("AAPL.US"))}
     assert rows["statements_sec"].status == "partial"
     assert rows["sec_evidence"].status == "available"
-    assert rows["parent_cash"].status == "missing"
+    assert rows["parent_cash"].status == "not_applicable"
     assert rows["holders"].status == "missing"
+
+
+def test_hk_buyback_is_partial_and_parent_is_not_applicable():
+    rows = {row.key: row for row in capabilities(StockCode.parse("00700.HK"))}
+    assert rows["buyback"].status == "partial"
+    assert rows["parent_cash"].status == "not_applicable"
+    assert rows["pledge"].status == "not_applicable"
 
 
 def test_coverage_markdown_is_a_table():

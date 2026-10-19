@@ -42,9 +42,9 @@ def capabilities(code: StockCode) -> list[Capability]:
             [
                 Capability("holders", "主要股东", "partial", "PDF P4 提取"),
                 Capability("segments", "业务分部", "partial", "PDF MDA 提取"),
-                Capability("parent_cash", "母公司现金", "missing", "当前无港股母公司接口"),
-                Capability("pledge", "质押", "missing", "港股无对应接口"),
-                Capability("buyback", "回购", "missing", "港股无对应接口"),
+                Capability("parent_cash", "母公司现金", "not_applicable", "HKFRS 无标准母公司报表"),
+                Capability("pledge", "质押", "not_applicable", "港股无标准化质押比例接口"),
+                Capability("buyback", "回购", "partial", "Tushare hk_cashflow 回购股份"),
                 Capability("pit", "PIT 本地快照", "partial", "本地 snapshot，非 vendor 历史"),
             ]
         )
@@ -53,9 +53,9 @@ def capabilities(code: StockCode) -> list[Capability]:
             [
                 Capability("statements_sec", "SEC 报表 fallback", "partial", "10-K companyfacts"),
                 Capability("sec_evidence", "SEC evidence", "available", "companyfacts + filing"),
-                Capability("parent_cash", "母公司现金", "missing", "当前无美股母公司接口"),
-                Capability("pledge", "质押", "missing", "美股无对应接口"),
-                Capability("buyback", "回购", "partial", "yfinance 字段，未进入因子"),
+                Capability("parent_cash", "母公司现金", "not_applicable", "US GAAP 无标准母公司报表"),
+                Capability("pledge", "质押", "not_applicable", "美股无对应制度"),
+                Capability("buyback", "回购", "partial", "SEC companyfacts / yfinance"),
                 Capability("holders", "主要股东", "missing", "未接入 13F"),
                 Capability("segments", "业务分部", "missing", "未解析 10-K 分部"),
                 Capability("pit", "PIT 历史", "missing", "本地无美股 PIT"),

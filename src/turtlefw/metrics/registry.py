@@ -232,6 +232,21 @@ def build(
         typed_values["buyback_ratio"] = (
             ctx.buyback.amount / ctx.market_cap.amount * Decimal("100")
         )
+    if ctx.buyback is None:
+        buyback_series = statements.annual_series(ctx.rows, "cashflow", "buyback")
+        buyback_latest = (
+            buyback_series.get(max(buyback_series)) if buyback_series else None
+        )
+        if buyback_latest is not None:
+            _add(
+                registry,
+                "buyback.latest",
+                "回购现金流出（报表）",
+                buyback_latest,
+                unit=ctx.market_cap.currency.value,
+                formula_id="cashflow.buyback",
+                period=period,
+            )
 
     percent_ids = {
         "parent_cash_ratio",

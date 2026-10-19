@@ -435,6 +435,10 @@ def render(
         mean_payout, _ = div_metrics.mean_payout(payouts)
         if mean_payout is not None:
             metric_map["payout.mean"] = f"{mean_payout:.2f}%"
+    if "buyback.latest" not in metric_map:
+        buyback_series = statements.annual_series(ctx.rows, "cashflow", "buyback")
+        if buyback_series:
+            metric_map["buyback.latest"] = f"{buyback_series[max(buyback_series)]:,.2f}"
     if research_path is not None:
         metrics_file = Path(research_path).with_name("metrics.json")
     elif snapshot_dir is not None:
