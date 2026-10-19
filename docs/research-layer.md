@@ -71,7 +71,7 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
 - `research-agent --response`：离线回放 LLM JSON，用于 eval/回归，不发网络请求。
 - `research-agent --min-claims/--min-dimensions`：不足时把反馈加入 prompt 重试。
 - `qa` 增加 `research_quality` 和 `data_coverage`：显示研究覆盖和缺失数据能力。
-- A 股 `buyback` / `pledge` 指标；港股 `hk_cashflow` 回购股份、美股 SEC 回购 tag 进入 partial coverage。
+- HK 年报 Company-level statement 进入可选 PDF evidence（`pdf:parent_company`）。
 - `qa` 增加 `research_provenance`：校验 research hash 与 provenance 一致。
 - `qa` 增加 `research_refs` 行：用 snapshot 的 metrics/evidence 复算引用。
 - 未解析 metric/fact、非 unknown 无证据、非法 decision 均失败。

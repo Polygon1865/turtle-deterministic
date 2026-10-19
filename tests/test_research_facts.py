@@ -1,6 +1,12 @@
 import json
 
-from turtlefw.pdf.research_facts import fact_map, hk_facts, section_facts, write
+from turtlefw.pdf.research_facts import (
+    fact_map,
+    hk_facts,
+    parent_company_facts,
+    section_facts,
+    write,
+)
 
 
 def _payload():
@@ -57,3 +63,14 @@ def test_hk_holder_and_segment_evidence():
     ids = {item["id"] for item in facts}
     assert "pdf:holder:MIH Internet Holdings B.V." in ids
     assert "pdf:segment:VAS" in ids
+
+
+def test_parent_company_statement_is_optional_evidence():
+    payload = {
+        "metadata": {"section_pages": {"P6": [120]}},
+        "P6": "Company statement of financial position\nCash 100\nTotal assets 200",
+    }
+    facts = parent_company_facts(payload)
+    assert len(facts) == 1
+    assert facts[0]["id"] == "pdf:parent_company"
+    assert facts[0]["page"] == 120

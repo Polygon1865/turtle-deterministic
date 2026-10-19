@@ -78,7 +78,44 @@ def load(path: Path | str) -> list[dict[str, object]]:
     payload = json.loads(source.read_text(encoding="utf-8-sig"))
     facts = section_facts(payload, document_hash=_document_hash(source))
     facts.extend(hk_facts(payload))
+    facts.extend(parent_company_facts(payload))
     return facts
+
+
+_PARENT_MARKERS = (
+    "company statement of financial position",
+    "statement of financial position of the company",
+    "本公司財務狀況表",
+    "母公司",
+)
+
+
+def parent_company_facts(payload: Mapping[str, Any]) -> list[dict[str, object]]:
+    """Optional evidence for a company-level balance sheet in an annual report."""
+    metadata = payload.get("metadata", {})
+    pages = metadata.get("section_pages", {}) if isinstance(metadata, Mapping) else {}
+    for section, text in payload.items():
+        if section == "metadata" or not isinstance(text, str):
+            continue
+        lowered = text.lower()
+        if not any(marker.lower() in lowered for marker in _PARENT_MARKERS):
+            continue
+        page = pages.get(section, [None])[0] if isinstance(pages, Mapping) else None
+        quote = " ".join(text.split())[:300]
+        return [
+            {
+                "id": "pdf:parent_company",
+                "page": page,
+                "section": section,
+                "label": "公司层面资产负债表",
+                "value": None,
+                "unit": "",
+                "quote": quote,
+                "confidence": "low",
+                "source_rank": 1,
+            }
+        ]
+    return []
 
 
 def hk_facts(payload: Mapping[str, Any]) -> list[dict[str, object]]:

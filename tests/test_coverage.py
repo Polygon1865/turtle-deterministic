@@ -20,7 +20,7 @@ def test_us_marks_parent_and_holder_gaps():
 def test_hk_buyback_is_partial_and_parent_is_not_applicable():
     rows = {row.key: row for row in capabilities(StockCode.parse("00700.HK"))}
     assert rows["buyback"].status == "partial"
-    assert rows["parent_cash"].status == "not_applicable"
+    assert rows["parent_cash"].status == "pdf_optional"
     assert rows["pledge"].status == "not_applicable"
 
 
