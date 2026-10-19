@@ -64,7 +64,7 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
 - 新增 DSH 原生路径：
   - `.agents/skills/turtle-research/SKILL.md`
   - `.claude/commands/turtle-research.md`
-  - `research-context` 导出 snapshot 上下文；
+  - `research-context` 导出 snapshot_id / metrics / facts / governance / data pack / PDF sections。
   - DSH 模型直接写 `research.json`，项目负责 validator/gate，不需要项目持有 API key。
 - `research-agent --response`：离线回放 LLM JSON，用于 eval/回归，不发网络请求。
 - `research-agent --min-claims/--min-dimensions`：不足时把反馈加入 prompt 重试。

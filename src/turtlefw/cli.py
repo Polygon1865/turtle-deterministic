@@ -1420,7 +1420,17 @@ def _research_context(
         "currency": payload.get("currency", ""),
         "metrics": {},
         "facts": [],
+        "governance": {
+            "parent_cash": payload.get("parent_cash"),
+            "pledge_pct": payload.get("pledge_pct"),
+            "buyback": payload.get("buyback"),
+            "audit": payload.get("audit", []),
+        },
     }
+    manifest = root / "manifest.json"
+    if manifest.is_file():
+        manifest_payload = json.loads(manifest.read_text(encoding="utf-8-sig"))
+        context["snapshot_id"] = manifest_payload.get("snapshot_id", "")
     metrics_path = root / "metrics.json"
     if metrics_path.is_file():
         context["metrics"] = json.loads(metrics_path.read_text(encoding="utf-8-sig"))
