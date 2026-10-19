@@ -42,6 +42,7 @@ notepad .env
 .\.venv\Scripts\python.exe -m turtlefw.cli html --input output\600887.SH\analysis_report.md
 .\.venv\Scripts\python.exe -m turtlefw.cli pdf-numbers --pdf output\600887.SH\2025年报.pdf --year 2025
 .\.venv\Scripts\python.exe -m turtlefw.cli pdf-footnotes --sections output\600887.SH\pdf_sections.json
+.\.venv\Scripts\python.exe -m turtlefw.cli pdf-evidence --sections output\600887.SH\pdf_sections.json --output output\600887.SH\evidence.json
 .\.venv\Scripts\python.exe -m turtlefw.cli pack 600887 --footnotes output\600887.SH\footnotes.json
 .\.venv\Scripts\python.exe -m turtlefw.cli pack 600887 --as-of 2025-06-30
 .\.venv\Scripts\python.exe -m turtlefw.cli report 600887 --as-of 2025-06-30

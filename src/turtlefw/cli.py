@@ -317,6 +317,24 @@ def _pdf_facts(path: str | None) -> dict[str, str]:
     return facts
 
 
+def _evidence_facts(path: str | None) -> dict[str, str]:
+    if not path:
+        return {}
+    import json
+
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(payload, list):
+        return {}
+    return {
+        str(item.get("id", "")): str(item.get("quote", ""))
+        for item in payload
+        if isinstance(item, dict) and item.get("id")
+    }
+
+
 def _sbc_from_rows(rows: list[StatementRow], unit: Currency) -> Money | None:
     series = statements.annual_series(rows, "cashflow", "sbc")
     if not series:
@@ -1466,6 +1484,19 @@ def _pdf_footnotes(sections: str, output: str | None) -> int:
     return 0
 
 
+def _pdf_evidence(sections: str, output: str | None) -> int:
+    from .pdf.research_facts import write
+
+    source = Path(sections)
+    if not source.is_file():
+        print(f"找不到 sections JSON：{source}", file=sys.stderr)
+        return 2
+    target = Path(output) if output else source.with_name("evidence.json")
+    facts = write(source, target)
+    print(f"研究证据已写入 {target.resolve()}（{len(facts)} sections）")
+    return 0
+
+
 def _report(
     raw_code: str,
     out: str | None,
@@ -1482,6 +1513,7 @@ def _report(
     pit: bool = False,
     source_policy: str = "record-only",
     strict_numeric: bool = False,
+    evidence_path: str | None = None,
 ) -> int:
     from .data.tushare_provider import TushareProvider
     from .metrics import statements
@@ -1635,6 +1667,7 @@ def _report(
             if research_path
             else output_root() / str(code) / "research.json"
         )
+        evidence_facts = _pdf_facts(pdf_numbers) | _evidence_facts(evidence_path)
         parent_cash, pledge_pct, buyback = _governance(provider, code, unit)
         pdf_bridge = _pdf_bridge(pdf_numbers)
         sbc_value = _pdf_sbc(pdf_numbers)
@@ -1744,7 +1777,7 @@ def _report(
             qualitative_path=qual_path,
             research_path=research_file,
             metrics_out=metrics_out,
-            facts=_pdf_facts(pdf_numbers),
+            facts=evidence_facts,
         )
 
     code_text = inputs.code
@@ -1793,6 +1826,8 @@ def _report(
             shutil.copyfile(pack_source, snapshot_root / "data_pack.md")
         if pdf_numbers and Path(pdf_numbers).is_file():
             shutil.copyfile(pdf_numbers, snapshot_root / "reported_numbers.json")
+        if evidence_path and Path(evidence_path).is_file():
+            shutil.copyfile(evidence_path, snapshot_root / "evidence.json")
 
         from .numeric_audit import audit as numeric_audit
 
@@ -1804,6 +1839,7 @@ def _report(
             snapshot_root / "research.json",
             snapshot_root / "data_pack.md",
             snapshot_root / "reported_numbers.json",
+            snapshot_root / "evidence.json",
         ]
         if strict_numeric:
             source_paths = [
@@ -2065,6 +2101,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="定性 JSON 路径，默认 output/<code>/qualitative.json",
     )
     report.add_argument("--pdf-numbers", default=None, help="reported_numbers.json（含 cash_bridge）")
+    report.add_argument("--evidence", default=None, help="pdf-evidence 生成的 evidence.json")
     report.add_argument("--save-snapshot", default=None, help="把报告输入冻结到目录")
     report.add_argument("--snapshot", default=None, help="从冻结的 snapshot 目录离线渲染")
     report.add_argument("--research", default=None, help="D1-D6 research.json 路径")
@@ -2228,6 +2265,10 @@ def build_parser() -> argparse.ArgumentParser:
     pdf_numbers.add_argument("--output", default=None, help="reported_numbers.json 输出路径")
     pdf_numbers.add_argument("--max-pages", type=int, default=None, help="只扫描前 N 页")
 
+    pdf_evidence = sub.add_parser("pdf-evidence", help="从 PDF 章节生成页级研究证据")
+    pdf_evidence.add_argument("--sections", required=True, help="pdf_sections.json")
+    pdf_evidence.add_argument("--output", default=None, help="evidence.json 输出")
+
     footnotes = sub.add_parser("pdf-footnotes", help="把 pdf_sections.json 的表格结构化为 footnotes.json")
     footnotes.add_argument("--sections", required=True, help="pdf_sections.json")
     footnotes.add_argument("--output", default=None, help="footnotes.json 输出路径")
@@ -2312,6 +2353,8 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.command == "pdf-footnotes":
             return _pdf_footnotes(args.sections, args.output)
+        if args.command == "pdf-evidence":
+            return _pdf_evidence(args.sections, args.output)
         if args.command == "pack":
             return _pack(
                 args.code,
@@ -2342,6 +2385,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.pit,
                 args.source_policy,
                 args.strict_numeric,
+                args.evidence,
             )
         if args.command == "valuation":
             return _valuation(args.code, args.currency, args.rf, args.rf_source, args.ttm)

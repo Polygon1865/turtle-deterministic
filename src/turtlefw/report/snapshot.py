@@ -390,6 +390,15 @@ def render(
                     fact_id = str(item.get("id", ""))
                     if fact_id:
                         fact_map[fact_id] = f"{item.get('value', '')} {item.get('unit', '')}".strip()
+            evidence = Path(snapshot_dir) / "evidence.json"
+            if evidence.is_file():
+                import json
+
+                payload = json.loads(evidence.read_text(encoding="utf-8-sig"))
+                if isinstance(payload, list):
+                    for item in payload:
+                        if isinstance(item, dict) and item.get("id"):
+                            fact_map[str(item["id"])] = str(item.get("quote", ""))
         research_md = render_markdown(load_research(candidate), metric_map, fact_map)
     markdown = render_analysis(
         ctx,

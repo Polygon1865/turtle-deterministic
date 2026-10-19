@@ -656,6 +656,7 @@ def write_output(
     pdf_path: str,
     total_pages: int,
     output_path: str,
+    section_pages: Dict[str, List[int]] | None = None,
 ) -> dict:
     """Write pdf_sections.json with 7 sections + metadata.
 
@@ -670,6 +671,9 @@ def write_output(
             "extract_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "sections_found": found_count,
             "sections_total": len(contexts),
+            "section_pages": {
+                key: list(value[:5]) for key, value in (section_pages or {}).items()
+            },
         },
     }
 
@@ -826,7 +830,7 @@ def run_pipeline(pdf_path: str, output_path: str, verbose: bool = False,
 
     # Step 4: Write output
     print(f"[4/4] Writing output to {output_path}...")
-    result = write_output(contexts, pdf_path, total_pages, output_path)
+    result = write_output(contexts, pdf_path, total_pages, output_path, section_pages)
 
     found = result["metadata"]["sections_found"]
     total = result["metadata"]["sections_total"]

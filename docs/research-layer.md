@@ -1,4 +1,4 @@
-# 研究层扩展路线（Phase 1 已完成）
+# 研究层扩展路线
 
 ## 目标
 
@@ -18,20 +18,21 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
 - `render_markdown`：渲染 claims + params + decisions，并解析 metric/fact。
 - PDF `document_facts` 注入 `{{fact:id}}`。
 - QA 增加 `research` 行：加载/校验 research.json。
-- 测试：claims 裸数字、未知 evidence、非法 Decision、QA research。
 
-## Phase 2（下一步）：PDF-first 证据
+## Phase 2（已完成）
 
-- 页级 `DocumentFact`：page / section / quote / table / confidence。
-- D1–D6、MDA、SUB 分节提取。
-- claim 绑定到 fact；报告显示页码与引文。
-- numeric audit 覆盖 research claims。
+- `pdf-evidence`：从 `pdf_sections.json` 生成页级 `evidence.json`（section/page/quote/confidence/document_hash）。
+- `pdf_sections.json` metadata 增加 `section_pages`。
+- `report --evidence evidence.json` 将 section fact 注入 `{{fact:...}}`。
+- claim 可绑定 `pdf:section:MDA` / `P4` / `SUB` 等，报告显示页号与引文。
+- `ResearchParam` / `ResearchDecision` 已完成契约与校验；engine 接入留在 Phase 3。
 
-## Phase 3：方法深度
+## Phase 3（下一步）：方法深度
 
 - G 网格、M 三法、AA 变体、税档、λ/k*。
 - 全部预计算为 Decision candidates。
 - LLM 只选候选 + 理由；默认走确定性选择。
+- engine 读取 Decision，校验选中值属于候选集。
 
 ## Phase 4：数据覆盖
 
