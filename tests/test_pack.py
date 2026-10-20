@@ -92,16 +92,16 @@ class TestDataPack:
                 {
                     "id": "pdf:accounts_receiv:132",
                     "label": "accounts_receiv",
-                    "value": "123456789.00",
+                    "value": "120500000000.00",
                     "page": "132",
                 }
             ],
         )
-        assert "123.46" in text
+        assert "120,500.00" in text
 
     def test_pdf_inventory_fact_overrides_pack(self):
         rows = [
-            replace(row, item="inventory")
+            replace(row, item="inventory", value=Decimal("64628834000"))
             if row.statement == "balance" and row.item == "total_assets"
             else row
             for row in demo.demo_rows()

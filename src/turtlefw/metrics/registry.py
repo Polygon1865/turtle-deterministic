@@ -418,7 +418,19 @@ def build(
         ):
             series = statements.annual_series(ctx.rows, "balance", item)
             balance_value = series.get(latest)
-            source = ctx.pdf_source_ids.get(item) or f"statement:{period}:balance:{item}"
+            source_rows = [
+                row
+                for row in ctx.rows
+                if row.statement == "balance"
+                and row.item == item
+                and row.period_type == "annual"
+            ]
+            source_row = max(source_rows, key=lambda row: row.period_end) if source_rows else None
+            source = (
+                ctx.pdf_source_ids.get(item)
+                if source_row is not None and source_row.source.startswith("pdf:")
+                else f"statement:{period}:balance:{item}"
+            ) or f"statement:{period}:balance:{item}"
             registry.add(
                 MetricPoint(
                     id=item,

@@ -37,7 +37,7 @@ def test_document_fact_overrides_accounts_receivable():
         [
             {
                 "label": "accounts_receiv",
-                "value": "123456789.00",
+                "value": "1.00",
                 "page": "132",
             }
         ],
@@ -49,7 +49,7 @@ def test_document_fact_overrides_accounts_receivable():
         and row.item == "accounts_receiv"
         and row.period_end == before.period_end
     )
-    assert after.value == Decimal("123456789.00")
+    assert after.value == Decimal("1.00")
     assert after.source == "pdf:accounts_receiv:132"
 
 
@@ -61,11 +61,24 @@ def test_document_fact_overrides_other_balance_items(item):
     rows = [replace(anchor, item=item, value=Decimal("1"))]
     changed = apply_document_facts(
         rows,
-        [{"label": item, "value": "987654321.00", "page": "133"}],
+        [{"label": item, "value": "1.00", "page": "133"}],
     )
     after = changed[0]
-    assert after.value == Decimal("987654321.00")
+    assert after.value == Decimal("1.00")
     assert after.source == f"pdf:{item}:133"
+
+
+def test_document_fact_conflict_above_tolerance_is_not_applied():
+    anchor = next(
+        row for row in demo_rows() if row.statement == "balance" and row.period_type == "annual"
+    )
+    rows = [replace(anchor, item="accounts_receiv", value=Decimal("100"))]
+    changed = apply_document_facts(
+        rows,
+        [{"label": "accounts_receiv", "value": "200", "page": "132"}],
+    )
+    assert changed[0].value == Decimal("100")
+    assert changed[0].source == rows[0].source
 
 
 def test_main_business_fact_rows_convert_to_pack_rows():

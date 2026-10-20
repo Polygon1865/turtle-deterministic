@@ -9,6 +9,7 @@ from ..data.protocol import StatementRow
 from ..types import Currency
 
 PDF_OVERRIDE_ITEMS = {"accounts_receiv", "inventory", "contract_liab"}
+PDF_OVERRIDE_TOLERANCE = Decimal("0.01")
 
 
 def _replacement(
@@ -25,6 +26,10 @@ def _replacement(
     if not annual:
         return None
     anchor = max(annual, key=lambda row: row.period_end)
+    if anchor.value != 0:
+        diff = abs(value - anchor.value) / abs(anchor.value)
+        if diff > PDF_OVERRIDE_TOLERANCE:
+            return None
     replacement = StatementRow(
         code=anchor.code,
         period_end=anchor.period_end,

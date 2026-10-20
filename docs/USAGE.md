@@ -1,6 +1,6 @@
 # Turtle Framework 使用说明
 
-> 当前审查基线：`412 passed`。本文按当前 CLI 实测编写，命令使用
+> 当前审查基线：`413 passed`。本文按当前 CLI 实测编写，命令使用
 > `.\.venv\Scripts\python.exe -m turtlefw.cli`，避免依赖 PATH 里的 `turtle`。
 
 ## 1. 这个项目做什么
@@ -327,7 +327,7 @@ available / partial / pdf_optional / not_applicable / external / missing
 .\.venv\Scripts\python.exe -m turtlefw.cli hkex-news `
   --code 00700 `
   --keyword "Next Day Disclosure" `
-  --from 20241201 --to 20261231 `
+  --from 20241301 --to 20261231 `
   --out .runs\00700.HK\hkex_buyback.json
 ```
 
@@ -799,13 +799,13 @@ research-audit --metrics ... --facts ...
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest
-.\.venv\Scripts\python.exe -m ruff check src --select F412,F601,F841
+.\.venv\Scripts\python.exe -m ruff check src --select F413,F601,F841
 ```
 
 当前基线：
 
 ```text
-412 tests passed
+413 tests passed
 ```
 
 CI：

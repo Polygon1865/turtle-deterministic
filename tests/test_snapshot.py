@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import tempfile
+from decimal import Decimal
 from dataclasses import replace
 from pathlib import Path
 
@@ -104,7 +105,7 @@ def test_metric_registry_points_to_pdf_fact():
             {
                 "id": "pdf:accounts_receiv:132",
                 "label": "accounts_receiv",
-                "value": "123456789.00",
+                "value": "120500000000.00",
                 "page": "132",
             }
         ],
@@ -135,7 +136,7 @@ def test_report_shows_pdf_accounts_receivable_fact():
 
 def test_metric_registry_points_to_pdf_balance_facts():
     rows = [
-        replace(row, item="inventory")
+        replace(row, item="inventory", value=Decimal("64628834000"))
         if row.statement == "balance" and row.item == "total_assets"
         else row
         for row in demo.demo_rows()
@@ -258,7 +259,7 @@ def test_manifest_facts_hash_uses_effective_pdf_rows():
     fact = {
         "id": "pdf:accounts_receiv:132",
         "label": "accounts_receiv",
-        "value": "123456789.00",
+        "value": "120500000000.00",
         "page": "132",
     }
     inputs = replace(_inputs(), rows=rows, document_facts=[fact])
