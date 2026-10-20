@@ -76,12 +76,14 @@ EXTRA_ALIASES: dict[str, tuple[str, ...]] = {
 
 BALANCE_ITEMS = {
     "total_assets",
+    "equity",
     "accounts_receiv",
     "inventory",
     "contract_liab",
     "adv_receipts",
     "prepayments",
 }
+CASHFLOW_ITEMS = {"ocf", "capex"}
 
 
 def _is_balance_page(text: str) -> bool:
@@ -90,6 +92,15 @@ def _is_balance_page(text: str) -> bool:
         "合并资产负债表" in text
         or "consolidated statement of financial position" in lower
         or "statement of financial position" in lower
+    )
+
+
+def _is_cashflow_page(text: str) -> bool:
+    lower = text.lower()
+    return (
+        "合并现金流量表" in text
+        or "consolidated statement of cash flows" in lower
+        or "statement of cash flows" in lower
     )
 
 STATEMENT_TITLES = (
@@ -240,16 +251,23 @@ def extract_from_pages(
 ) -> list[dict[str, str]]:
     """Extract candidates from ``(page_number, text)`` pairs."""
     candidates: list[Candidate] = []
+    last_scale = Decimal("1")
     for page_number, text in pages_text:
         if not text:
             continue
+        explicit_scale = detect_scale(text, Decimal("0"))
+        if explicit_scale != 0:
+            last_scale = explicit_scale
+        page_scale = last_scale
         page_score = _statement_score(text)
-        page_scale = detect_scale(text)
         balance_page = _is_balance_page(text)
+        cashflow_page = _is_cashflow_page(text)
         lines = [line.strip() for line in text.splitlines() if line.strip()]
         for index, line in enumerate(lines):
             for item, aliases in {**ALIASES, **EXTRA_ALIASES}.items():
                 if item in BALANCE_ITEMS and not balance_page:
+                    continue
+                if item in CASHFLOW_ITEMS and not cashflow_page:
                     continue
                 if not any(_matches(alias, line) for alias in aliases):
                     continue
