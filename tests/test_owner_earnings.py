@@ -23,3 +23,27 @@ def test_normalized_owner_earnings_averages_years():
 def test_missing_inputs_return_none():
     rows = make_rows({("income", "revenue"): {2024: "100"}})
     assert owner_earnings.normalized_owner_earnings(rows, g=Decimal("1")) is None
+
+
+def test_detail_reports_actual_sample_years():
+    rows = make_rows(
+        {
+            ("income", "n_income_attr_p"): {
+                2021: "100",
+                2022: "110",
+                2023: "120",
+                2024: "130",
+            },
+            # 2021 D&A is missing, so the usable sample starts at 2022.
+            ("cashflow", "depr_fa_coga_dpba"): {
+                2022: "20",
+                2023: "20",
+                2024: "20",
+            },
+        }
+    )
+    value, years = owner_earnings.normalized_owner_earnings_detail(
+        rows, g=Decimal("1"), years=5
+    )
+    assert value is not None
+    assert years == (2022, 2023, 2024)

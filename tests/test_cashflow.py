@@ -45,8 +45,10 @@ class TestCashBridge:
         # 1000 - AR increase 50 - advance decrease 20 = 930
         assert item.true_cash_income == Decimal("930")
         assert item.surplus == Decimal("130")
+        assert item.source == "derived_bridge"
+        assert item.complete is False
 
-    def test_derived_outflow_uses_revenue_based_cash_income(self):
+    def test_derived_outflow_keeps_actual_cash_received(self):
         rows = make_rows(
             {
                 ("income", "revenue"): {2023: "1000", 2024: "1000"},
@@ -60,9 +62,14 @@ class TestCashBridge:
         )
         item = cashflow.build_cash_bridge(rows)[2024]
         assert item.operating_outflows == Decimal("500")
-        assert item.true_cash_income == Decimal("1000")
-        assert item.surplus == Decimal("400")
-        assert item.complete is True
+        # The actual sales receipt is gross of VAT and must not be replaced
+        # by the revenue-based accrual proxy.
+        assert item.true_cash_income == Decimal("900")
+        assert item.surplus == Decimal("300")
+        assert item.source == "derived_bridge"
+        assert item.complete is False
+        assert cashflow.coverage({2024: item}) == (0, 1)
+        assert cashflow.bridge_label({2024: item}) == "推导现金桥（部分）"
 
     def test_indirect_bridge_for_hk(self):
         rows = make_rows(
@@ -81,6 +88,7 @@ class TestCashBridge:
         assert item.operating_outflows == Decimal("630")
         assert item.surplus == Decimal("200")
         assert item.source == "indirect_bridge"
+        assert item.complete is False
         assert cashflow.bridge_label({2024: item}) == "间接现金桥"
 
     def test_fallback_to_ocf(self):

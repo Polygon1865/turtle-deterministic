@@ -68,6 +68,27 @@ class TestHkDividendReliability:
         assert all(event.dps_reliable for event in events)
         assert average_dps(events) == Decimal("2")
 
+    def test_average_dps_excludes_incomplete_fiscal_year(self):
+        events = [
+            DividendEvent(
+                fiscal_year=year,
+                event_id=f"{year}-12-31:{dps}",
+                dps=Decimal(dps),
+                currency=Currency.CNY,
+            )
+            for year, dps in ((2023, "1.0"), (2024, "2.0"), (2025, "3.0"))
+        ]
+        events.append(
+            DividendEvent(
+                fiscal_year=2026,
+                event_id="2026-06-30:9.0",
+                dps=Decimal("9.0"),
+                currency=Currency.CNY,
+            )
+        )
+        # FY2026 has only an interim event; it must not enter the 3-year mean.
+        assert average_dps(events) == Decimal("2")
+
 
 class TestPackDisplay:
     def test_hk_total_and_dps_show_dash(self):

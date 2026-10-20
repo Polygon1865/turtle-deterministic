@@ -96,23 +96,44 @@ def _week52(
     return (max(highs) if highs else None, min(lows) if lows else None)
 
 
+def _completed_fiscal_year(events: Sequence[DividendEvent]) -> bool:
+    """Whether the dividend rows for one fiscal year include a year-end event."""
+    dated = []
+    for event in events:
+        raw = event.event_id.split(":", 1)[0]
+        if len(raw) == 10 and raw[4] == "-" and raw[7] == "-":
+            dated.append(raw)
+    if not dated:
+        # Vendors that emit one annual DPS row use the fiscal year as the id.
+        return True
+    return any(event_id[5:] == "12-31" for event_id in dated)
+
+
 def average_dps(dividends: Sequence[DividendEvent], years: int = 3) -> Decimal | None:
-    """Mean annual DPS over the most recent ``years`` fiscal years.
+    """Mean annual DPS over the most recent ``years`` completed fiscal years.
 
     Events are summed per year first: a year with an interim and a final
-    dividend is one year, not two. Rows whose DPS is a repeated vendor
-    placeholder (``dps_reliable=False``) are skipped.
+    dividend is one year, not two. A year with only an interim event (for
+    example the current FY before the final dividend is declared) is excluded.
+    Rows whose DPS is a repeated vendor placeholder (``dps_reliable=False``)
+    are skipped.
     """
     reliable = [event for event in dividends if event.dps_reliable]
     if not reliable:
         return None
-    per_year: dict[int, Decimal] = defaultdict(Decimal)
+    per_year: dict[int, list[DividendEvent]] = defaultdict(list)
     for event in reliable:
-        per_year[event.fiscal_year] += event.dps
-    recent = sorted(per_year)[-years:]
+        per_year[event.fiscal_year].append(event)
+    completed = [
+        year for year, events in per_year.items() if _completed_fiscal_year(events)
+    ]
+    recent = sorted(completed)[-years:]
     if not recent:
         return None
-    return sum((per_year[y] for y in recent), Decimal("0")) / Decimal(len(recent))
+    return sum(
+        (sum((event.dps for event in per_year[year]), Decimal("0")) for year in recent),
+        Decimal("0"),
+    ) / Decimal(len(recent))
 
 
 def render_data_pack(

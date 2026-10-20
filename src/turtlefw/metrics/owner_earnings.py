@@ -25,6 +25,22 @@ def normalized_owner_earnings(
     g: Decimal,
     years: int = 5,
 ) -> Decimal | None:
+    """Mean normalized owner earnings over the available sample years."""
+    value, _ = normalized_owner_earnings_detail(rows, g=g, years=years)
+    return value
+
+
+def normalized_owner_earnings_detail(
+    rows: Sequence[StatementRow],
+    *,
+    g: Decimal,
+    years: int = 5,
+) -> tuple[Decimal | None, tuple[int, ...]]:
+    """Return the mean and the actual fiscal years used in the sample.
+
+    Missing D&A years are excluded before taking the last ``years`` rows, so
+    the reported sample period always matches the years actually averaged.
+    """
     income = statements.annual_series(rows, "income", "n_income_attr_p")
     da = statements.da_series(rows)
     ar = statements.annual_series(rows, "balance", "accounts_receiv")
@@ -32,6 +48,7 @@ def normalized_owner_earnings(
     payable = statements.annual_series(rows, "balance", "acct_payable")
 
     values: list[Decimal] = []
+    used_years: list[int] = []
     for year in sorted(set(income) & set(da))[-years:]:
         net_income = income.get(year)
         depreciation = da.get(year)
@@ -45,9 +62,13 @@ def normalized_owner_earnings(
         if year - 1 in payable and year in payable:
             wc_change -= payable[year] - payable[year - 1]
         values.append(net_income + depreciation - depreciation * g - wc_change)
+        used_years.append(year)
     if not values:
-        return None
-    return sum(values, Decimal("0")) / Decimal(len(values))
+        return None, ()
+    return (
+        sum(values, Decimal("0")) / Decimal(len(values)),
+        tuple(used_years),
+    )
 
 
 def series(

@@ -32,7 +32,7 @@ class CashBridgeYear:
     surplus: Decimal | None
     ocf: Decimal | None
     fcf: Decimal | None
-    source: str  # cash_bridge | indirect_bridge | pdf_indirect | ocf_fallback | ocf_no_capex | unavailable
+    source: str  # cash_bridge | derived_bridge | indirect_bridge | pdf_indirect | ocf_fallback | ocf_no_capex | unavailable
     complete: bool
     net_profit: Decimal | None = None
     depreciation_amortisation: Decimal | None = None
@@ -109,10 +109,10 @@ def build_cash_bridge(
             # Derive total operating outflow from the inflow subtotal and OCF.
             outflows = inflow_total[year] - ocf_value
             derived_outflows = True
-        if derived_outflows and rev is not None and ar_change is not None and advance_change is not None:
-            # When we use the total outflow, pair it with the revenue-based
-            # true cash income (not just sales receipts) to avoid double
-            # excluding other operating inflows.
+        if derived_outflows and cash_in is None and rev is not None and ar_change is not None and advance_change is not None:
+            # No sales-receipt line is available. Use the revenue-based proxy
+            # only as a clearly-marked partial fallback; do not overwrite an
+            # actual c_fr_sale_sg value with an accrual proxy.
             ar_increase = ar_change if ar_change > 0 else Decimal("0")
             prepay_increase = (
                 prepayment_change
@@ -137,8 +137,22 @@ def build_cash_bridge(
 
         if true_cash is not None and outflows is not None:
             surplus = true_cash - outflows - (capex_value or Decimal("0"))
-            source = "indirect_bridge" if indirect_bridge else "cash_bridge"
-            complete = True
+            if derived_outflows:
+                # Total outflow came from inflow subtotal - OCF; the bridge is
+                # useful but not a complete gross cash bridge.
+                source = "derived_bridge"
+                complete = False
+            elif indirect_bridge:
+                source = "indirect_bridge"
+                complete = False
+            elif cash_in is None:
+                # The cash-income side was derived from revenue, not actual
+                # sales receipts.
+                source = "derived_bridge"
+                complete = False
+            else:
+                source = "cash_bridge"
+                complete = True
         elif ocf_value is not None:
             surplus = ocf_value - (capex_value or Decimal("0"))
             source = "ocf_fallback"
@@ -222,7 +236,15 @@ def bridge_label(bridge: Mapping[int, CashBridgeYear]) -> str:
     if sources == {"pdf_indirect", "ocf_fallback"}:
         return "PDF间接现金桥+OCF"
     if "pdf_indirect" in sources:
+        if "derived_bridge" in sources:
+            return "PDF间接现金桥+推导桥（部分）"
         return "PDF间接现金桥+历史口径"
+    if sources == {"derived_bridge"}:
+        return "推导现金桥（部分）"
+    if sources == {"cash_bridge", "derived_bridge"}:
+        return "现金桥+推导桥（部分）"
+    if "derived_bridge" in sources:
+        return "推导现金桥+其他口径（部分）"
     if sources == {"cash_bridge"}:
         return "现金桥"
     if sources == {"indirect_bridge"}:

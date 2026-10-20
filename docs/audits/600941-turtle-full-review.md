@@ -397,7 +397,7 @@ DSH 的命令入口实际执行：
 
 ```text
 git status --short 为空
-343 tests passed（或更新为真实数量）
+346 tests passed（或更新为真实数量）
 snapshot_final/research_audit.json 存在
 run_state.snapshot_id 非空
 run_state.artifacts 包含 research/snapshot
@@ -416,3 +416,31 @@ qa.json 的 research_provenance/research_quality/numeric_coverage 均 PASS
 - 未向 `session-4776...` 发送消息；
 - 未修改源码；
 - 只新增本报告文件。
+
+---
+
+## 八、后续设计修复
+
+针对本会话后续发现的 GG/现金桥问题，已完成以下设计修复：
+
+- 现金桥保留实际 `c_fr_sale_sg`，不再用营收调整值覆盖；
+- 组件缺失时使用 `derived_bridge / complete=False`，报告显示
+  `推导现金桥（部分）`；
+- 只有实际销售收现 + 完整流出组件才标 `cash_bridge / complete=True`；
+- `average_dps` 排除未完成财年，不再把 FY2026 中期算入 3 年均值；
+- `normalized_owner_earnings_detail` 返回实际样本年数，报告显示
+  `4 年正常化` 而不是固定的 `5 年正常化`；
+- 新增现金桥、DPS、OE 回归测试。
+
+修复后 600941 验证：
+
+```text
+GG: 1.94% -> 3.66%
+AA 口径: 推导现金桥（部分）
+现金桥完整度: 0/8（8 年推导桥）
+Owner Earnings: 4 年正常化
+股息率: 3.87% -> 4.49%
+QA: 13 项 PASS
+```
+
+测试基线更新为 `346 passed`。

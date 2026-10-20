@@ -163,7 +163,9 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
             )
         mean_payout = payout_decision
     oe = (c + d - d * g_row.g) if c is not None and d is not None else c
-    oe_normalized = owner_earnings.normalized_owner_earnings(rows, g=g_row.g)
+    oe_normalized, oe_years = owner_earnings.normalized_owner_earnings_detail(
+        rows, g=g_row.g
+    )
     oe_used = oe_normalized if oe_normalized is not None else oe
 
     def crude_at(tax_pct: Decimal) -> Decimal | None:
@@ -197,6 +199,8 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
     bridge = cashflow.build_cash_bridge(rows, pdf_bridge=ctx.pdf_cash_bridge)
     surplus = cashflow.surplus_series(bridge)
     bridge_complete, bridge_total = cashflow.coverage(bridge)
+    bridge_derived = sum(1 for item in bridge.values() if item.source == "derived_bridge")
+    bridge_fallback = sum(1 for item in bridge.values() if item.source == "ocf_fallback")
     aa_source_base = cashflow.bridge_label(bridge)
     aa_all = grids.aa_variants(surplus) if surplus else grids.aa_variants(fcf)
     aa = aa_all[0].value if aa_all else None
@@ -558,7 +562,7 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
                 ),
             ),
             metrics=(
-                ("Owner Earnings", f"{_m(oe_used)} 百万元（5 年正常化）")
+                ("Owner Earnings", f"{_m(oe_used)} 百万元（{len(oe_years)} 年正常化）")
                 if oe_normalized is not None
                 else ("Owner Earnings", f"{_m(oe)} 百万元（当期）"),
                 ("维持性 Capex 系数 G", f"{g_row.g}（{g_reason}）"),
@@ -601,7 +605,8 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
                 Check("股份支付 SBC", "info" if sbc_amount else "unknown",
                       f"{_m(sbc_amount)} 百万元" if sbc_amount else "未取得 SBC"),
                 Check("现金桥完整度", "pass" if bridge_complete >= 3 else "unknown",
-                      f"{bridge_complete}/{bridge_total} 年使用完整现金桥，其余回退 OCF−Capex"),
+                      f"{bridge_complete}/{bridge_total} 年完整现金桥；"
+                      f"{bridge_derived} 年推导桥；{bridge_fallback} 年 OCF 回退"),
                 Check("FCF 一致性", "pass" if sum(1 for v in fcf.values() if v > 0) >= 3 else "veto",
                       f"{sum(1 for v in fcf.values() if v > 0)}/{len(fcf)} 年为正"),
                 Check("收入敏感性", "info" if sensitivity else "unknown",
@@ -657,7 +662,7 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
                 *((f"scenario_gg_{index}", row[2]) for index, row in enumerate(sensitivity)),
             ),
             notes=(
-                "AA 优先用真实现金收入−经营流出−Capex 的现金桥；组件缺失的年份回退 OCF−Capex。",
+                "AA 优先用真实现金收入−经营流出−Capex 的现金桥；组件缺失的年份使用推导现金桥（部分）或回退 OCF−Capex。",
                 "敏感性优先使用 λ 外推；λ 不可用/≤0 时按 AA 等比缩放。",
                 f"AA 变体：{'、'.join(v.label for v in aa_all) or '不可用'}。",
             ),
