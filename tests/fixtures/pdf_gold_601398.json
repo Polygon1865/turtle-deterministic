@@ -3,6 +3,8 @@
   "year": 2025,
   "items": {
     "revenue": {"value": "838270000000.00", "page": "14"},
-    "net_income": {"value": "368562000000.00", "page": "14"}
+    "net_income": {"value": "368562000000.00", "page": "14"},
+    "total_assets": {"value": "53477773000000.00", "page": "203"},
+    "ocf": {"value": "1890530000000.00", "page": "211"}
   }
 }

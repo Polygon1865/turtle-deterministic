@@ -90,6 +90,7 @@ def _is_balance_page(text: str) -> bool:
     lower = text.lower()
     return (
         "合并资产负债表" in text
+        or "合并及公司资产负债表" in text
         or "consolidated statement of financial position" in lower
         or "statement of financial position" in lower
         or "负债及股东权益" in text
@@ -101,6 +102,7 @@ def _is_cashflow_page(text: str) -> bool:
     lower = text.lower()
     return (
         "合并现金流量表" in text
+        or "合并及公司现金流量表" in text
         or "consolidated statement of cash flows" in lower
         or "statement of cash flows" in lower
         or "投资活动产生的现金流量" in text
