@@ -1,0 +1,15 @@
+{
+  "source": ".runs/reports/600887_2025_年报.pdf",
+  "year": 2025,
+  "items": {
+    "revenue": {"value": "115636231250.05", "page": "86"},
+    "net_income": {"value": "11565166497.81", "page": "87"},
+    "ocf": {"value": "14343920490.32", "page": "89"},
+    "capex": {"value": "3036644156.68", "page": "90"},
+    "equity": {"value": "54655690475.89", "page": "83"},
+    "total_assets": {"value": "152098516632.34", "page": "82"},
+    "accounts_receiv": {"value": "2987426531.59", "page": "82"},
+    "contract_liab": {"value": "10564239506.92", "page": "83"},
+    "prepayments": {"value": "1197447120.87", "page": "82"}
+  }
+}
