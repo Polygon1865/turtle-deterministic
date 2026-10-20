@@ -456,6 +456,27 @@ def build(
                         display=f"{dps_value:.4f}",
                     )
                 )
+        for row in ctx.pdf_fact_rows:
+            if row.get("item") != "main_business" or not row.get("fact_id"):
+                continue
+            try:
+                segment_value = Decimal(str(row.get("value")))
+            except InvalidOperation:
+                continue
+            label = str(row.get("label", ""))
+            registry.add(
+                MetricPoint(
+                    id=f"main_business.{label}",
+                    name=f"主营 {label}",
+                    value=segment_value,
+                    unit=ctx.market_cap.currency.value,
+                    period=str(row.get("period", period)),
+                    formula_id="main_business.pdf",
+                    source_fact_ids=(str(row["fact_id"]),),
+                    coverage="ok",
+                    display=f"{segment_value / Decimal('1000000'):,.2f}",
+                )
+            )
     return registry
 
 

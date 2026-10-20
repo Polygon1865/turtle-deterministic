@@ -7,8 +7,8 @@
 | accounts_receiv | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 完成 |
 | inventory | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 完成 |
 | contract_liab | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 完成 |
-| dps | ✅ | ✅ | ✅ | ✅ | 证据表 | ✅ | 部分完成；未覆盖 Tushare 分红指标 |
-| main_business | ✅ | ✅ | ✅ | ✅ | 合并行 | ✅ | 部分完成；未建立独立 MetricPoint |
+| dps | ✅ | ✅ | ✅ | ✅ | 证据表 | ✅ | 完成；未覆盖 Tushare 分红指标 |
+| main_business | ✅ | ✅ | ✅ | ✅ | 合并行 | ✅ | 完成 |
 | capex_detail | — | — | — | — | — | — | 未完成；当前没有多行 capex 解析器 |
 
 说明：

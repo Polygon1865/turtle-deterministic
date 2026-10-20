@@ -445,6 +445,7 @@ def render(
             for fact in inputs.document_facts
             if fact.get("label") and fact.get("value") is not None
         },
+        pdf_fact_rows=inputs.fact_rows,
         decisions=decisions,
     )
     results = run(ctx)

@@ -10,7 +10,7 @@ from __future__ import annotations
 import statistics
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Mapping, Sequence
+from typing import Any, Mapping, Sequence
 
 from ..config import Settings
 from ..data.protocol import StatementRow
@@ -64,6 +64,7 @@ class FactorContext:
     pdf_cash_bridge: Mapping[int, Mapping[str, str | None]] | None = None
     pdf_source_ids: Mapping[str, str] = field(default_factory=dict)
     pdf_values: Mapping[str, str] = field(default_factory=dict)
+    pdf_fact_rows: Sequence[Mapping[str, Any]] = ()
     decisions: Mapping[str, str] = field(default_factory=dict)
 
 

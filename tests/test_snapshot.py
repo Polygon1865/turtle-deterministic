@@ -197,6 +197,27 @@ def test_report_shows_main_business_fact_row():
     assert "0.08" in markdown
 
 
+def test_metric_registry_points_to_main_business_fact_row():
+    inputs = replace(
+        _inputs(),
+        fact_rows=[
+            {
+                "fact_id": "pdf:row:1",
+                "item": "main_business",
+                "label": "液体乳",
+                "value": "80000.00",
+                "period": "2025A",
+                "page": 88,
+            }
+        ],
+    )
+    metrics: dict[str, object] = {}
+    render(inputs, load_settings(), metrics_out=metrics)
+    point = metrics["main_business.液体乳"]
+    assert isinstance(point, dict)
+    assert point["source_fact_ids"] == ["pdf:row:1"]
+
+
 def test_snapshot_roundtrip_and_byte_identity():
     root = _root()
     try:
