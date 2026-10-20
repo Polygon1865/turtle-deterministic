@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Sequence
+from typing import Any, Sequence
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -35,6 +35,7 @@ def render_analysis(
     research_thesis_md: str = "",
     resolved_md: str = "",
     metrics_out: dict[str, object] | None = None,
+    document_facts: Sequence[dict[str, Any]] = (),
 ) -> str:
     verdict, reason = final_verdict(results)
     rows = ctx.rows
@@ -341,6 +342,16 @@ def render_analysis(
         "market_cap": _m(ctx.market_cap.amount),
         "metric": metric_ledger.display,
         "metric_registry": metric_ledger,
+        "pdf_fact_rows": [
+            [
+                str(fact.get("label", "")),
+                _m(Decimal(str(fact.get("value"))))
+                if fact.get("value") not in (None, "")
+                else "—",
+                str(fact.get("page", "")),
+            ]
+            for fact in document_facts
+        ],
         "summary_table": _table(
             ["项目", "数值"],
             [

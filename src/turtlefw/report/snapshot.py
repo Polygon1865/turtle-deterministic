@@ -553,6 +553,7 @@ def render(
             as_of=inputs.as_of,
             metrics_out=probe_metrics,
             resolved_md=resolve_markdown(inputs.resolved_facts),
+            document_facts=inputs.document_facts,
         )
         metric_map.update(
             {
@@ -588,6 +589,7 @@ def render(
         research_thesis_md=research_thesis_md,
         metrics_out=metrics_out,
         resolved_md=resolve_markdown(inputs.resolved_facts),
+        document_facts=inputs.document_facts,
     )
     if decisions and research_document is not None:
         selected = "、".join(

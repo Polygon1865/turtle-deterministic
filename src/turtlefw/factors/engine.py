@@ -16,7 +16,8 @@ from ..config import Settings
 from ..data.protocol import StatementRow
 from ..metrics import cashflow
 from ..metrics import dividends as div_metrics
-from ..metrics import grids, owner_earnings, returns, statements, valuation
+from ..metrics import grids, returns, statements, valuation
+from ..metrics import report_returns
 from ..qualitative import Qualitative
 from ..types import DividendEvent, Money, StockCode
 
@@ -163,11 +164,47 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
                 f"decision payout: {ctx.decisions['payout']} is not a payout candidate"
             )
         mean_payout = payout_decision
-    oe = (c + d - d * g_row.g) if c is not None and d is not None else c
-    oe_normalized, oe_years = owner_earnings.normalized_owner_earnings_detail(
-        rows, g=g_row.g
+    tax_pct = ctx.tax_pct
+    if "tax" in ctx.decisions:
+        tax_decision = _decision_decimal(ctx, "tax")
+        tax_candidates = {scenario.rate for scenario in grids.tax_scenarios(ctx.code)}
+        if tax_decision is None or tax_decision not in tax_candidates:
+            raise ValueError(
+                f"decision tax: {ctx.decisions['tax']} is not a tax scenario"
+            )
+        tax_pct = tax_decision
+
+    owner_returns = report_returns.compute(
+        rows,
+        g=g_row.g,
+        mean_payout=mean_payout,
+        market_cap=ctx.market_cap,
+        currency=ctx.market_cap.currency,
+        tax_pct=tax_pct,
+        buyback=ctx.buyback,
+        sbc=ctx.sbc,
+        pdf_bridge=ctx.pdf_cash_bridge,
+        aa_label=ctx.decisions.get("aa"),
     )
-    oe_used = oe_normalized if oe_normalized is not None else oe
+    oe_used = owner_returns.oe
+    oe_normalized = oe_used if owner_returns.oe_normalized else None
+    oe_years = range(owner_returns.oe_years)
+    aa = owner_returns.aa
+    aa_all = owner_returns.aa_variants
+    aa_net = owner_returns.aa_net
+    aa_source = owner_returns.aa_source
+    bridge = owner_returns.bridge
+    surplus = owner_returns.surplus
+    bridge_complete, bridge_total = cashflow.coverage(bridge)
+    bridge_derived = sum(1 for item in bridge.values() if item.source == "derived_bridge")
+    bridge_fallback = sum(1 for item in bridge.values() if item.source == "ocf_fallback")
+    sbc_amount = ctx.sbc.amount if ctx.sbc is not None else Decimal("0")
+    r = owner_returns.r
+    gg = owner_returns.gg
+    ii = returns.threshold_ii(ctx.rf_pct, ctx.code, ctx.settings.returns)
+    gate = returns.classify_return(r, ii, ctx.rf_pct)
+    hh = (r - gg) if r is not None and gg is not None else None
+    margin = (gg - ii) if gg is not None else None
 
     def crude_at(tax_pct: Decimal) -> Decimal | None:
         return (
@@ -183,39 +220,6 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
             else None
         )
 
-    tax_pct = ctx.tax_pct
-    if "tax" in ctx.decisions:
-        tax_decision = _decision_decimal(ctx, "tax")
-        tax_candidates = {scenario.rate for scenario in grids.tax_scenarios(ctx.code)}
-        if tax_decision is None or tax_decision not in tax_candidates:
-            raise ValueError(
-                f"decision tax: {ctx.decisions['tax']} is not a tax scenario"
-            )
-        tax_pct = tax_decision
-
-    r = crude_at(tax_pct)
-    gate = returns.classify_return(r, ii, ctx.rf_pct)
-
-    # ---- Factor 3: refined return ------------------------------------
-    bridge = cashflow.build_cash_bridge(rows, pdf_bridge=ctx.pdf_cash_bridge)
-    surplus = cashflow.surplus_series(bridge)
-    bridge_complete, bridge_total = cashflow.coverage(bridge)
-    bridge_derived = sum(1 for item in bridge.values() if item.source == "derived_bridge")
-    bridge_fallback = sum(1 for item in bridge.values() if item.source == "ocf_fallback")
-    aa_source_base = cashflow.bridge_label(bridge)
-    aa_all = grids.aa_variants(surplus) if surplus else grids.aa_variants(fcf)
-    aa = aa_all[0].value if aa_all else None
-    aa_source = f"{aa_all[0].label}（{aa_source_base}）" if aa_all else "不可用"
-    if "aa" in ctx.decisions:
-        aa_decision = str(ctx.decisions["aa"]).strip()
-        selected_aa = next((row for row in aa_all if row.label == aa_decision), None)
-        if selected_aa is None:
-            raise ValueError(f"decision aa: {aa_decision} is not an AA variant")
-        aa = selected_aa.value
-        aa_source = f"{selected_aa.label}（{aa_source_base}）"
-    sbc_amount = ctx.sbc.amount if ctx.sbc is not None else Decimal("0")
-    aa_net = (aa - sbc_amount) if aa is not None else None
-
     def refined_at(tax_pct: Decimal) -> Decimal | None:
         return (
             returns.penetration_return(
@@ -229,10 +233,6 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
             if aa_net is not None
             else None
         )
-
-    gg = refined_at(tax_pct)
-    hh = (r - gg) if r is not None and gg is not None else None
-    margin = (gg - ii) if gg is not None else None
     tax_rows = [
         (scenario.label, scenario.rate, crude_at(scenario.rate), refined_at(scenario.rate))
         for scenario in grids.tax_scenarios(ctx.code)
@@ -549,7 +549,7 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
             metrics=(
                 ("Owner Earnings", f"{_m(oe_used)} 百万元（{len(oe_years)} 年正常化）")
                 if oe_normalized is not None
-                else ("Owner Earnings", f"{_m(oe)} 百万元（当期）"),
+                else ("Owner Earnings", f"{_m(oe_used)} 百万元（当期）"),
                 ("维持性 Capex 系数 G", f"{g_row.g}（{g_reason}）"),
                 ("支付率 M", f"{_pct(mean_payout)}（{payout_check.recommended_label}）"),
                 ("股息税率 Q", _pct(tax_pct)),

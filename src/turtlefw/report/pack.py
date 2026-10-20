@@ -15,7 +15,8 @@ from ..facts import MetricPoint, MetricRegistry
 from ..metrics import cashflow
 from ..metrics import dividends as div_metrics
 from ..metrics.dividends import average_dps
-from ..metrics import grids, owner_earnings, returns, statements, valuation
+from ..metrics import grids, returns, statements, valuation
+from ..metrics import report_returns
 from ..pdf.hk_facts import extract as extract_hk_facts
 from ..types import Currency, DividendEvent, FetchIssue, Money, StockCode
 
@@ -133,30 +134,24 @@ def render_data_pack(
             raise ValueError(f"research decision g={selected_g} is not in the G grid")
         g_row = g_matches[0]
         g_reason = "research decision"
-    oe = (
-        latest_ni + latest_da - latest_da * g_row.g
-        if latest_ni is not None and latest_da is not None
-        else latest_ni
+    sbc_amount = sbc.amount if sbc is not None else Decimal("0")
+    owner_returns = report_returns.compute(
+        rows,
+        g=g_row.g,
+        mean_payout=mean_payout,
+        market_cap=market_cap,
+        currency=currency,
+        tax_pct=tax_pct,
+        buyback=buyback,
+        sbc=sbc,
+        pdf_bridge=pdf_bridge,
+        aa_label=decisions.get("aa"),
     )
-    oe_normalized = owner_earnings.normalized_owner_earnings(rows, g=g_row.g)
-    oe = oe_normalized if oe_normalized is not None else oe
-    aa_bridge = cashflow.build_cash_bridge(rows, pdf_bridge=pdf_bridge)
-    aa_surplus = cashflow.surplus_series(aa_bridge)
+    aa_bridge = owner_returns.bridge
     bridge_complete, bridge_total = cashflow.coverage(aa_bridge)
-    aa_source_base = cashflow.bridge_label(aa_bridge)
-    aa_all = grids.aa_variants(aa_surplus) if aa_surplus else grids.aa_variants(fcf)
-    aa_value = aa_all[0].value if aa_all else None
-    if decisions.get("aa"):
-        selected_aa = decisions["aa"]
-        aa_matches = [variant for variant in aa_all if variant.label == selected_aa]
-        if not aa_matches:
-            raise ValueError(f"research decision aa={selected_aa} is not available")
-        aa_value = aa_matches[0].value
-    aa_label = (
-        f"{aa_all[0].label} · {aa_source_base}" if aa_all else "不可用"
-    )
-    if decisions.get("aa"):
-        aa_label = f"{decisions['aa']} · {aa_source_base}"
+    aa_label = owner_returns.aa_source
+    r_value = owner_returns.r
+    gg_value = owner_returns.gg
     cash_bridge_rows = [
         [
             str(year),
@@ -166,32 +161,6 @@ def render_data_pack(
         ]
         for year in sorted(aa_bridge)
     ]
-    sbc_amount = sbc.amount if sbc is not None else Decimal("0")
-    aa_net = (aa_value - sbc_amount) if aa_value is not None else None
-    r_value = (
-        returns.penetration_return(
-            Money(oe, currency),
-            mean_payout or Decimal("0"),
-            tax_pct,
-            buyback or Money.zero(currency),
-            market_cap,
-            Decimal("1"),
-        )
-        if oe is not None
-        else None
-    )
-    gg_value = (
-        returns.penetration_return(
-            Money(aa_net, currency),
-            mean_payout or Decimal("0"),
-            tax_pct,
-            buyback or Money.zero(currency),
-            market_cap,
-            Decimal("1"),
-        )
-        if aa_net is not None
-        else None
-    )
 
     min_fcf_all = dict(sorted(fcf.items())[-5:])
     min_fcf = (

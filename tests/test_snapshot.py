@@ -114,6 +114,23 @@ def test_metric_registry_points_to_pdf_fact():
     assert point["source_fact_ids"] == ["pdf:accounts_receiv:132"]
 
 
+def test_report_shows_pdf_accounts_receivable_fact():
+    inputs = replace(
+        _inputs(),
+        document_facts=[
+            {
+                "id": "pdf:accounts_receiv:132",
+                "label": "accounts_receiv",
+                "value": "123456789.00",
+                "page": "132",
+            }
+        ],
+    )
+    markdown, _ = render(inputs, load_settings())
+    assert "## PDF 证据" in markdown
+    assert "123.46" in markdown
+
+
 def test_snapshot_roundtrip_and_byte_identity():
     root = _root()
     try:

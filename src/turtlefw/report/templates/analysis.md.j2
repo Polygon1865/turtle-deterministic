@@ -9,6 +9,15 @@
 
 {{ summary_table }}
 
+{% if pdf_fact_rows %}
+## PDF 证据
+
+| 项目 | 数值（百万元） | 页码 |
+|---|---:|---:|
+{% for row in pdf_fact_rows %}| {{ row[0] }} | {{ row[1] }} | {{ row[2] }} |
+{% endfor %}
+{% endif %}
+
 {% if research_summary_md %}
 ## 研究摘要
 
