@@ -457,7 +457,8 @@ def build(
                     )
                 )
         for row in ctx.pdf_fact_rows:
-            if row.get("item") != "main_business" or not row.get("fact_id"):
+            row_item = str(row.get("item", ""))
+            if row_item not in {"main_business", "capex_detail"} or not row.get("fact_id"):
                 continue
             try:
                 segment_value = Decimal(str(row.get("value")))
@@ -466,12 +467,12 @@ def build(
             label = str(row.get("label", ""))
             registry.add(
                 MetricPoint(
-                    id=f"main_business.{label}",
-                    name=f"主营 {label}",
+                    id=f"{row_item}.{label}",
+                    name=f"{row_item} {label}",
                     value=segment_value,
                     unit=ctx.market_cap.currency.value,
                     period=str(row.get("period", period)),
-                    formula_id="main_business.pdf",
+                    formula_id=f"{row_item}.pdf",
                     source_fact_ids=(str(row["fact_id"]),),
                     coverage="ok",
                     display=f"{segment_value / Decimal('1000000'):,.2f}",

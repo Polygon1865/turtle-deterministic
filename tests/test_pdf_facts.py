@@ -7,7 +7,7 @@ import pytest
 from turtlefw.pdf.dps import extract_dps_from_pages
 from turtlefw.pdf.extract import write_reported_numbers
 from turtlefw.pdf.multiline import FactRow, make_fact_id, rows_to_facts
-from turtlefw.report.pdf_facts import apply_document_facts, main_business_rows
+from turtlefw.report.pdf_facts import apply_document_facts, main_business_rows, merge_main_business
 from turtlefw.demo import demo_rows
 
 
@@ -86,6 +86,29 @@ def test_main_business_fact_rows_convert_to_pack_rows():
             "source": "pdf",
         }
     ]
+
+
+def test_capex_detail_rows_to_facts():
+    facts = rows_to_facts(
+        [[["项目", "2025"], ["设备购置", "12,000"], ["在建工程", "8,000"]]],
+        item="capex_detail",
+        dimension="asset_class",
+        page=99,
+        year=2025,
+        unit="CNY",
+    )
+    assert [fact.label for fact in facts] == ["设备购置", "在建工程"]
+    assert facts[0].value == Decimal("12000")
+    assert facts[0].item == "capex_detail"
+
+
+def test_main_business_pdf_rows_win_on_duplicate():
+    merged = merge_main_business(
+        [{"bz_item": "液体乳", "bz_sales": 1}, {"bz_item": "奶粉", "bz_sales": 2}],
+        [{"bz_item": "液体乳", "bz_sales": 9}],
+    )
+    assert merged[0]["bz_sales"] == 9
+    assert [row["bz_item"] for row in merged] == ["液体乳", "奶粉"]
 
 
 def test_main_business_table_rows_to_facts():

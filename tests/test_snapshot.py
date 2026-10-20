@@ -218,6 +218,27 @@ def test_metric_registry_points_to_main_business_fact_row():
     assert point["source_fact_ids"] == ["pdf:row:1"]
 
 
+def test_metric_registry_points_to_capex_detail_fact():
+    inputs = replace(
+        _inputs(),
+        fact_rows=[
+            {
+                "fact_id": "pdf:row:capex",
+                "item": "capex_detail",
+                "label": "设备购置",
+                "value": "12000.00",
+                "period": "2025A",
+                "page": 99,
+            }
+        ],
+    )
+    metrics: dict[str, object] = {}
+    render(inputs, load_settings(), metrics_out=metrics)
+    point = metrics["capex_detail.设备购置"]
+    assert isinstance(point, dict)
+    assert point["source_fact_ids"] == ["pdf:row:capex"]
+
+
 def test_snapshot_roundtrip_and_byte_identity():
     root = _root()
     try:

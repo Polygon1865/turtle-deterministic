@@ -779,6 +779,35 @@ def extract_pdf_bundle(
     )
 
 
+def extract_capex_detail_facts(
+    pdf_path: Path | str,
+    *,
+    year: int,
+    unit: str = "CNY",
+    max_pages: int | None = None,
+) -> list[FactRow]:
+    """Extract obvious capex breakdown tables; never fabricate missing rows."""
+    facts: list[FactRow] = []
+    for page, tables in _read_tables(pdf_path, max_pages):
+        for table in tables:
+            flat = " ".join(
+                str(cell) for row in table for cell in row if cell is not None
+            )
+            if "资本开支" not in flat:
+                continue
+            facts.extend(
+                rows_to_facts(
+                    [table],
+                    item="capex_detail",
+                    dimension="asset_class",
+                    page=page,
+                    year=year,
+                    unit=unit,
+                )
+            )
+    return facts
+
+
 def extract_main_business_facts(
     pdf_path: Path | str,
     *,

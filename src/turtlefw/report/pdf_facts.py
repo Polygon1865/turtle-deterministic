@@ -55,6 +55,21 @@ def main_business_rows(fact_rows: list[dict[str, object]] | None) -> list[dict[s
     return result
 
 
+def merge_main_business(
+    provider_rows: list[dict[str, object]] | None,
+    pdf_rows: list[dict[str, object]] | None,
+) -> list[dict[str, object]]:
+    """PDF rows win on duplicate labels; provider rows fill the remainder."""
+    merged: list[dict[str, object]] = list(pdf_rows or [])
+    seen = {str(row.get("bz_item", "")).strip() for row in merged}
+    for row in provider_rows or []:
+        label = str(row.get("bz_item", "")).strip()
+        if label and label in seen:
+            continue
+        merged.append(row)
+    return merged
+
+
 def apply_document_facts(
     rows: list[StatementRow],
     document_facts: list[dict[str, object]] | None,

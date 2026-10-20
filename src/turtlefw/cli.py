@@ -1897,6 +1897,7 @@ def _pdf_numbers(
     from .pdf.extract import (
         extract_dps_pdf,
         extract_main_business_facts,
+        extract_capex_detail_facts,
         extract_pdf_bundle,
         write_reported_numbers,
     )
@@ -1915,6 +1916,7 @@ def _pdf_numbers(
     target = Path(output) if output else source.with_name("reported_numbers.json")
     dps = extract_dps_pdf(source, max_pages=max_pages)
     fact_rows = extract_main_business_facts(source, year=year, max_pages=max_pages)
+    fact_rows += extract_capex_detail_facts(source, year=year, max_pages=max_pages)
     write_reported_numbers(
         items,
         target,
@@ -2456,9 +2458,11 @@ def _report(
                 )
             except Exception:  # noqa: BLE001 - optional pack section
                 main_business = []
-            from .report.pdf_facts import main_business_rows
+            from .report.pdf_facts import main_business_rows, merge_main_business
 
-            main_business = list(main_business) + main_business_rows(inputs.fact_rows)
+            main_business = merge_main_business(
+                list(main_business), main_business_rows(inputs.fact_rows)
+            )
             footnotes = (
                 json_loads(Path(footnotes_path).read_text(encoding="utf-8-sig"))
                 if footnotes_path and Path(footnotes_path).is_file()
