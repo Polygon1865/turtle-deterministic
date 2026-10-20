@@ -1961,36 +1961,50 @@ def _run_cmd(
     html: bool,
     strict: bool,
     qa: bool,
+    min_claims: int = 0,
+    min_dimensions: int = 0,
 ) -> int:
-    """One-command deterministic workflow: pack -> report/snapshot -> QA."""
+    """One-command deterministic workflow: fetch once -> pack/report/snapshot -> QA."""
     from .paths import ensure_output_root
 
     code = StockCode.parse(code_raw)
     ensure_output_root()
-    snapshot = output_root() / str(code) / "snapshot"
+    base = output_root() / str(code)
+    snapshot = base / "snapshot"
 
-    print(f"[1/4] state：{code}")
+    print(f"[1/3] state：{code}")
     if _state_cmd(str(code), True, None, None, []) != 0:
         return 2
 
-    print(f"[2/4] data pack：{code}")
-    rc = _pack(
-        str(code),
-        None,
-        currency,
-        rf,
-        rf_source,
-        pdf_numbers,
-        footnotes,
-        pdf_sections,
-        as_of,
-        pit,
-    )
-    if rc != 0:
-        print(f"run 在 data pack 阶段失败：{rc}", file=sys.stderr)
-        return rc
+    print(f"[2/3] data pack + report + snapshot：{code}")
+    if (min_claims or min_dimensions) and not (
+        research and Path(research).is_file()
+    ):
+        print("设置了 research 质量阈值，但未提供有效 --research", file=sys.stderr)
+        return 2
+    if research and Path(research).is_file():
+        from .research import load as load_research
+        from .research import quality as research_quality
 
-    print(f"[3/4] report + snapshot：{code}")
+        try:
+            _document = load_research(research)
+        except (ValueError, OSError) as exc:
+            print(f"research 校验失败：{exc}", file=sys.stderr)
+            return 2
+        _quality = research_quality(_document)
+        if len(_document.claims) < min_claims:
+            print(
+                f"research claims {len(_document.claims)} < min_claims {min_claims}",
+                file=sys.stderr,
+            )
+            return 2
+        if len(_quality["covered_dimensions"]) < min_dimensions:
+            print(
+                "research dimensions "
+                f"{len(_quality['covered_dimensions'])} < min_dimensions {min_dimensions}",
+                file=sys.stderr,
+            )
+            return 2
     rc = _report(
         str(code),
         None,
@@ -2009,6 +2023,9 @@ def _run_cmd(
         strict,
         evidence,
         html,
+        str(base / "data_pack.md"),
+        footnotes,
+        pdf_sections,
     )
     if rc != 0:
         print(f"run 在 report 阶段失败：{rc}", file=sys.stderr)
@@ -2017,7 +2034,6 @@ def _run_cmd(
     if research and Path(research).is_file():
         import shutil
 
-        base = output_root() / str(code)
         base.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(research, base / "research.json")
         provenance = Path(research).with_name("research_provenance.json")
@@ -2025,12 +2041,42 @@ def _run_cmd(
             shutil.copyfile(provenance, base / "research_provenance.json")
 
     if qa:
-        print(f"[4/4] QA：{code}")
+        print(f"[3/3] QA：{code}")
         rc = _qa_cmd(str(code), True)
         if rc != 0:
             print(f"run 在 QA 阶段失败：{rc}", file=sys.stderr)
             return rc
     print(f"run 完成：{snapshot.resolve()}")
+    return 0
+
+
+def _finalize_cmd(
+    snapshot: str,
+    research: str,
+    out: str,
+    report: str | None,
+    strict: bool,
+    min_claims: int,
+    min_dimensions: int,
+    html: bool,
+) -> int:
+    from .report.finalize import FinalizeError, finalize_research
+
+    try:
+        target = finalize_research(
+            snapshot,
+            research,
+            out,
+            report_path=report,
+            strict=strict,
+            min_claims=min_claims,
+            min_dimensions=min_dimensions,
+            html=html,
+        )
+    except (FinalizeError, ValueError, OSError) as exc:
+        print(f"finalize 失败：{exc}", file=sys.stderr)
+        return 2
+    print(f"finalize 完成：{target.resolve()}")
     return 0
 
 
@@ -2052,6 +2098,9 @@ def _report(
     strict_numeric: bool = False,
     evidence_path: str | None = None,
     html_out: bool = False,
+    data_pack_out: str | None = None,
+    footnotes_path: str | None = None,
+    pdf_sections_path: str | None = None,
 ) -> int:
     from .data.tushare_provider import TushareProvider
     from .metrics import statements
@@ -2295,6 +2344,66 @@ def _report(
             source_policy=source_policy,
             resolved_facts=resolved_facts,
         )
+        if data_pack_out:
+            from json import loads as json_loads
+
+            from .report.pack import render_data_pack
+
+            try:
+                holders = provider.holders(code) if hasattr(provider, "holders") else []
+            except Exception:  # noqa: BLE001 - optional pack section
+                holders = []
+            try:
+                main_business = (
+                    provider.main_business(code)
+                    if hasattr(provider, "main_business")
+                    else []
+                )
+            except Exception:  # noqa: BLE001 - optional pack section
+                main_business = []
+            footnotes = (
+                json_loads(Path(footnotes_path).read_text(encoding="utf-8-sig"))
+                if footnotes_path and Path(footnotes_path).is_file()
+                else None
+            )
+            pdf_sections = (
+                json_loads(Path(pdf_sections_path).read_text(encoding="utf-8-sig"))
+                if pdf_sections_path and Path(pdf_sections_path).is_file()
+                else None
+            )
+            pack_markdown = render_data_pack(
+                code,
+                inputs.rows,
+                inputs.dividends,
+                quote=inputs.quote,
+                history=inputs.history,
+                market_cap=Money(Decimal(inputs.market_cap), unit),
+                shares=Decimal(inputs.shares),
+                diluted_shares=statements.diluted_shares(inputs.rows),
+                rf_pct=Decimal(inputs.rf_pct),
+                settings=settings,
+                issues=inputs.issues,
+                tax_pct=grids.default_tax_rate(code),
+                rf_source=inputs.rf_source,
+                parent_cash=Decimal(inputs.parent_cash) if inputs.parent_cash else None,
+                pledge_pct=Decimal(inputs.pledge_pct) if inputs.pledge_pct else None,
+                buyback=(
+                    Money(Decimal(inputs.buyback), unit)
+                    if inputs.buyback
+                    else None
+                ),
+                sbc=Money(Decimal(inputs.sbc), unit) if inputs.sbc else None,
+                pdf_bridge=inputs.pdf_bridge,
+                holders=holders,
+                main_business=main_business,
+                as_of=inputs.as_of,
+                footnotes=footnotes,
+                pdf_sections=pdf_sections,
+                pit_note=pit_note,
+            )
+            pack_path = Path(data_pack_out)
+            pack_path.parent.mkdir(parents=True, exist_ok=True)
+            pack_path.write_bytes(pack_markdown.encode("utf-8"))
         if save_snapshot:
             snap.freeze(
                 inputs,
@@ -2316,6 +2425,7 @@ def _report(
             research_path=research_file,
             metrics_out=metrics_out,
             facts=evidence_facts,
+            refresh_metrics=True,
         )
 
     code_text = inputs.code
@@ -2688,6 +2798,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="跳过最终 QA",
     )
     run.set_defaults(qa=True)
+    run.add_argument("--min-claims", type=int, default=0)
+    run.add_argument("--min-dimensions", type=int, default=0)
     report.add_argument(
         "--source-policy",
         choices=["record-only", "display-primary", "engine-primary"],
@@ -2795,6 +2907,19 @@ def build_parser() -> argparse.ArgumentParser:
     snapshot.add_argument("--out", default=None, help="manifest 输出路径")
     snapshot.add_argument("--report", default=None, help="已有报告路径（计算 report_hash）")
     snapshot.add_argument("--research", default=None, help="research.json 路径（计算 research_hash）")
+
+    finalize = sub.add_parser(
+        "finalize",
+        help="把 research 附加到冻结 snapshot，不重新取数",
+    )
+    finalize.add_argument("--snapshot", required=True, help="旧 snapshot 目录")
+    finalize.add_argument("--research", required=True, help="research.json")
+    finalize.add_argument("--out", required=True, help="新 snapshot 目录（不能已存在）")
+    finalize.add_argument("--report", default=None, help="报告输出路径")
+    finalize.add_argument("--strict", action="store_true", help="numeric gate 不通过时失败")
+    finalize.add_argument("--min-claims", type=int, default=0)
+    finalize.add_argument("--min-dimensions", type=int, default=0)
+    finalize.add_argument("--html", action="store_true", help="同时生成 HTML")
 
     agent = sub.add_parser("agent", help="检查/推进 Agent 阶段 artifact 契约")
     agent.add_argument("--dir", required=True, help="artifact 目录")
@@ -2952,6 +3077,8 @@ def main(argv: list[str] | None = None) -> int:
                 args.html,
                 args.strict,
                 args.qa,
+                args.min_claims,
+                args.min_dimensions,
             )
         if args.command == "analyze":
             return _demo_analyze() if args.demo else _live_analyze(
@@ -3108,6 +3235,17 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "snapshot":
             return _snapshot_cmd(
                 args.code, args.as_of, args.out, args.report, args.research
+            )
+        if args.command == "finalize":
+            return _finalize_cmd(
+                args.snapshot,
+                args.research,
+                args.out,
+                args.report,
+                args.strict,
+                args.min_claims,
+                args.min_dimensions,
+                args.html,
             )
         if args.command == "agent":
             return _agent_cmd(

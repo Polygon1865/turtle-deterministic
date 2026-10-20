@@ -167,13 +167,7 @@ turtle report 600887.SH --save-snapshot .runs\600887.SH\snapshot
 
 ### 一键确定性流程
 
-DSH：
-
-```text
-/turtle-run 600887 --rf 1.6516
-```
-
-Claude Code：
+DSH / Claude Code：
 
 ```text
 /turtle-run 600887 --rf 1.6516
@@ -185,6 +179,33 @@ Claude Code：
 turtle run <code> [args]
 ```
 
+### 完整确定性 + D1–D6
+
+Claude Code：
+
+```text
+/turtle-full 600887 --rf 1.6516
+```
+
+DSH：
+
+```text
+使用 turtle-full skill 分析 600887
+```
+
+流程：
+
+```text
+run → snapshot
+→ research-context
+→ DSH/Claude 写 research.json
+→ research-audit
+→ research-provenance
+→ finalize（不重新取数）
+→ report/HTML
+→ QA
+```
+
 ### 完整 Agent 流程
 
 ```text
@@ -193,7 +214,7 @@ turtle run <code> [args]
 
 - DSH：生成分析提示词，需发送后由 Agent 执行；
 - Claude Code：进入完整 Agent 工作流；
-- 与 `/turtle-run` 的区别：`run` 只跑确定性流程，`analysis` 会走 PDF/定性/Agent 流程。
+- `/turtle-analysis` 走 PDF/定性，不等于 `/turtle-full` 的 D1–D6 research。
 
 ---
 
@@ -276,9 +297,10 @@ pdf:parent_company
 
 ## D1–D6 Research（DSH 原生）
 
-推荐用 DSH 的 `turtle-research` skill：
+推荐用 DSH 的 `turtle-full` / `turtle-research` skill：
 
 ```text
+.agents/skills/turtle-full/SKILL.md
 .agents/skills/turtle-research/SKILL.md
 ```
 
@@ -289,7 +311,7 @@ research-context
   → DSH 模型写 research.json
   → research-audit
   → research-provenance
-  → snapshot
+  → finalize（不重新取数）
   → report / HTML
   → QA
 ```
@@ -314,6 +336,13 @@ turtle research-provenance `
   --snapshot .runs\600887.SH\snapshot `
   --provider dsh --model deepseek-v4-flash `
   --out .runs\600887.SH\snapshot\research_provenance.json
+
+turtle finalize `
+  --snapshot .runs\600887.SH\snapshot `
+  --research .runs\600887.SH\snapshot\research.json `
+  --out .runs\600887.SH\snapshot_final `
+  --min-claims 6 --min-dimensions 3 `
+  --strict --html
 ```
 
 也可以用 OpenAI-compatible 模式：
@@ -445,7 +474,7 @@ src/turtlefw/
 当前基线：
 
 ```text
-340 tests passed
+342 tests passed
 ```
 
 CI：pytest + selected ruff + selected mypy，见

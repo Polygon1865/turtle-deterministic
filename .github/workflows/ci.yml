@@ -37,6 +37,7 @@ jobs:
             src/turtlefw/facts.py \
             src/turtlefw/research.py \
             src/turtlefw/report/snapshot.py \
+            src/turtlefw/report/finalize.py \
             src/turtlefw/report/manifest.py \
             src/turtlefw/agent/orchestrator.py \
             src/turtlefw/agent/runner.py \

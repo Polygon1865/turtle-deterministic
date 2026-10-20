@@ -7,8 +7,10 @@
 - `output/<code>/analysis_report.md`（CLI 生成，结论与指标）
 - `output/<code>/data_pack.md`（数据包）
 - `output/<code>/qualitative.json`（定性判断与证据）
-- 若 Phase 2 产出了 `reported_numbers.json`，先重跑确定性报告并传入 PDF 数字：
-  `python -m turtlefw.cli report <code> --pdf-numbers output/<code>/reported_numbers.json`
+- 若 Phase 2 产出了 `reported_numbers.json`，先重跑确定性报告并传入 PDF 数字，同时冻结 snapshot：
+  `python -m turtlefw.cli report <code> --pdf-numbers output/<code>/reported_numbers.json --save-snapshot output/<code>/snapshot`
+- 若无 PDF 数字，也必须冻结 snapshot：
+  `python -m turtlefw.cli report <code> --save-snapshot output/<code>/snapshot`
 
 ## 结构（固定）
 

@@ -35,7 +35,7 @@ python -m turtlefw.cli qualitative <code> --check
 python -m turtlefw.cli state <code> --phase qualitative
 
 # 4. deterministic report + optional narrative
-python -m turtlefw.cli report <code> --pdf-numbers output/<code>/reported_numbers.json
+python -m turtlefw.cli report <code> --pdf-numbers output/<code>/reported_numbers.json --save-snapshot output/<code>/snapshot
 # write output/<code>/narrative.md per phase4_report.md, then:
 python -m turtlefw.cli narrative <code> --file output/<code>/narrative.md
 python -m turtlefw.cli state <code> --phase report

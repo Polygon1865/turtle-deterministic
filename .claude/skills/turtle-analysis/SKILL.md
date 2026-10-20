@@ -18,7 +18,7 @@ CLI is the only source of numbers.
 2. `turtle pack <code>` → `data_pack.md`
 3. Optional PDF: `turtle fetch-report` + `turtle pdf` → `pdf_sections.json`
 4. `turtle qualitative <code> --init`; fill with evidence; `turtle verify`; `turtle qualitative --check`
-5. `turtle report <code>`; optional `narrative.md`; `turtle narrative`
+5. `turtle report <code> --save-snapshot output/<code>/snapshot`; optional `narrative.md`; `turtle narrative`
 6. `turtle qa <code> --write` (must pass)
 
 ## Constraints

@@ -1,6 +1,6 @@
 # Turtle Framework 使用说明
 
-> 当前审查基线：`340 passed`。本文按当前 CLI 实测编写，命令使用
+> 当前审查基线：`342 passed`。本文按当前 CLI 实测编写，命令使用
 > `.\.venv\Scripts\python.exe -m turtlefw.cli`，避免依赖 PATH 里的 `turtle`。
 
 ## 1. 这个项目做什么
@@ -140,11 +140,13 @@ turtle run 600887.SH --rf 1.6516 --rf-source "ICBC 2026-10-15"
 
 ```text
 state init
-→ pack
-→ report
-→ save snapshot
+→ 单次取数
+→ data_pack + report + snapshot
 → QA
 ```
+
+> `run` 不再先 pack 再 report 取两次数；data_pack 与 report 使用同一份
+> `ReportInputs`。
 
 可选：
 
@@ -155,32 +157,46 @@ state init
 --as-of / --pit / --ttm
 --strict
 --no-qa
+--min-claims / --min-dimensions
 ```
 
-### 4.2 在 DSH / Claude Code 中
-
-DSH：
-
-```text
-/turtle-run 600887 --rf 1.6516
-```
+### 4.2 完整确定性 + D1–D6
 
 Claude Code：
 
 ```text
-/turtle-run 600887 --rf 1.6516
+/turtle-full 600887 --rf 1.6516
 ```
 
-两者都落到：
+DSH：
 
 ```text
-turtle run <code> [args]
+使用 turtle-full skill 分析 600887
+```
+
+流程：
+
+```text
+run --no-qa
+→ research-context
+→ Agent 写 research.json
+→ research-audit
+→ research-provenance
+→ finalize（不重新取数）
+→ QA
+```
+
+只想要确定性部分：
+
+```text
+/turtle-run 600887 --rf 1.6516
 ```
 
 注意：
 
 - `/turtle-run` 是确定性流程；
-- `/turtle-analysis` 是完整 Agent 流程，会涉及 PDF/定性/研究，DSH 版本需要确认提示词后执行。
+- `/turtle-full` 是确定性 + D1–D6 research；
+- `/turtle-analysis` 是完整 Agent 定性分析，不等于 `/turtle-full`。
 
 ### 4.3 纯演示（无 token）
 
@@ -453,19 +469,26 @@ pdf:parent_company
   --out output\600887.SH\snapshot\research_provenance.json
 ```
 
-### 9.3 带 research 冻结报告
+### 9.3 附加 research 并生成最终 snapshot
+
+不要用 `report --research --save-snapshot` 重新取数。用 `finalize`：
 
 ```powershell
-.\.venv\Scripts\python.exe -m turtlefw.cli report 600887.SH `
+.\.venv\Scripts\python.exe -m turtlefw.cli finalize `
+  --snapshot output\600887.SH\snapshot `
   --research output\600887.SH\snapshot\research.json `
-  --save-snapshot output\600887.SH\snapshot_with_research
+  --out output\600887.SH\snapshot_final `
+  --min-claims 6 --min-dimensions 3 `
+  --strict --html
 ```
 
-离线渲染：
+`finalize` 会复制旧 snapshot、附加 research、重新渲染、重算 metrics/numeric、重建 manifest，不调用数据源。
+
+最终报告从新 snapshot 渲染：
 
 ```powershell
 .\.venv\Scripts\python.exe -m turtlefw.cli report 600887.SH `
-  --snapshot output\600887.SH\snapshot_with_research
+  --snapshot output\600887.SH\snapshot_final
 ```
 
 ### 9.4 OpenAI-compatible 模式
@@ -773,7 +796,7 @@ research-audit --metrics ... --facts ...
 当前基线：
 
 ```text
-340 tests passed
+342 tests passed
 ```
 
 CI：
@@ -787,6 +810,8 @@ CI：
 | 目标 | 命令 |
 |:--|:--|
 | 一键确定性流程 | `run` |
+| 附加 research 到 snapshot | `finalize` |
+| 完整研究 | `turtle-full` skill / Claude `/turtle-full` |
 | 单股分析 | `analyze` |
 | 数据包 | `pack` |
 | 报告 | `report` |

@@ -142,6 +142,21 @@ def run_qa(code: str, root: Path | str | None = None) -> list[tuple[str, str, st
                 matching_without_coverage.append((candidate, parsed))
     if not matching and matching_without_coverage:
         matching = matching_without_coverage[:1]
+    if matching:
+        def _sources_exist(item: tuple[Path, ReportManifest]) -> bool:
+            candidate, parsed = item
+            return all(
+                (candidate.parent / name).is_file()
+                for name in parsed.numeric_sources
+            )
+
+        usable = [item for item in matching if _sources_exist(item)]
+        if usable:
+            matching = usable
+        matching.sort(
+            key=lambda item: item[0].stat().st_mtime if item[0].is_file() else 0,
+            reverse=True,
+        )
     if not matching:
         for candidate in sorted(manifests, key=lambda item: item.stat().st_mtime if item.is_file() else 0, reverse=True):
             if not candidate.is_file():

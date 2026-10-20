@@ -17,6 +17,7 @@ from turtlefw.facts import (
     template_hash,
 )
 from turtlefw.report.snapshot import ReportInputs, freeze, load, render, verify_manifest
+from turtlefw.report.finalize import FinalizeError, finalize_research
 
 
 def _root() -> Path:
@@ -116,3 +117,61 @@ def test_manifest_verification():
         )
     finally:
         shutil.rmtree(root, ignore_errors=True)
+
+
+def test_finalize_attaches_research_without_mutating_old_snapshot(tmp_path):
+    settings = load_settings()
+    old = tmp_path / "snapshot"
+    freeze(_inputs(), settings, old)
+    research = tmp_path / "research.json"
+    research.write_text(
+        json.dumps(
+            {
+                "evidence": [
+                    {"id": "ev1", "url": "https://example.com/a", "quote": "原文"}
+                ],
+                "claims": [
+                    {
+                        "claim_id": "D2.1",
+                        "dimension": "D2",
+                        "statement": "品牌护城河，R={{metric:r}}",
+                        "judgment": "positive",
+                        "confidence": "high",
+                        "evidence_ids": ["ev1"],
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    report = tmp_path / "analysis_report.md"
+    target = finalize_research(
+        old,
+        research,
+        tmp_path / "final",
+        report_path=report,
+        min_claims=1,
+        min_dimensions=1,
+    )
+    assert target.is_dir()
+    assert (target / "research.json").is_file()
+    assert not (old / "research.json").exists()
+    assert report.is_file()
+    assert "D2.1" in report.read_text(encoding="utf-8")
+
+
+def test_finalize_refuses_existing_target(tmp_path):
+    settings = load_settings()
+    old = tmp_path / "snapshot"
+    freeze(_inputs(), settings, old)
+    research = tmp_path / "research.json"
+    research.write_text("{}", encoding="utf-8")
+    target = tmp_path / "final"
+    target.mkdir()
+    try:
+        finalize_research(old, research, target)
+    except FinalizeError:
+        pass
+    else:
+        raise AssertionError("expected FinalizeError")

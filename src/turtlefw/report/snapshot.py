@@ -306,6 +306,7 @@ def render(
     research_path: Path | str | None = None,
     metrics_out: dict[str, object] | None = None,
     facts: dict[str, str] | None = None,
+    refresh_metrics: bool = False,
 ) -> tuple[str, str]:
     code = StockCode.parse(inputs.code)
     currency = Currency(inputs.currency)
@@ -439,18 +440,19 @@ def render(
         buyback_series = statements.annual_series(ctx.rows, "cashflow", "buyback")
         if buyback_series:
             metric_map["buyback.latest"] = f"{buyback_series[max(buyback_series)]:,.2f}"
-    if research_path is not None:
-        metrics_file = Path(research_path).with_name("metrics.json")
-    elif snapshot_dir is not None:
-        metrics_file = Path(snapshot_dir) / "metrics.json"
-    else:
-        metrics_file = None
-    if metrics_file is not None and metrics_file.is_file():
-        stored = json.loads(metrics_file.read_text(encoding="utf-8-sig"))
-        if isinstance(stored, dict):
-            for key, value in stored.items():
-                if isinstance(value, dict) and value.get("display"):
-                    metric_map[str(key)] = str(value["display"])
+    if not refresh_metrics:
+        if research_path is not None:
+            metrics_file = Path(research_path).with_name("metrics.json")
+        elif snapshot_dir is not None:
+            metrics_file = Path(snapshot_dir) / "metrics.json"
+        else:
+            metrics_file = None
+        if metrics_file is not None and metrics_file.is_file():
+            stored = json.loads(metrics_file.read_text(encoding="utf-8-sig"))
+            if isinstance(stored, dict):
+                for key, value in stored.items():
+                    if isinstance(value, dict) and value.get("display"):
+                        metric_map[str(key)] = str(value["display"])
     research_md = ""
     research_sections: list[tuple[str, str]] = []
     research_meta_md = ""
