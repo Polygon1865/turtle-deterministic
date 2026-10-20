@@ -1894,7 +1894,12 @@ def _pdf_numbers(
     output: str | None,
     max_pages: int | None,
 ) -> int:
-    from .pdf.extract import extract_dps_pdf, extract_pdf_bundle, write_reported_numbers
+    from .pdf.extract import (
+        extract_dps_pdf,
+        extract_main_business_facts,
+        extract_pdf_bundle,
+        write_reported_numbers,
+    )
 
     source = Path(pdf_path)
     if not source.is_file():
@@ -1909,6 +1914,7 @@ def _pdf_numbers(
         return 2
     target = Path(output) if output else source.with_name("reported_numbers.json")
     dps = extract_dps_pdf(source, max_pages=max_pages)
+    fact_rows = extract_main_business_facts(source, year=year, max_pages=max_pages)
     write_reported_numbers(
         items,
         target,
@@ -1916,6 +1922,7 @@ def _pdf_numbers(
         cash_bridge=cash_bridge,
         sbc=sbc,
         dps=dps,
+        fact_rows=fact_rows,
         year=year,
     )
     print(f"已抽取 {len(items)}/6 项数字 → {target.resolve()}")

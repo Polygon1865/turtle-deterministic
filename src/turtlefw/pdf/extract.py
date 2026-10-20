@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 from .dps import extract_dps_from_pages
+from .multiline import FactRow, rows_to_facts
 
 ALIASES: dict[str, tuple[str, ...]] = {
     "revenue": ("营业收入", "营业总收入", "Revenues", "Revenue", "Total revenue"),
@@ -778,6 +779,38 @@ def extract_pdf_bundle(
     )
 
 
+def extract_main_business_facts(
+    pdf_path: Path | str,
+    *,
+    year: int,
+    unit: str = "CNY",
+    max_pages: int | None = None,
+) -> list[FactRow]:
+    """Extract table rows from obvious main-business tables."""
+    facts: list[FactRow] = []
+    for page, tables in _read_tables(pdf_path, max_pages):
+        for table in tables:
+            flat = " ".join(
+                str(cell) for row in table for cell in row if cell is not None
+            )
+            if not any(key in flat for key in ("主营业务", "分产品", "分行业", "分地区")):
+                continue
+            dimension = (
+                "product" if "分产品" in flat else "industry" if "分行业" in flat else "region"
+            )
+            facts.extend(
+                rows_to_facts(
+                    [table],
+                    item="main_business",
+                    dimension=dimension,
+                    page=page,
+                    year=year,
+                    unit=unit,
+                )
+            )
+    return facts
+
+
 def extract_dps_pdf(
     pdf_path: Path | str,
     *,
@@ -798,6 +831,7 @@ def write_reported_numbers(
     cash_bridge: dict[str, str | None] | None = None,
     sbc: dict[str, str] | None = None,
     dps: dict[str, str] | None = None,
+    fact_rows: Iterable[FactRow] | None = None,
     year: int | None = None,
 ) -> Path:
     import json
@@ -876,5 +910,7 @@ def write_reported_numbers(
         payload["cash_bridge"] = cash_bridge
     if sbc:
         payload["sbc"] = sbc
+    if fact_rows:
+        payload["fact_rows"] = [row.to_dict() for row in fact_rows]
     target.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return target

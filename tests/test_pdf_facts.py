@@ -73,5 +73,22 @@ def test_reported_numbers_carries_dps(tmp_path):
     )
     payload = json.loads(target.read_text(encoding="utf-8"))
     assert payload["dps"]["dps"] == "1.2345"
-    assert payload["document_facts"][0]["label"] == "dps"
-    assert payload["document_facts"][0]["fact_hash"]
+    row = FactRow(
+        fact_id="pdf:row:test",
+        item="main_business",
+        dimension="product",
+        label="液体乳",
+        period="2025A",
+        value=Decimal("80000"),
+        unit="CNY",
+        page=88,
+    )
+    target = write_reported_numbers(
+        [],
+        tmp_path / "rows.json",
+        fact_rows=[row],
+        year=2025,
+    )
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    assert payload["fact_rows"][0]["label"] == "液体乳"
+    assert payload["fact_rows"][0]["fact_hash"]
