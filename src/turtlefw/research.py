@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from .facts import ResearchClaim, ResearchDecision, ResearchParam
+from .facts import ResearchClaim, ResearchDecision, ResearchParam, file_hash
 
 DIMENSIONS = {
     "D1": "商业模式与资本特征",
@@ -204,8 +204,6 @@ def summary_markdown(document: ResearchDocument) -> str:
     )
     unknown = sum(1 for claim in document.claims if claim.judgment == "unknown")
     lines = [
-        "**研究摘要**",
-        "",
         f"- 覆盖维度：{'、'.join(covered) if covered else '无'}",
         f"- claims：{len(document.claims)}（unknown {unknown}）",
         f"- params：{len(document.params)}；evidence：{len(document.evidence)}",
@@ -250,6 +248,49 @@ def _raw_numbers(text: str) -> list[str]:
 def load(path: Path | str) -> ResearchDocument:
     payload = json.loads(Path(path).read_text(encoding="utf-8-sig"))
     return load_payload(payload)
+
+
+def snapshot_audit(snapshot_dir: Path | str) -> dict[str, Any]:
+    """Audit the research document frozen in a snapshot.
+
+    The result is stable enough to persist as ``research_audit.json``: it
+    contains the research hash, reference maps, quality and errors.
+    """
+    root = Path(snapshot_dir)
+    research_path = root / "research.json"
+    if not research_path.is_file():
+        raise ValueError(f"research.json not found: {research_path}")
+    document = load(research_path)
+
+    metrics: dict[str, str] = {}
+    metrics_path = root / "metrics.json"
+    if metrics_path.is_file():
+        payload = json.loads(metrics_path.read_text(encoding="utf-8-sig"))
+        if isinstance(payload, dict):
+            for key, point in payload.items():
+                if isinstance(point, dict):
+                    metrics[str(key)] = str(
+                        point.get("display", point.get("value", ""))
+                    )
+
+    facts: dict[str, str] = {}
+    for name in ("evidence.json", "reported_numbers.json"):
+        path = root / name
+        if not path.is_file():
+            continue
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+        raw_items = (
+            payload if isinstance(payload, list) else payload.get("document_facts", [])
+        )
+        for item in raw_items:
+            if isinstance(item, dict) and item.get("id"):
+                facts[str(item["id"])] = str(
+                    item.get("quote", item.get("value", ""))
+                )
+
+    result = audit(document, metrics, facts)
+    result["research_sha256"] = file_hash(research_path)
+    return result
 
 
 def audit(

@@ -2,6 +2,7 @@ import json
 
 from turtlefw import numeric_audit, qa
 from turtlefw.facts import file_hash
+from turtlefw.research import snapshot_audit
 
 
 def setup_run(tmp_path, with_all=True):
@@ -180,3 +181,39 @@ def test_research_artifact_is_validated(tmp_path):
     rows = qa.run_qa("600887.SH", root=tmp_path)
     assert "research" not in qa.failed(rows)
     assert any(name == "research" and status == "PASS" for name, status, _ in rows)
+
+
+def test_research_audit_artifact_is_required(tmp_path):
+    base = setup_run(tmp_path)
+    (base / "research.json").write_text(
+        json.dumps(
+            {
+                "evidence": [
+                    {"id": "ev1", "url": "https://example.com/a", "quote": "原文"}
+                ],
+                "claims": [
+                    {
+                        "claim_id": "D2.1",
+                        "dimension": "D2",
+                        "statement": "护城河 R={{metric:r}}",
+                        "judgment": "positive",
+                        "confidence": "high",
+                        "evidence_ids": ["ev1"],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    rows = qa.run_qa("600887.SH", root=tmp_path)
+    assert "research_audit" in qa.failed(rows)
+
+    (base / "metrics.json").write_text(
+        json.dumps({"r": {"display": "7.48"}}), encoding="utf-8"
+    )
+    audit = snapshot_audit(base)
+    (base / "research_audit.json").write_text(
+        json.dumps(audit), encoding="utf-8"
+    )
+    rows = qa.run_qa("600887.SH", root=tmp_path)
+    assert "research_audit" not in qa.failed(rows)

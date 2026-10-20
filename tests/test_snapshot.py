@@ -157,9 +157,19 @@ def test_finalize_attaches_research_without_mutating_old_snapshot(tmp_path, monk
     )
     assert target.is_dir()
     assert (target / "research.json").is_file()
+    assert (target / "research_audit.json").is_file()
+    manifest = json.loads((target / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["research_audit_hash"]
     assert not (old / "research.json").exists()
     assert report.is_file()
-    assert "D2.1" in report.read_text(encoding="utf-8")
+    text = report.read_text(encoding="utf-8")
+    assert "D2.1" in text
+    assert "**研究摘要**" not in text
+    state_path = tmp_path / "out" / "600887.SH" / "run_state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    assert state["snapshot_id"]
+    assert "snapshot" in state["artifacts"]
+    assert "research_audit" in state["artifacts"]
 
 
 def test_finalize_refuses_existing_target(tmp_path):

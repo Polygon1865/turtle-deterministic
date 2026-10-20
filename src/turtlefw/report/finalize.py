@@ -9,8 +9,10 @@ from pathlib import Path
 
 from ..facts import file_hash
 from ..paths import output_root
+from .. import state as st
 from ..research import load as load_research
 from ..research import quality as research_quality
+from ..research import snapshot_audit
 from . import snapshot as snap
 from .html import convert_file
 from .manifest import build_manifest
@@ -108,6 +110,19 @@ def finalize_research(
             ).encode("utf-8")
         )
 
+    research_audit = snapshot_audit(target)
+    research_audit_path = target / "research_audit.json"
+    research_audit_path.write_bytes(
+        (json.dumps(research_audit, ensure_ascii=False, indent=2) + "\n").encode(
+            "utf-8"
+        )
+    )
+    shutil.copyfile(research_audit_path, artifact_base / "research_audit.json")
+    if research_audit["status"] != "pass":
+        raise FinalizeError(
+            "research audit 未通过：" + "; ".join(research_audit["errors"])
+        )
+
     from ..numeric_audit import audit as numeric_audit
 
     sources = [
@@ -140,6 +155,7 @@ def finalize_research(
         resolved_hash=file_hash(target / "resolved_facts.json")
         if (target / "resolved_facts.json").is_file()
         else "",
+        research_audit_hash=file_hash(research_audit_path),
         numeric_coverage=str(numeric["coverage"]),
         numeric_status=str(numeric["status"]),
         numeric_unknown=tuple(str(item) for item in numeric["unknown"]),
@@ -150,4 +166,19 @@ def finalize_research(
     errors = snap.verify_manifest(inputs, settings, markdown, manifest, target)
     if errors:
         raise FinalizeError("finalize 后校验失败：" + "; ".join(errors))
+
+    state_path = artifact_base / "run_state.json"
+    run = st.load(state_path) if state_path.is_file() else st.new(str(inputs.code))
+    run.snapshot_id = manifest.snapshot_id
+    st.add_artifact(run, "snapshot", str(target.resolve()))
+    st.add_artifact(run, "analysis_report", str(out_report.resolve()))
+    st.add_artifact(run, "research", str((target / "research.json").resolve()))
+    st.add_artifact(run, "research_audit", str(research_audit_path.resolve()))
+    if (target / "research_provenance.json").is_file():
+        st.add_artifact(
+            run, "research_provenance", str((target / "research_provenance.json").resolve())
+        )
+    if run.phase in ("intake", "data", "report_pdf", "qualitative", "report"):
+        st.advance(run, "report")
+    st.save(run, state_path)
     return target

@@ -206,6 +206,10 @@ run → snapshot
 → QA
 ```
 
+> `/turtle-full` 是 **research-only**：不运行 PDF/定性 Agent。
+> 没有 `qualitative.json` 时 1A/1B 保持“未验证”；需要完整定性请用
+> `/turtle-analysis`。
+
 ### 完整 Agent 流程
 
 ```text
@@ -409,6 +413,7 @@ run_state / report / data_coverage
 qualitative / evidence / discrepancies
 narrative
 research / research_quality / research_refs
+research_audit
 research_provenance
 numeric_coverage
 ```
@@ -480,7 +485,7 @@ src/turtlefw/
 当前基线：
 
 ```text
-342 tests passed
+344 tests passed
 ```
 
 CI：pytest + selected ruff + selected mypy，见

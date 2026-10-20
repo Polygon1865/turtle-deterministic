@@ -1,6 +1,6 @@
 # Turtle Framework 使用说明
 
-> 当前审查基线：`342 passed`。本文按当前 CLI 实测编写，命令使用
+> 当前审查基线：`344 passed`。本文按当前 CLI 实测编写，命令使用
 > `.\.venv\Scripts\python.exe -m turtlefw.cli`，避免依赖 PATH 里的 `turtle`。
 
 ## 1. 这个项目做什么
@@ -196,6 +196,8 @@ run --no-qa
 
 - `/turtle-run` 是确定性流程；
 - `/turtle-full` 是确定性 + D1–D6 research；
+- `/turtle-full` 是 **research-only**，不运行 PDF/定性 Agent；没有
+  `qualitative.json` 时 1A/1B 保持“未验证”；
 - `/turtle-analysis` 是完整 Agent 定性分析，不等于 `/turtle-full`。
 
 ### 4.3 纯演示（无 token）
@@ -482,7 +484,7 @@ pdf:parent_company
   --strict --html
 ```
 
-`finalize` 会复制旧 snapshot、附加 research、重新渲染、重算 metrics/numeric、重建 manifest，不调用数据源。
+`finalize` 会复制旧 snapshot、附加 research、生成 `research_audit.json`、重新渲染、重算 metrics/numeric、重建 manifest，不调用数据源。
 
 最终报告从新 snapshot 渲染：
 
@@ -626,6 +628,7 @@ QA 检查：
 - narrative 数字可追溯
 - research
 - research_quality
+- research_audit
 - research_provenance
 - numeric_coverage
 - research_refs
@@ -802,7 +805,7 @@ research-audit --metrics ... --facts ...
 当前基线：
 
 ```text
-342 tests passed
+344 tests passed
 ```
 
 CI：

@@ -280,6 +280,7 @@ class ReportManifest:
     facts_hash: str
     config_hash: str
     research_hash: str = ""
+    research_audit_hash: str = ""
     template_hash: str = ""
     source_id: str = ""
     engine_version: str = ""
@@ -321,6 +322,7 @@ class ReportManifest:
             {
                 "snapshot_id": self.snapshot_id,
                 "source_id": self.source_id,
+                "research_audit_hash": self.research_audit_hash,
                 "report_hash": self.report_hash,
                 "metrics_hash": self.metrics_hash,
                 "resolved_hash": self.resolved_hash,
@@ -343,6 +345,7 @@ class ReportManifest:
             facts_hash=str(payload["facts_hash"]),
             config_hash=str(payload["config_hash"]),
             research_hash=str(payload.get("research_hash", "")),
+            research_audit_hash=str(payload.get("research_audit_hash", "")),
             template_hash=str(payload.get("template_hash", "")),
             source_id=str(payload.get("source_id", "")),
             engine_version=str(payload.get("engine_version", "")),

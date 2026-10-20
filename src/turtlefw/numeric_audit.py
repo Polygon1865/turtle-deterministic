@@ -15,6 +15,7 @@ from typing import Any, Iterable
 from .narrative import tokens, unknown_numbers
 
 _YEAR = re.compile(r"^(19|20)\d{2}$")
+_RESEARCH_COLLECTIONS = ("claims", "params", "decisions", "evidence")
 
 
 def _text_sources(paths: Iterable[Path | str]) -> list[str]:
@@ -34,6 +35,30 @@ def _text_sources(paths: Iterable[Path | str]) -> list[str]:
     return texts
 
 
+def _research_counts(path: Path | str) -> set[str]:
+    """Counts printed by the research coverage/summary blocks.
+
+    ``research.json`` stores the collections themselves while the rendered
+    report prints their lengths; those counts are derived by the framework,
+    not written by the model, so they count as traceable to the source.
+    """
+    source = Path(path)
+    if source.suffix != ".json" or not source.is_file():
+        return set()
+    try:
+        payload = json.loads(source.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        return set()
+    if not isinstance(payload, dict):
+        return set()
+    counts: set[str] = set()
+    for key in _RESEARCH_COLLECTIONS:
+        value = payload.get(key)
+        if isinstance(value, list):
+            counts.add(str(len(value)))
+    return counts
+
+
 def audit(
     report: Path | str,
     sources: Iterable[Path | str],
@@ -51,6 +76,8 @@ def audit(
         source_paths = [source for source in source_paths if source.name != "inputs.json"]
     for source_text in _text_sources(source_paths):
         allowed.update(tokens(source_text))
+    for source in source_paths:
+        allowed.update(_research_counts(source))
     unknown = [token for token in unknown_numbers(text, allowed) if not _YEAR.match(token)]
     total = len(tokens(text))
     return {

@@ -88,7 +88,9 @@ If it fails, fix `research.json`; do not weaken thresholds.
   --strict --html
 ```
 
-This copies the frozen snapshot, renders the report with research, recomputes metrics/numeric audit and rebuilds the manifest. It does **not** call the provider.
+This copies the frozen snapshot, renders the report with research, writes
+`research_audit.json`, recomputes metrics/numeric audit and rebuilds the
+manifest. It does **not** call the provider.
 
 ### 7. QA
 
@@ -103,6 +105,9 @@ If QA fails, report the failed rows. Do not claim completion.
 - Deterministic data is fetched once, before research.
 - research must not trigger a data refetch.
 - Final report must be rendered from the frozen snapshot.
+- This workflow is **research-only**: it does **not** run the PDF/qualitative
+  Agent pass. Without `qualitative.json`, factor 1A/1B remain “未验证”.
+  Use `/turtle-analysis` when full qualitative/PDF coverage is required.
 - Do not write report numbers yourself.
 - Do not fabricate evidence or decisions.
 - If research cannot meet thresholds, stop and report the gap.

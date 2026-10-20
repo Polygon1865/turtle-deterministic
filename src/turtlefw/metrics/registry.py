@@ -374,8 +374,8 @@ def build(
                     period=period,
                     formula_id=f"statement.{statement}.{item}",
                     source_fact_ids=(f"statement:{period}:{statement}:{item}",),
-                    coverage="ok" if value is not None else "missing",
-                    display=_display(False, value),
+                    coverage="ok" if period_value is not None else "missing",
+                    display=_display(False, period_value),
                 )
             )
         fcf = statements.fcf_series(ctx.rows).get(latest)

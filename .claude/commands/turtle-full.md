@@ -64,6 +64,9 @@ Use `output/<code>/snapshot` instead of `.runs/<code>/snapshot` when `TURTLE_OUT
 
 Rules:
 
+- This workflow is **research-only**: it does not run the PDF/qualitative Agent
+  pass. Without `qualitative.json`, factor 1A/1B remain “未验证”.
+  Use `/turtle-analysis` when full qualitative/PDF coverage is required.
 - Do not recompute or rewrite report numbers.
 - Do not bypass research-audit, finalize, or QA.
 - If research cannot meet the thresholds, stop and report the gap.

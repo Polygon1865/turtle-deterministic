@@ -275,6 +275,10 @@ def verify_manifest(
     actual_research = file_hash(research_file) if research_file.is_file() else ""
     if actual_research != manifest.research_hash:
         errors.append("research_hash mismatch")
+    audit_file = root / "research_audit.json"
+    actual_audit = file_hash(audit_file) if audit_file.is_file() else ""
+    if manifest.research_audit_hash and actual_audit != manifest.research_audit_hash:
+        errors.append("research_audit_hash mismatch")
     actual_template = template_hash(Path(__file__).parent / "templates")
     if manifest.template_hash and actual_template != manifest.template_hash:
         errors.append("template_hash mismatch")
@@ -483,6 +487,28 @@ def render(
                     for item in payload:
                         if isinstance(item, dict) and item.get("id"):
                             fact_map[str(item["id"])] = str(item.get("quote", ""))
+        # Render once without research so placeholders resolve against the
+        # canonical metric-registry displays (floor/premium units included)
+        # instead of the ad-hoc result strings built above.
+        probe_metrics: dict[str, object] = {}
+        render_analysis(
+            ctx,
+            results,
+            settings=settings,
+            snapshot_id=snapshot_id or _snapshot_id(rows),
+            rf_source=inputs.rf_source,
+            issues=inputs.issues,
+            as_of=inputs.as_of,
+            metrics_out=probe_metrics,
+            resolved_md=resolve_markdown(inputs.resolved_facts),
+        )
+        metric_map.update(
+            {
+                str(key): str(value["display"])
+                for key, value in probe_metrics.items()
+                if isinstance(value, dict) and value.get("display")
+            }
+        )
         research_md = render_markdown(research_document, metric_map, fact_map)
         section_map = render_dimensions(research_document, metric_map, fact_map)
         research_sections = [

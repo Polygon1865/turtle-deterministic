@@ -2049,6 +2049,30 @@ def _run_cmd(
         if provenance.is_file():
             shutil.copyfile(provenance, base / "research_provenance.json")
 
+    from . import state as st
+    from .facts import ReportManifest
+
+    state_path = base / "run_state.json"
+    run = st.load(state_path) if state_path.is_file() else st.new(str(code))
+    manifest_path = snapshot / "manifest.json"
+    if manifest_path.is_file():
+        frozen = ReportManifest.read(manifest_path)
+        run.snapshot_id = frozen.snapshot_id
+    st.add_artifact(run, "snapshot", str(snapshot.resolve()))
+    st.add_artifact(run, "data_pack", str((base / "data_pack.md").resolve()))
+    st.add_artifact(
+        run, "analysis_report", str((base / "analysis_report.md").resolve())
+    )
+    if (base / "research.json").is_file():
+        st.add_artifact(run, "research", str((base / "research.json").resolve()))
+    if (base / "research_audit.json").is_file():
+        st.add_artifact(
+            run, "research_audit", str((base / "research_audit.json").resolve())
+        )
+    if run.phase in ("intake", "data"):
+        st.advance(run, "report")
+    st.save(run, state_path)
+
     if qa:
         print(f"[3/3] QA：{code}")
         rc = _qa_cmd(str(code), True, None, True)
@@ -2515,6 +2539,27 @@ def _report(
         numeric_path.write_bytes(
             (json.dumps(numeric, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
         )
+        research_audit_path = snapshot_root / "research_audit.json"
+        research_audit_hash = ""
+        if (snapshot_root / "research.json").is_file():
+            from .research import snapshot_audit
+
+            research_audit = snapshot_audit(snapshot_root)
+            research_audit_path.write_bytes(
+                (json.dumps(research_audit, ensure_ascii=False, indent=2) + "\n").encode(
+                    "utf-8"
+                )
+            )
+            research_audit_hash = file_hash(research_audit_path)
+            base_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(research_audit_path, base_dir / "research_audit.json")
+            if research_audit["status"] != "pass":
+                gate_failed = True
+                print(
+                    "research audit 未通过："
+                    + "; ".join(str(item) for item in research_audit["errors"]),
+                    file=sys.stderr,
+                )
         manifest = build_manifest(
             inputs,
             settings,
@@ -2522,6 +2567,7 @@ def _report(
             report_hash=hashlib.sha256(markdown.encode("utf-8")).hexdigest(),
             metrics_hash=file_hash(metrics_path) if metrics_path.is_file() else "",
             resolved_hash=file_hash(resolved_path) if resolved_path.is_file() else "",
+            research_audit_hash=research_audit_hash,
             numeric_coverage=str(numeric["coverage"]),
             numeric_status=str(numeric["status"]),
             numeric_unknown=tuple(str(item) for item in numeric["unknown"]),

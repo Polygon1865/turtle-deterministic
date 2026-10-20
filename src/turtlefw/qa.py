@@ -49,7 +49,7 @@ def run_qa(code: str, root: Path | str | None = None, *, allow_missing_qualitati
     loaded = None
     if not qpath.is_file():
         if allow_missing_qualitative:
-            add("qualitative", True, "未提供（确定性/研究流程）")
+            add("qualitative", True, "未提供（research-only；1A/1B 未验证）")
             add("evidence", True, "未提供（可选）")
             add("discrepancies", True, "未提供（可选）")
         else:
@@ -122,6 +122,29 @@ def run_qa(code: str, root: Path | str | None = None, *, allow_missing_qualitati
             add("research_provenance", False, str(exc))
     else:
         add("research_provenance", True, "未提供（可选）")
+
+    research_file = base / "research.json"
+    research_audit_path = base / "research_audit.json"
+    if research_file.is_file():
+        if not research_audit_path.is_file():
+            add("research_audit", False, "缺少 research_audit.json")
+        else:
+            try:
+                audit_payload = json.loads(
+                    research_audit_path.read_text(encoding="utf-8-sig")
+                )
+                actual = hashlib.sha256(research_file.read_bytes()).hexdigest()
+                expected = str(audit_payload.get("research_sha256", ""))
+                status = str(audit_payload.get("status", ""))
+                add(
+                    "research_audit",
+                    status == "pass" and bool(expected) and actual == expected,
+                    f"status={status or 'missing'} "
+                    f"claims={audit_payload.get('claims', '?')} "
+                    f"dimensions={len(audit_payload.get('quality', {}).get('covered_dimensions', []))}",
+                )
+            except Exception as exc:
+                add("research_audit", False, str(exc))
 
     if loaded is not None and unknown and unknown == len(loaded.items):
         add("unknown_ratio", False, "全部模块 unknown，定性分析未完成")
@@ -249,12 +272,14 @@ def run_qa(code: str, root: Path | str | None = None, *, allow_missing_qualitati
                             item.get("quote", item.get("value", ""))
                         )
             audit_result = research_audit(load_research(research_file), metrics, facts)
+            fact_refs = len(audit_result["fact_refs"])
+            suffix = "（metric-only）" if fact_refs == 0 else ""
             add(
                 "research_refs",
                 audit_result["status"] == "pass",
                 f"metrics={len(audit_result['metric_refs'])} "
-                f"facts={len(audit_result['fact_refs'])} "
-                f"errors={len(audit_result['errors'])}",
+                f"facts={fact_refs} "
+                f"errors={len(audit_result['errors'])}{suffix}",
             )
             quality = audit_result.get("quality", {})
             claims = int(quality.get("claims", 0)) if isinstance(quality, dict) else 0
