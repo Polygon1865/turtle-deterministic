@@ -72,10 +72,14 @@ def finalize_research(
         shutil.copyfile(provenance, target / "research_provenance.json")
 
     inputs, settings = snap.load(target)
+    pdf_fact_file = target / "reported_numbers.json"
+    pdf_fact_hash = file_hash(pdf_fact_file) if pdf_fact_file.is_file() else ""
     # Identity fields (facts/config/research/template/versions) do not include
     # report/metrics hashes, so the final snapshot id is available before
     # rendering. Use it for the header and the final manifest.
-    final_snapshot_id = build_manifest(inputs, settings, target).snapshot_id
+    final_snapshot_id = build_manifest(
+        inputs, settings, target, pdf_fact_hash=pdf_fact_hash
+    ).snapshot_id
     pack_path = target / "data_pack.md"
     if decisions:
         code = StockCode.parse(inputs.code)
@@ -211,6 +215,7 @@ def finalize_research(
         resolved_hash=file_hash(target / "resolved_facts.json")
         if (target / "resolved_facts.json").is_file()
         else "",
+        pdf_fact_hash=pdf_fact_hash,
         research_audit_hash=file_hash(research_audit_path),
         numeric_coverage=str(numeric["coverage"]),
         numeric_status=str(numeric["status"]),

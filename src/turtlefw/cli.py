@@ -2396,8 +2396,19 @@ def _report(
                 qualitative_source=qual_path if qual_path.is_file() else None,
                 research_source=research_file if research_file.is_file() else None,
             )
+        from .facts import file_hash as _file_hash
+
         frozen_manifest = (
-            build_manifest(inputs, settings, Path(save_snapshot))
+            build_manifest(
+                inputs,
+                settings,
+                Path(save_snapshot),
+                pdf_fact_hash=(
+                    _file_hash(Path(pdf_numbers))
+                    if pdf_numbers and Path(pdf_numbers).is_file()
+                    else ""
+                ),
+            )
             if save_snapshot
             else None
         )

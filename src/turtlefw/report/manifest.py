@@ -23,6 +23,7 @@ def build_manifest(
     report_hash: str = "",
     metrics_hash: str = "",
     resolved_hash: str = "",
+    pdf_fact_hash: str = "",
     research_audit_hash: str = "",
     numeric_coverage: str = "",
     numeric_status: str = "",
@@ -39,6 +40,7 @@ def build_manifest(
         currency=str(getattr(inputs, "currency")),
         facts_hash=content_hash(statement_payload(rows)),
         config_hash=content_hash(config_payload(settings)),
+        pdf_fact_hash=pdf_fact_hash,
         research_hash=file_hash(research_file) if research_file.is_file() else "",
         research_audit_hash=research_audit_hash,
         template_hash=template_hash(

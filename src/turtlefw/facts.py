@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 SNAPSHOT_VERSION = 1
-FORMULA_VERSION = "2026-10-20.2"
+FORMULA_VERSION = "2026-10-20.3"
 
 SOURCE_RANKS = {
     "pdf": 1,
@@ -279,6 +279,7 @@ class ReportManifest:
     currency: str
     facts_hash: str
     config_hash: str
+    pdf_fact_hash: str = ""
     research_hash: str = ""
     research_audit_hash: str = ""
     template_hash: str = ""
@@ -304,6 +305,7 @@ class ReportManifest:
             "currency": self.currency,
             "facts_hash": self.facts_hash,
             "config_hash": self.config_hash,
+            "pdf_fact_hash": self.pdf_fact_hash,
             "research_hash": self.research_hash,
             "template_hash": self.template_hash,
             "engine_version": self.engine_version,
@@ -322,8 +324,7 @@ class ReportManifest:
             {
                 "snapshot_id": self.snapshot_id,
                 "source_id": self.source_id,
-                "research_audit_hash": self.research_audit_hash,
-                "report_hash": self.report_hash,
+                "research_audit_hash": self.research_audit_hash,                "report_hash": self.report_hash,
                 "metrics_hash": self.metrics_hash,
                 "resolved_hash": self.resolved_hash,
                 "numeric_coverage": self.numeric_coverage,
@@ -344,6 +345,7 @@ class ReportManifest:
             currency=str(payload["currency"]),
             facts_hash=str(payload["facts_hash"]),
             config_hash=str(payload["config_hash"]),
+            pdf_fact_hash=str(payload.get("pdf_fact_hash", "")),
             research_hash=str(payload.get("research_hash", "")),
             research_audit_hash=str(payload.get("research_audit_hash", "")),
             template_hash=str(payload.get("template_hash", "")),

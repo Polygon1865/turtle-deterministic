@@ -301,6 +301,10 @@ def verify_manifest(
     actual_audit = file_hash(audit_file) if audit_file.is_file() else ""
     if manifest.research_audit_hash and actual_audit != manifest.research_audit_hash:
         errors.append("research_audit_hash mismatch")
+    pdf_fact_file = root / "reported_numbers.json"
+    actual_pdf_fact = file_hash(pdf_fact_file) if pdf_fact_file.is_file() else ""
+    if manifest.pdf_fact_hash and actual_pdf_fact != manifest.pdf_fact_hash:
+        errors.append("pdf_fact_hash mismatch")
     actual_template = template_hash(Path(__file__).parent / "templates")
     if manifest.template_hash and actual_template != manifest.template_hash:
         errors.append("template_hash mismatch")
