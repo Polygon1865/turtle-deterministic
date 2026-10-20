@@ -266,6 +266,7 @@ def extract_from_pages(
         page_score = _statement_score(text)
         balance_page = _is_balance_page(text)
         cashflow_page = _is_cashflow_page(text)
+        highlight_page = "主要会计数据" in text or "主要财务指标" in text
         lines = [line.strip() for line in text.splitlines() if line.strip()]
         for index, line in enumerate(lines):
             for item, aliases in {**ALIASES, **EXTRA_ALIASES}.items():
@@ -356,7 +357,8 @@ def extract_from_pages(
                         page=page_number,
                         source=f"{year}{report_type}",
                         confidence=confidence,
-                        score=_line_score(line, page_score, item),
+                        score=_line_score(line, page_score, item)
+                        - (10 if item == "ocf" and highlight_page else 0),
                     )
                 )
                 break  # one item per line
