@@ -131,6 +131,32 @@ def test_report_shows_pdf_accounts_receivable_fact():
     assert "123.46" in markdown
 
 
+def test_metric_registry_points_to_pdf_balance_facts():
+    rows = [
+        replace(row, item="inventory")
+        if row.statement == "balance" and row.item == "total_assets"
+        else row
+        for row in demo.demo_rows()
+    ]
+    inputs = replace(
+        _inputs(),
+        rows=rows,
+        document_facts=[
+            {
+                "id": "pdf:inventory:132",
+                "label": "inventory",
+                "value": "64628834000.00",
+                "page": "132",
+            }
+        ],
+    )
+    metrics: dict[str, object] = {}
+    render(inputs, load_settings(), metrics_out=metrics)
+    point = metrics["inventory"]
+    assert isinstance(point, dict)
+    assert point["source_fact_ids"] == ["pdf:inventory:132"]
+
+
 def test_snapshot_roundtrip_and_byte_identity():
     root = _root()
     try:

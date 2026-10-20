@@ -2,6 +2,8 @@ from dataclasses import replace
 from decimal import Decimal
 import json
 
+import pytest
+
 from turtlefw.pdf.dps import extract_dps_from_pages
 from turtlefw.pdf.extract import write_reported_numbers
 from turtlefw.pdf.multiline import FactRow, make_fact_id, rows_to_facts
@@ -47,6 +49,21 @@ def test_document_fact_overrides_accounts_receivable():
     )
     assert after.value == Decimal("123456789.00")
     assert after.source == "pdf:accounts_receiv:132"
+
+
+@pytest.mark.parametrize("item", ["inventory", "contract_liab"])
+def test_document_fact_overrides_other_balance_items(item):
+    anchor = next(
+        row for row in demo_rows() if row.statement == "balance" and row.period_type == "annual"
+    )
+    rows = [replace(anchor, item=item, value=Decimal("1"))]
+    changed = apply_document_facts(
+        rows,
+        [{"label": item, "value": "987654321.00", "page": "133"}],
+    )
+    after = changed[0]
+    assert after.value == Decimal("987654321.00")
+    assert after.source == f"pdf:{item}:133"
 
 
 def test_main_business_table_rows_to_facts():

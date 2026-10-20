@@ -99,6 +99,34 @@ class TestDataPack:
         )
         assert "123.46" in text
 
+    def test_pdf_inventory_fact_overrides_pack(self):
+        rows = [
+            replace(row, item="inventory")
+            if row.statement == "balance" and row.item == "total_assets"
+            else row
+            for row in demo.demo_rows()
+        ]
+        text = render_data_pack(
+            demo.DEMO_CODE,
+            rows,
+            demo.demo_dividends(),
+            quote={"trade_date": "20261016", "close": 28.2},
+            history=[{"trade_date": "20261016", "close": 28.2, "high": 30.0, "low": 27.0}],
+            market_cap=Money(demo.DEMO_MARKET_CAP, Currency.CNY),
+            shares=demo.DEMO_SHARES,
+            rf_pct=demo.DEMO_RF,
+            settings=load_settings(),
+            document_facts=[
+                {
+                    "id": "pdf:inventory:132",
+                    "label": "inventory",
+                    "value": "64628834000.00",
+                    "page": "132",
+                }
+            ],
+        )
+        assert "64,628.83" in text
+
     def test_floor_methods_are_numbered(self):
         text = render()
         assert "## 6. 底价（" in text and "法）" in text

@@ -411,26 +411,31 @@ def build(
             )
         )
     if latest is not None:
-        accounts_receiv = statements.annual_series(ctx.rows, "balance", "accounts_receiv")
-        ar_value = accounts_receiv.get(latest)
-        ar_source = ctx.pdf_source_ids.get("accounts_receiv") or (
-            f"statement:{period}:balance:accounts_receiv"
-        )
-        registry.add(
-            MetricPoint(
-                id="accounts_receiv",
-                name="应收账款",
-                value=ar_value,
-                unit=ctx.market_cap.currency.value,
-                period=period,
-                formula_id="balance.accounts_receiv",
-                source_fact_ids=(ar_source,),
-                coverage="ok" if ar_value is not None else "missing",
-                display=(
-                    f"{ar_value / Decimal('1000000'):,.2f}" if ar_value is not None else "—"
-                ),
+        for item, label in (
+            ("accounts_receiv", "应收账款"),
+            ("inventory", "存货"),
+            ("contract_liab", "合同负债"),
+        ):
+            series = statements.annual_series(ctx.rows, "balance", item)
+            balance_value = series.get(latest)
+            source = ctx.pdf_source_ids.get(item) or f"statement:{period}:balance:{item}"
+            registry.add(
+                MetricPoint(
+                    id=item,
+                    name=label,
+                    value=balance_value,
+                    unit=ctx.market_cap.currency.value,
+                    period=period,
+                    formula_id=f"balance.{item}",
+                    source_fact_ids=(source,),
+                    coverage="ok" if balance_value is not None else "missing",
+                    display=(
+                        f"{balance_value / Decimal('1000000'):,.2f}"
+                        if balance_value is not None
+                        else "—"
+                    ),
+                )
             )
-        )
     return registry
 
 

@@ -1,38 +1,30 @@
-"""Apply selected PDF document facts to statement rows for one pilot field."""
+"""Apply selected PDF document facts to statement rows."""
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 
 from ..data.protocol import StatementRow
 from ..types import Currency
 
-PDF_OVERRIDE_ITEMS = {"accounts_receiv"}
+PDF_OVERRIDE_ITEMS = {"accounts_receiv", "inventory", "contract_liab"}
 
 
-def apply_document_facts(
+def _replacement(
     rows: list[StatementRow],
-    document_facts: list[dict[str, object]] | None,
-) -> list[StatementRow]:
-    if not document_facts or not rows:
-        return rows
-    target = next((fact for fact in document_facts if fact.get("label") in PDF_OVERRIDE_ITEMS), None)
-    if target is None:
-        return rows
-    item = str(target.get("label"))
-    try:
-        value = Decimal(str(target.get("value")))
-    except Exception:
-        return rows
+    item: str,
+    value: Decimal,
+    page: object,
+) -> tuple[StatementRow, date] | None:
     annual = [
         row
         for row in rows
         if row.statement == "balance" and row.item == item and row.period_type == "annual"
     ]
-    if annual:
-        anchor = max(annual, key=lambda row: row.period_end)
-    else:
-        return rows
+    if not annual:
+        return None
+    anchor = max(annual, key=lambda row: row.period_end)
     replacement = StatementRow(
         code=anchor.code,
         period_end=anchor.period_end,
@@ -41,22 +33,40 @@ def apply_document_facts(
         item=item,
         value=value,
         currency=Currency(anchor.currency.value),
-        source=f"pdf:{item}:{target.get('page', '')}",
+        source=f"pdf:{item}:{page}",
         ann_date=anchor.ann_date,
     )
-    result: list[StatementRow] = []
-    replaced = False
-    for row in rows:
-        if (
-            row.period_end == anchor.period_end
-            and row.statement == "balance"
-            and row.item == item
-            and row.period_type == "annual"
-        ):
-            result.append(replacement)
-            replaced = True
-        else:
-            result.append(row)
-    if not replaced:
-        result.append(replacement)
+    return replacement, anchor.period_end
+
+
+def apply_document_facts(
+    rows: list[StatementRow],
+    document_facts: list[dict[str, object]] | None,
+) -> list[StatementRow]:
+    if not document_facts or not rows:
+        return rows
+    result = list(rows)
+    for fact in document_facts:
+        item = str(fact.get("label", ""))
+        if item not in PDF_OVERRIDE_ITEMS:
+            continue
+        try:
+            value = Decimal(str(fact.get("value")))
+        except Exception:
+            continue
+        applied = _replacement(result, item, value, fact.get("page", ""))
+        if applied is None:
+            continue
+        replacement, period_end = applied
+        result = [
+            replacement
+            if (
+                row.period_end == period_end
+                and row.statement == "balance"
+                and row.item == item
+                and row.period_type == "annual"
+            )
+            else row
+            for row in result
+        ]
     return result
