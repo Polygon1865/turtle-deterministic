@@ -177,6 +177,7 @@ def test_dps_pdf_fact_reaches_report_and_metrics():
     assert point["source_fact_ids"] == ["pdf:dps:12"]
     assert "PDF 证据" in markdown
     assert "1.2345" in markdown
+    assert "DPS 核对" in markdown
 
 
 def test_report_shows_main_business_fact_row():

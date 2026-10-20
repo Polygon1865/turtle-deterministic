@@ -11,8 +11,9 @@ from ..config import Settings
 from ..factors.engine import FactorContext, FactorResult, final_verdict
 from ..metrics import statements, valuation
 from ..metrics import registry as metric_registry
+from ..metrics.dps_check import crosscheck_dps
 from ..qualitative import MODULES, all_evidence, summary as qual_summary
-from ..types import FetchIssue
+from ..types import DividendEvent, FetchIssue
 from .format import TEMPLATE_DIR, _m, _num, _pct, _table
 from ..metrics.dividends import average_dps
 
@@ -27,6 +28,26 @@ def _pdf_value(raw: object) -> str:
     except Exception:
         return str(raw)
     return _m(value) if abs(value) >= Decimal("1000") else _num(value, 4)
+
+
+def _dps_check_text(
+    document_facts: Sequence[dict[str, Any]], dividends: Sequence[DividendEvent]
+) -> str:
+    for fact in document_facts:
+        if fact.get("label") != "dps":
+            continue
+        try:
+            pdf_dps = Decimal(str(fact.get("value")))
+        except Exception:
+            return ""
+        check = crosscheck_dps(pdf_dps, dividends)
+        if check.status == "unavailable":
+            return "DPS 核对：供应商无可用分红事件"
+        return (
+            f"DPS 核对：{check.status}；PDF {check.pdf_dps:.4f} / "
+            f"供应商 {check.provider_dps:.4f}，差异 {check.diff_pct:.2f}%"
+        )
+    return ""
 
 
 def render_analysis(
@@ -369,6 +390,7 @@ def render_analysis(
             ]
             for row in fact_rows
         ],
+        "dps_check": _dps_check_text(document_facts, ctx.dividends),
         "summary_table": _table(
             ["项目", "数值"],
             [

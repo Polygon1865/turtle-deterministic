@@ -17,6 +17,10 @@
 {% for row in pdf_fact_rows %}| {{ row[0] }} | {{ row[1] }} | {{ row[2] }} |
 {% endfor %}
 {% endif %}
+{% if dps_check %}
+
+{{ dps_check }}
+{% endif %}
 
 {% if research_summary_md %}
 ## 研究摘要

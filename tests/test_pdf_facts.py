@@ -7,6 +7,7 @@ import pytest
 from turtlefw.pdf.dps import extract_dps_from_pages
 from turtlefw.pdf.extract import write_reported_numbers
 from turtlefw.pdf.multiline import FactRow, make_fact_id, rows_to_facts
+from turtlefw.metrics.dps_check import crosscheck_dps
 from turtlefw.report.pdf_facts import apply_document_facts, main_business_rows, merge_main_business
 from turtlefw.demo import demo_rows
 
@@ -132,6 +133,18 @@ def test_main_business_table_rows_to_facts():
     assert facts[0].value == Decimal("80000")
     assert all(fact.item == "main_business" for fact in facts)
     assert all(fact.page == 88 for fact in facts)
+
+
+def test_dps_crosscheck_matches_closest_event():
+    from turtlefw.types import Currency, DividendEvent
+
+    events = [
+        DividendEvent(fiscal_year=2025, event_id="a", dps=Decimal("1.20"), currency=Currency.CNY),
+        DividendEvent(fiscal_year=2024, event_id="b", dps=Decimal("1.10"), currency=Currency.CNY),
+    ]
+    check = crosscheck_dps(Decimal("1.20"), events)
+    assert check.status == "match"
+    assert check.provider_dps == Decimal("1.20")
 
 
 def test_multiline_fact_hash_stable():
