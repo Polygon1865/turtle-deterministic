@@ -6,6 +6,7 @@
     "net_income": {"value": "134778000000.00", "page": "14"},
     "ocf": {"value": "658632000000.00", "page": "194"},
     "total_assets": {"value": "13898471000000.00", "page": "187"},
+    "equity": {"value": "1000419000000.00", "page": "189"},
     "contract_liab": {"value": "5360910000000.00", "page": "188"}
   }
 }

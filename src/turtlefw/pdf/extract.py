@@ -92,6 +92,8 @@ def _is_balance_page(text: str) -> bool:
         "合并资产负债表" in text
         or "consolidated statement of financial position" in lower
         or "statement of financial position" in lower
+        or "负债及股东权益" in text
+        or "负债和股东权益总计" in text
     )
 
 
