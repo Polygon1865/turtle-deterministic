@@ -662,6 +662,32 @@ def _read_tables(
     return pages
 
 
+def _attach_table_pages(
+    items: list[dict[str, str]],
+    pages_text: list[tuple[int, str]],
+) -> list[dict[str, str]]:
+    """Point cash-flow table items at the actual statement page.
+
+    pdfplumber sometimes returns a highlighted financial-summary table before
+    the statement. The value is still useful, but the page must identify the
+    statement, not the summary.
+    """
+    cashflow_pages = [page for page, text in pages_text if _is_cashflow_page(text)]
+    if not cashflow_pages:
+        return items
+    for item in items:
+        if item.get("item") != "ocf":
+            continue
+        try:
+            page = int(item.get("page", "0"))
+        except ValueError:
+            continue
+        page_text = dict(pages_text).get(page, "")
+        if not _is_cashflow_page(page_text):
+            item["page"] = str(min(cashflow_pages))
+    return items
+
+
 def extract_pdf(
     pdf_path: Path | str,
     *,
@@ -675,12 +701,12 @@ def extract_pdf(
     a table; table extraction is preferred when a row has an explicit label and
     value cells.
     """
-    text_items = extract_from_pages(
-        _read_pages(pdf_path, max_pages), year=year, report_type=report_type
-    )
+    pages = _read_pages(pdf_path, max_pages)
+    text_items = extract_from_pages(pages, year=year, report_type=report_type)
     table_items = extract_from_tables(
         _read_tables(pdf_path, max_pages), year=year, report_type=report_type
     )
+    table_items = _attach_table_pages(table_items, pages)
     merged = {item["item"]: item for item in text_items}
     for item in table_items:
         merged.setdefault(item["item"], item)
@@ -699,6 +725,7 @@ def extract_pdf_bundle(
     table_items = extract_from_tables(
         _read_tables(pdf_path, max_pages), year=year, report_type=report_type
     )
+    table_items = _attach_table_pages(table_items, pages)
     merged = {item["item"]: item for item in text_items}
     for item in table_items:
         merged.setdefault(item["item"], item)
