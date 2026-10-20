@@ -1,0 +1,9 @@
+{
+  "source": ".runs/reports/000333_2025_年报.pdf",
+  "year": 2025,
+  "items": {
+    "revenue": {"value": "456451731000.00", "page": "135"},
+    "equity": {"value": "223221305000.00", "page": "133"},
+    "contract_liab": {"value": "46993060000.00", "page": "133"}
+  }
+}
