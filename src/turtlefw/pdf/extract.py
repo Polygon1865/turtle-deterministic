@@ -103,6 +103,8 @@ def _is_cashflow_page(text: str) -> bool:
         "合并现金流量表" in text
         or "consolidated statement of cash flows" in lower
         or "statement of cash flows" in lower
+        or "投资活动产生的现金流量" in text
+        or "购建固定资产、无形资产和其他长期资产支付的现金" in text
     )
 
 STATEMENT_TITLES = (
@@ -674,7 +676,15 @@ def _attach_table_pages(
     the statement. The value is still useful, but the page must identify the
     statement, not the summary.
     """
-    cashflow_pages = [page for page, text in pages_text if _is_cashflow_page(text)]
+    cashflow_title_pages = [
+        page
+        for page, text in pages_text
+        if "合并现金流量表" in text
+        or "consolidated statement of cash flows" in text.lower()
+    ]
+    cashflow_pages = cashflow_title_pages or [
+        page for page, text in pages_text if _is_cashflow_page(text)
+    ]
     balance_pages = [
         page
         for page, text in pages_text
