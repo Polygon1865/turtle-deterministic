@@ -18,6 +18,7 @@ output/
 .runs/
 .acl-recovery/
 .tmp_write_probe/
+tmp/
 init.log
 *.parquet
 *.duckdb
