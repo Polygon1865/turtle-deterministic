@@ -47,3 +47,12 @@ def test_report_html_flag():
     args = parser.parse_args(["report", "600887", "--html"])
     assert args.command == "report"
     assert args.html is True
+
+
+def test_run_parser_defaults():
+    parser = cli.build_parser()
+    args = parser.parse_args(["run", "600887.SH", "--rf", "1.65"])
+    assert args.command == "run"
+    assert args.html is True
+    assert args.qa is True
+    assert args.research is None

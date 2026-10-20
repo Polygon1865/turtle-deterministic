@@ -690,7 +690,7 @@ def _qa_cmd(code_raw: str, write: bool, json_out: str | None = None) -> int:
     rows = qa.run_qa(str(code), output_root())
     print(f"QA：{code}")
     for name, status, detail in rows:
-        print(f"  {name:<16}{status:<6}{detail}")
+        print(f"  {name:<20} | {status:<6} | {detail}")
     bad = qa.failed(rows)
     if json_out or write:
         target = qa.write_json(
@@ -1945,6 +1945,95 @@ def _pdf_evidence(sections: str, output: str | None) -> int:
     return 0
 
 
+def _run_cmd(
+    code_raw: str,
+    rf: float | None,
+    rf_source: str | None,
+    currency: str | None,
+    pdf_numbers: str | None,
+    evidence: str | None,
+    footnotes: str | None,
+    pdf_sections: str | None,
+    research: str | None,
+    as_of: str | None,
+    ttm: bool,
+    pit: bool,
+    html: bool,
+    strict: bool,
+    qa: bool,
+) -> int:
+    """One-command deterministic workflow: pack -> report/snapshot -> QA."""
+    from .paths import ensure_output_root
+
+    code = StockCode.parse(code_raw)
+    ensure_output_root()
+    snapshot = output_root() / str(code) / "snapshot"
+
+    print(f"[1/4] state：{code}")
+    if _state_cmd(str(code), True, None, None, []) != 0:
+        return 2
+
+    print(f"[2/4] data pack：{code}")
+    rc = _pack(
+        str(code),
+        None,
+        currency,
+        rf,
+        rf_source,
+        pdf_numbers,
+        footnotes,
+        pdf_sections,
+        as_of,
+        pit,
+    )
+    if rc != 0:
+        print(f"run 在 data pack 阶段失败：{rc}", file=sys.stderr)
+        return rc
+
+    print(f"[3/4] report + snapshot：{code}")
+    rc = _report(
+        str(code),
+        None,
+        currency,
+        rf,
+        rf_source,
+        None,
+        pdf_numbers,
+        str(snapshot),
+        None,
+        research,
+        as_of,
+        ttm,
+        pit,
+        "record-only",
+        strict,
+        evidence,
+        html,
+    )
+    if rc != 0:
+        print(f"run 在 report 阶段失败：{rc}", file=sys.stderr)
+        return rc
+
+    if research and Path(research).is_file():
+        import shutil
+
+        base = output_root() / str(code)
+        base.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(research, base / "research.json")
+        provenance = Path(research).with_name("research_provenance.json")
+        if provenance.is_file():
+            shutil.copyfile(provenance, base / "research_provenance.json")
+
+    if qa:
+        print(f"[4/4] QA：{code}")
+        rc = _qa_cmd(str(code), True)
+        if rc != 0:
+            print(f"run 在 QA 阶段失败：{rc}", file=sys.stderr)
+            return rc
+    print(f"run 完成：{snapshot.resolve()}")
+    return 0
+
+
 def _report(
     raw_code: str,
     out: str | None,
@@ -2563,6 +2652,42 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("--as-of", default=None, help="近似 PIT 日期（YYYY-MM-DD）")
     report.add_argument("--ttm", action="store_true", help="用最新 interim 构造 TTM 年度行")
     report.add_argument("--pit", action="store_true", help="从本地 PIT 库读取 as-of 财务")
+
+    run = sub.add_parser(
+        "run",
+        help="一键跑完 pack -> report/snapshot -> QA（确定性流程）",
+    )
+    run.add_argument("code", help="股票代码，如 600887 / 00700.HK")
+    run.add_argument("--rf", type=float, default=None, help="覆盖无风险利率（%%）")
+    run.add_argument("--rf-source", default=None, help="Rf 来源说明或 URL")
+    run.add_argument(
+        "--currency",
+        choices=[c.value for c in Currency],
+        default=None,
+        help="报表币种；港股自动探测 financialCurrency",
+    )
+    run.add_argument("--pdf-numbers", default=None, help="reported_numbers.json")
+    run.add_argument("--evidence", default=None, help="pdf-evidence / sec-evidence 生成的 evidence.json")
+    run.add_argument("--footnotes", default=None, help="footnotes.json")
+    run.add_argument("--pdf-sections", default=None, help="pdf_sections.json")
+    run.add_argument("--research", default=None, help="research.json（可选）")
+    run.add_argument("--as-of", default=None, help="近似 PIT 日期（YYYY-MM-DD）")
+    run.add_argument("--ttm", action="store_true", help="用最新 interim 构造 TTM 年度行")
+    run.add_argument("--pit", action="store_true", help="从本地 PIT 库读取 as-of 财务")
+    run.add_argument("--no-html", action="store_false", dest="html", help="不生成 HTML")
+    run.set_defaults(html=True)
+    run.add_argument(
+        "--strict",
+        action="store_true",
+        help="numeric gate 不通过时返回非零",
+    )
+    run.add_argument(
+        "--no-qa",
+        action="store_false",
+        dest="qa",
+        help="跳过最终 QA",
+    )
+    run.set_defaults(qa=True)
     report.add_argument(
         "--source-policy",
         choices=["record-only", "display-primary", "engine-primary"],
@@ -2810,6 +2935,24 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "version":
             print(f"turtle-framework {__version__}")
             return 0
+        if args.command == "run":
+            return _run_cmd(
+                args.code,
+                args.rf,
+                args.rf_source,
+                args.currency,
+                args.pdf_numbers,
+                args.evidence,
+                args.footnotes,
+                args.pdf_sections,
+                args.research,
+                args.as_of,
+                args.ttm,
+                args.pit,
+                args.html,
+                args.strict,
+                args.qa,
+            )
         if args.command == "analyze":
             return _demo_analyze() if args.demo else _live_analyze(
                 args.code, args.save, args.currency, args.rf, args.rf_source, args.ttm

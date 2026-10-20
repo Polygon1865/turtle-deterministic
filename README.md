@@ -132,23 +132,26 @@ TUSHARE_TOKEN=your_token_here
 ```powershell
 $env:TURTLE_OUTPUT_DIR = ".runs"
 
-.\.venv\Scripts\python.exe -m turtlefw.cli pack 600887.SH `
-  --rf 1.6516 --rf-source "ICBC 2026-10-15"
-
-.\.venv\Scripts\python.exe -m turtlefw.cli report 600887.SH `
-  --rf 1.6516 --rf-source "ICBC 2026-10-15" --html
-
-.\.venv\Scripts\python.exe -m turtlefw.cli report 600887.SH `
-  --save-snapshot .runs\600887.SH\snapshot
+# 一键确定性流程：state → pack → report → snapshot → QA
+turtle run 600887.SH --rf 1.6516 --rf-source "ICBC 2026-10-15"
 ```
 
-产物：
+也可以拆开执行：
+
+```powershell
+turtle pack 600887.SH --rf 1.6516 --rf-source "ICBC 2026-10-15"
+turtle report 600887.SH --rf 1.6516 --rf-source "ICBC 2026-10-15" --html
+turtle report 600887.SH --save-snapshot .runs\600887.SH\snapshot
+```
+
+`run` 的产物：
 
 ```text
 .runs/600887.SH/
 ├─ data_pack.md
 ├─ analysis_report.md
 ├─ analysis_report.html
+├─ qa.json
 └─ snapshot/
 ```
 
@@ -157,6 +160,40 @@ $env:TURTLE_OUTPUT_DIR = ".runs"
 >
 > 下文 `turtle` 指 `.venv\Scripts\turtle.exe`；未安装 console script 时，
 > 等价命令是 `.\.venv\Scripts\python.exe -m turtlefw.cli`。
+
+---
+
+## 在 DSH / Claude Code 中使用
+
+### 一键确定性流程
+
+DSH：
+
+```text
+/turtle-run 600887 --rf 1.6516
+```
+
+Claude Code：
+
+```text
+/turtle-run 600887 --rf 1.6516
+```
+
+两者最终都执行：
+
+```text
+turtle run <code> [args]
+```
+
+### 完整 Agent 流程
+
+```text
+/turtle-analysis 600887
+```
+
+- DSH：生成分析提示词，需发送后由 Agent 执行；
+- Claude Code：进入完整 Agent 工作流；
+- 与 `/turtle-run` 的区别：`run` 只跑确定性流程，`analysis` 会走 PDF/定性/Agent 流程。
 
 ---
 
@@ -408,7 +445,7 @@ src/turtlefw/
 当前基线：
 
 ```text
-339 tests passed
+340 tests passed
 ```
 
 CI：pytest + selected ruff + selected mypy，见

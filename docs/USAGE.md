@@ -1,6 +1,6 @@
 # Turtle Framework 使用说明
 
-> 当前审查基线：`339 passed`。本文按当前 CLI 实测编写，命令使用
+> 当前审查基线：`340 passed`。本文按当前 CLI 实测编写，命令使用
 > `.\.venv\Scripts\python.exe -m turtlefw.cli`，避免依赖 PATH 里的 `turtle`。
 
 ## 1. 这个项目做什么
@@ -129,13 +129,66 @@ output/600887.SH/
 
 ## 4. 五分钟入门
 
-### 4.1 纯演示（无 token）
+### 4.1 一键确定性流程
+
+```powershell
+$env:TURTLE_OUTPUT_DIR = ".runs"
+turtle run 600887.SH --rf 1.6516 --rf-source "ICBC 2026-10-15"
+```
+
+`run` 依次执行：
+
+```text
+state init
+→ pack
+→ report
+→ save snapshot
+→ QA
+```
+
+可选：
+
+```text
+--html / --no-html
+--research <path>
+--pdf-numbers / --evidence / --footnotes / --pdf-sections
+--as-of / --pit / --ttm
+--strict
+--no-qa
+```
+
+### 4.2 在 DSH / Claude Code 中
+
+DSH：
+
+```text
+/turtle-run 600887 --rf 1.6516
+```
+
+Claude Code：
+
+```text
+/turtle-run 600887 --rf 1.6516
+```
+
+两者都落到：
+
+```text
+turtle run <code> [args]
+```
+
+注意：
+
+- `/turtle-run` 是确定性流程；
+- `/turtle-analysis` 是完整 Agent 流程，会涉及 PDF/定性/研究，DSH 版本需要确认提示词后执行。
+
+### 4.3 纯演示（无 token）
 
 ```powershell
 .\.venv\Scripts\python.exe -m turtlefw.cli analyze 600887 --demo
 ```
 
-### 4.2 A 股最小生产流程
+### 4.4 A 股最小生产流程
 
 ```powershell
 $env:TURTLE_OUTPUT_DIR = ".runs"
@@ -157,7 +210,7 @@ $env:TURTLE_OUTPUT_DIR = ".runs"
   --snapshot .runs\600887.SH\snapshot
 ```
 
-### 4.3 看数据覆盖
+### 4.5 看数据覆盖
 
 ```powershell
 .\.venv\Scripts\python.exe -m turtlefw.cli coverage 600887.SH
@@ -720,7 +773,7 @@ research-audit --metrics ... --facts ...
 当前基线：
 
 ```text
-339 tests passed
+340 tests passed
 ```
 
 CI：
@@ -733,6 +786,7 @@ CI：
 
 | 目标 | 命令 |
 |:--|:--|
+| 一键确定性流程 | `run` |
 | 单股分析 | `analyze` |
 | 数据包 | `pack` |
 | 报告 | `report` |
