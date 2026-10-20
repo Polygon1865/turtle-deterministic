@@ -8,6 +8,7 @@
     "accounts_receiv": {"value": "40450097000.00", "page": "132"},
     "inventory": {"value": "64628834000.00", "page": "132"},
     "total_assets": {"value": "608791766000.00", "page": "132"},
-    "net_income": {"value": "43945411000.00", "page": "231"}
+    "net_income": {"value": "43945411000.00", "page": "231"},
+    "ocf": {"value": "53345930000.00", "page": "234"}
   }
 }

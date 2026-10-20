@@ -90,6 +90,10 @@ BALANCE_ITEMS = {
 CASHFLOW_ITEMS = {"ocf", "capex"}
 
 
+def _is_reconciliation_page(text: str) -> bool:
+    return "将净利润调节为经营活动现金流量" in text
+
+
 def _is_balance_page(text: str) -> bool:
     lower = text.lower()
     return (
@@ -271,7 +275,7 @@ def extract_from_pages(
         page_scale = last_scale
         page_score = _statement_score(text)
         balance_page = _is_balance_page(text)
-        cashflow_page = _is_cashflow_page(text)
+        cashflow_page = _is_cashflow_page(text) or _is_reconciliation_page(text)
         highlight_page = "主要会计数据" in text or "主要财务指标" in text
         lines = [line.strip() for line in text.splitlines() if line.strip()]
         for index, line in enumerate(lines):
@@ -712,6 +716,8 @@ def _attach_table_pages(
         try:
             page = int(item.get("page", "0"))
         except ValueError:
+            continue
+        if name == "ocf" and _is_reconciliation_page(page_text.get(page, "")):
             continue
         if name == "ocf" and cashflow_pages and not _is_cashflow_page(page_text.get(page, "")):
             item["page"] = str(min(cashflow_pages))
