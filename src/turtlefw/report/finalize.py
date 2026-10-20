@@ -20,6 +20,7 @@ from ..research import snapshot_audit
 from ..research import engine_decisions
 from . import snapshot as snap
 from .html import convert_file
+from ..pdf.fact_hash import pdf_facts_hash
 from .manifest import build_manifest
 from .pack import render_data_pack
 
@@ -72,8 +73,13 @@ def finalize_research(
         shutil.copyfile(provenance, target / "research_provenance.json")
 
     inputs, settings = snap.load(target)
-    pdf_fact_file = target / "reported_numbers.json"
-    pdf_fact_hash = file_hash(pdf_fact_file) if pdf_fact_file.is_file() else ""
+    pdf_fact_hash = pdf_facts_hash(
+        {
+            "document_facts": inputs.document_facts,
+            "fact_rows": inputs.fact_rows,
+            "dps": inputs.dps_fact,
+        }
+    )
     # Identity fields (facts/config/research/template/versions) do not include
     # report/metrics hashes, so the final snapshot id is available before
     # rendering. Use it for the header and the final manifest.
@@ -112,6 +118,7 @@ def finalize_research(
                 pit_note=inputs.pit_note,
                 decisions=decisions,
                 snapshot_id=final_snapshot_id,
+                document_facts=inputs.document_facts,
             ),
             encoding="utf-8",
         )

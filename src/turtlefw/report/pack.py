@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import hashlib
 from datetime import date
 from decimal import Decimal
-from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from jinja2 import Environment, FileSystemLoader
@@ -21,58 +19,9 @@ from ..metrics import grids, owner_earnings, returns, statements, valuation
 from ..pdf.hk_facts import extract as extract_hk_facts
 from ..types import Currency, DividendEvent, FetchIssue, Money, StockCode
 
-TEMPLATE_DIR = Path(__file__).parent / "templates"
-
-
-def _m(value: Decimal | None) -> str:
-    if value is None:
-        return "—"
-    return f"{value / Decimal('1000000'):,.2f}"
-
-
-def _pct(value: Decimal | None) -> str:
-    if value is None:
-        return "—"
-    return f"{value:,.2f}%"
-
-
-def _ratio_pct(value: Decimal | None) -> str:
-    if value is None:
-        return "—"
-    return _pct(value * Decimal("100"))
-
-
-def _num(value: Decimal | None, digits: int = 2) -> str:
-    if value is None:
-        return "—"
-    return f"{value:,.{digits}f}"
-
-
-def _x(value: Decimal | None) -> str:
-    if value is None:
-        return "—"
-    return f"{value:,.2f}x"
-
-
-def _table(
-    headers: Sequence[str],
-    rows: Sequence[Sequence[str]],
-    aligns: Sequence[str] | None = None,
-) -> str:
-    aligns = aligns or ["l"] * len(headers)
-    sep = "|" + "|".join("---:" if a == "r" else ":---" for a in aligns) + "|"
-    lines = ["| " + " | ".join(headers) + " |", sep]
-    for row in rows:
-        lines.append("| " + " | ".join(str(cell) for cell in row) + " |")
-    return "\n".join(lines)
-
-
-def _snapshot_id(rows: Sequence[StatementRow]) -> str:
-    payload = "\n".join(
-        f"{r.code}|{r.period_end}|{r.period_type}|{r.statement}|{r.item}|{r.value}|{r.source}"
-        for r in sorted(rows, key=lambda r: (r.period_end, r.statement, r.item))
-    )
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+from .format import TEMPLATE_DIR, _m, _num, _pct, _ratio_pct, _table, _x
+from .pdf_facts import apply_document_facts
+from .snapshot_id import source_snapshot_id
 
 
 def _series(rows: Sequence[StatementRow], statement: str, item: str) -> dict[int, Decimal]:
@@ -124,7 +73,9 @@ def render_data_pack(
     pit_note: str = "",
     decisions: Mapping[str, str] | None = None,
     snapshot_id: str | None = None,
+    document_facts: list[dict[str, object]] | None = None,
 ) -> str:
+    rows = apply_document_facts(list(rows), document_facts)
     decisions = decisions or {}
     if decisions.get("tax"):
         tax_pct = Decimal(decisions["tax"])
@@ -732,7 +683,7 @@ def render_data_pack(
         "market": code.market.value,
         "currency": currency.value,
         "generated_at": str(as_of or (quote.get("trade_date", "") if quote else "")),
-        "snapshot_id": snapshot_id or _snapshot_id(rows),
+        "snapshot_id": snapshot_id or source_snapshot_id(rows),
         "as_of": str(as_of or (quote.get("trade_date", "") if quote else "")),
         "pit_note": pit_note,
         "data_basis": "annual" if not ttm_rows else "annual+TTM",

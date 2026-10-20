@@ -18,6 +18,7 @@ from turtlefw.facts import (
 )
 from turtlefw.report.snapshot import ReportInputs, freeze, load, render, verify_manifest
 from turtlefw.report.finalize import FinalizeError, finalize_research
+from turtlefw.pdf.fact_hash import pdf_facts_hash
 
 
 def _root() -> Path:
@@ -43,6 +44,48 @@ def _inputs() -> ReportInputs:
         rf_pct=str(demo.DEMO_RF),
         rf_source="test",
     )
+
+
+def test_inputs_carry_pdf_facts_and_semantic_hash():
+    root = _root()
+    try:
+        inputs = replace(
+            _inputs(),
+            document_facts=[
+                {
+                    "id": "pdf:accounts_receiv:132",
+                    "label": "accounts_receiv",
+                    "value": "40450097000.00",
+                    "page": "132",
+                    "fact_hash": "abc",
+                }
+            ],
+            fact_rows=[
+                {
+                    "fact_id": "pdf:row:main_business",
+                    "item": "main_business",
+                    "label": "液体乳",
+                    "value": "80000.00",
+                    "page": 88,
+                }
+            ],
+            dps_fact={"dps": "1.2345", "page": "12"},
+        )
+        settings = load_settings()
+        freeze(inputs, settings, root)
+        loaded, _ = load(root)
+        assert loaded.document_facts[0]["id"] == "pdf:accounts_receiv:132"
+        assert loaded.fact_rows[0]["label"] == "液体乳"
+        assert loaded.dps_fact["dps"] == "1.2345"
+        assert pdf_facts_hash(
+            {
+                "document_facts": loaded.document_facts,
+                "fact_rows": loaded.fact_rows,
+                "dps": loaded.dps_fact,
+            }
+        )
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
 
 
 def test_snapshot_roundtrip_and_byte_identity():

@@ -13,7 +13,8 @@ from ..metrics import statements, valuation
 from ..metrics import registry as metric_registry
 from ..qualitative import MODULES, all_evidence, summary as qual_summary
 from ..types import FetchIssue
-from .pack import TEMPLATE_DIR, _m, _num, _pct, _table, average_dps
+from .format import TEMPLATE_DIR, _m, _num, _pct, _table
+from ..metrics.dividends import average_dps
 
 STATUS = {"pass": "通过", "veto": "否决", "unknown": "未验证", "info": "观察"}
 

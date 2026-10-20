@@ -1,9 +1,12 @@
+from dataclasses import replace
 from decimal import Decimal
 import json
 
 from turtlefw.pdf.dps import extract_dps_from_pages
 from turtlefw.pdf.extract import write_reported_numbers
 from turtlefw.pdf.multiline import FactRow, make_fact_id, rows_to_facts
+from turtlefw.report.pdf_facts import apply_document_facts
+from turtlefw.demo import demo_rows
 
 
 def test_dps_parses_small_value_and_currency():
@@ -17,6 +20,33 @@ def test_dps_parses_small_value_and_currency():
 
 def test_dps_rejects_large_statement_numbers():
     assert extract_dps_from_pages([(1, "每股派息 1,234,567")]) == {}
+
+
+def test_document_fact_overrides_accounts_receivable():
+    anchor = next(
+        row for row in demo_rows() if row.statement == "balance" and row.period_type == "annual"
+    )
+    rows = [replace(anchor, item="accounts_receiv", value=Decimal("1"))]
+    before = rows[0]
+    changed = apply_document_facts(
+        rows,
+        [
+            {
+                "label": "accounts_receiv",
+                "value": "123456789.00",
+                "page": "132",
+            }
+        ],
+    )
+    after = next(
+        row
+        for row in changed
+        if row.statement == "balance"
+        and row.item == "accounts_receiv"
+        and row.period_end == before.period_end
+    )
+    assert after.value == Decimal("123456789.00")
+    assert after.source == "pdf:accounts_receiv:132"
 
 
 def test_main_business_table_rows_to_facts():

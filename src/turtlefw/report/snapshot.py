@@ -33,7 +33,9 @@ from ..metrics.valuation import build_valuation
 from ..qualitative import load as load_qualitative
 from ..report.analysis import render_analysis
 from ..metrics.dividends import average_dps
-from ..report.pack import _snapshot_id
+from ..pdf.fact_hash import pdf_facts_hash
+from .pdf_facts import apply_document_facts
+from .snapshot_id import source_snapshot_id
 from ..types import Currency, DividendEvent, FetchIssue, Money, StockCode
 
 
@@ -86,6 +88,9 @@ class ReportInputs:
     footnotes: dict[str, Any] | None = None
     pdf_sections: dict[str, Any] | None = None
     pit_note: str = ""
+    document_facts: list[dict[str, Any]] = field(default_factory=list)
+    fact_rows: list[dict[str, Any]] = field(default_factory=list)
+    dps_fact: dict[str, Any] | None = None
 
 
 def inputs_to_dict(inputs: ReportInputs) -> dict[str, Any]:
@@ -151,6 +156,9 @@ def inputs_to_dict(inputs: ReportInputs) -> dict[str, Any]:
         "footnotes": inputs.footnotes,
         "pdf_sections": inputs.pdf_sections,
         "pit_note": inputs.pit_note,
+        "document_facts": inputs.document_facts,
+        "fact_rows": inputs.fact_rows,
+        "dps_fact": inputs.dps_fact,
     }
 
 
@@ -226,6 +234,9 @@ def inputs_from_dict(payload: dict[str, Any]) -> ReportInputs:
         footnotes=payload.get("footnotes"),
         pdf_sections=payload.get("pdf_sections"),
         pit_note=str(payload.get("pit_note", "")),
+        document_facts=list(payload.get("document_facts", [])),
+        fact_rows=list(payload.get("fact_rows", [])),
+        dps_fact=payload.get("dps_fact"),
     )
 
 
@@ -301,8 +312,13 @@ def verify_manifest(
     actual_audit = file_hash(audit_file) if audit_file.is_file() else ""
     if manifest.research_audit_hash and actual_audit != manifest.research_audit_hash:
         errors.append("research_audit_hash mismatch")
-    pdf_fact_file = root / "reported_numbers.json"
-    actual_pdf_fact = file_hash(pdf_fact_file) if pdf_fact_file.is_file() else ""
+    actual_pdf_fact = pdf_facts_hash(
+        {
+            "document_facts": inputs.document_facts,
+            "fact_rows": inputs.fact_rows,
+            "dps": inputs.dps_fact,
+        }
+    )
     if manifest.pdf_fact_hash and actual_pdf_fact != manifest.pdf_fact_hash:
         errors.append("pdf_fact_hash mismatch")
     actual_template = template_hash(Path(__file__).parent / "templates")
@@ -341,7 +357,7 @@ def render(
 ) -> tuple[str, str]:
     code = StockCode.parse(inputs.code)
     currency = Currency(inputs.currency)
-    rows = inputs.rows
+    rows = apply_document_facts(list(inputs.rows), inputs.document_facts)
     years = sorted({r.period_end.year for r in rows if r.period_type == "annual"})
     latest = max(years) if years else None
     def income(item: str) -> dict[int, Decimal]:
@@ -526,7 +542,7 @@ def render(
             ctx,
             results,
             settings=settings,
-            snapshot_id=snapshot_id or _snapshot_id(rows),
+            snapshot_id=snapshot_id or source_snapshot_id(rows),
             rf_source=inputs.rf_source,
             issues=inputs.issues,
             as_of=inputs.as_of,
@@ -556,7 +572,7 @@ def render(
         ctx,
         results,
         settings=settings,
-        snapshot_id=snapshot_id or _snapshot_id(rows),
+        snapshot_id=snapshot_id or source_snapshot_id(rows),
         rf_source=inputs.rf_source,
         issues=inputs.issues,
         as_of=inputs.as_of,

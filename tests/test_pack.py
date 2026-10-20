@@ -1,3 +1,4 @@
+from dataclasses import replace
 from decimal import Decimal
 
 from turtlefw import demo
@@ -69,6 +70,34 @@ class TestDataPack:
         assert "测试股东" in text
         assert "主营/分部" in text
         assert "测试业务" in text
+
+    def test_pdf_accounts_receivable_fact_overrides_pack(self):
+        rows = [
+            replace(row, item="accounts_receiv")
+            if row.statement == "balance" and row.item == "total_assets"
+            else row
+            for row in demo.demo_rows()
+        ]
+        text = render_data_pack(
+            demo.DEMO_CODE,
+            rows,
+            demo.demo_dividends(),
+            quote={"trade_date": "20261016", "close": 28.2},
+            history=[{"trade_date": "20261016", "close": 28.2, "high": 30.0, "low": 27.0}],
+            market_cap=Money(demo.DEMO_MARKET_CAP, Currency.CNY),
+            shares=demo.DEMO_SHARES,
+            rf_pct=demo.DEMO_RF,
+            settings=load_settings(),
+            document_facts=[
+                {
+                    "id": "pdf:accounts_receiv:132",
+                    "label": "accounts_receiv",
+                    "value": "123456789.00",
+                    "page": "132",
+                }
+            ],
+        )
+        assert "123.46" in text
 
     def test_floor_methods_are_numbered(self):
         text = render()

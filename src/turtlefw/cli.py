@@ -2158,7 +2158,7 @@ def _report(
     from .metrics import statements
     from .report import snapshot as snap
     from .report.manifest import build_manifest
-    from .report.pack import _snapshot_id
+    from .report.snapshot_id import source_snapshot_id
 
     if pit and not as_of:
         print("--pit 必须与 --as-of 一起使用", file=sys.stderr)
@@ -2188,7 +2188,7 @@ def _report(
         markdown, verdict = snap.render(
             inputs,
             settings,
-            snapshot_id=manifest.snapshot_id if manifest else _snapshot_id(inputs.rows),
+            snapshot_id=manifest.snapshot_id if manifest else source_snapshot_id(inputs.rows),
             snapshot_dir=snapshot_dir,
             allow_research_decisions=allow_research_decisions,
         )
@@ -2372,6 +2372,11 @@ def _report(
             if pdf_numbers and Path(pdf_numbers).is_file():
                 source_payload["pdf_numbers"] = file_hash(pdf_numbers)
             source_id = content_hash(source_payload)
+        pdf_payload: dict[str, object] = {}
+        if pdf_numbers and Path(pdf_numbers).is_file():
+            from json import loads as json_loads
+
+            pdf_payload = json_loads(Path(pdf_numbers).read_text(encoding="utf-8-sig"))
         inputs = snap.ReportInputs(
             code=str(code),
             currency=unit.value,
@@ -2403,6 +2408,9 @@ def _report(
             source_id=source_id,
             source_policy=source_policy,
             resolved_facts=resolved_facts,
+            document_facts=list(pdf_payload.get("document_facts", [])),
+            fact_rows=list(pdf_payload.get("fact_rows", [])),
+            dps_fact=pdf_payload.get("dps"),
         )
         if save_snapshot:
             snap.freeze(
@@ -2412,18 +2420,14 @@ def _report(
                 qualitative_source=qual_path if qual_path.is_file() else None,
                 research_source=research_file if research_file.is_file() else None,
             )
-        from .facts import file_hash as _file_hash
+        from .pdf.fact_hash import pdf_facts_hash
 
         frozen_manifest = (
             build_manifest(
                 inputs,
                 settings,
                 Path(save_snapshot),
-                pdf_fact_hash=(
-                    _file_hash(Path(pdf_numbers))
-                    if pdf_numbers and Path(pdf_numbers).is_file()
-                    else ""
-                ),
+                pdf_fact_hash=pdf_facts_hash(pdf_payload) if pdf_payload else "",
             )
             if save_snapshot
             else None
@@ -2500,6 +2504,7 @@ def _report(
                 snapshot_id=(
                     frozen_manifest.snapshot_id if frozen_manifest else None
                 ),
+                document_facts=inputs.document_facts,
             )
             pack_path = Path(data_pack_out)
             pack_path.parent.mkdir(parents=True, exist_ok=True)
@@ -2509,7 +2514,7 @@ def _report(
             inputs,
             settings,
             snapshot_id=(
-                frozen_manifest.snapshot_id if frozen_manifest else _snapshot_id(rows)
+                frozen_manifest.snapshot_id if frozen_manifest else source_snapshot_id(rows)
             ),
             snapshot_dir=save_snapshot or None,
             qualitative_path=qual_path,
