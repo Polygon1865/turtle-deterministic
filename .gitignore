@@ -25,6 +25,7 @@ init.log
 
 # Tooling
 .pytest_cache/
+.dsh-project-memory/
 pytest-cache-files-*/
 .ruff_cache/
 .mypy_cache/
