@@ -15,5 +15,6 @@
 
 - `accounts_receiv` / `inventory` / `contract_liab` 会覆盖资产负债表对应 annual 行，MetricPoint 的 `source_fact_ids` 指向 `pdf:<item>:<page>`。
 - `dps` 进入 `reported_numbers.json` 的 `document_facts`，报告和 data pack 的「PDF 证据」表展示；尚未替换 Tushare DPS 指标。
-- `main_business` 由 `fact_rows` 转成 data pack 分部行，报告中以「PDF 证据」展示；尚未生成独立 MetricPoint。
-- `capex_detail` 不得伪造：当前 PDF 抽取器没有多行 capex 表格解析器。
+- `main_business` 由 `fact_rows` 转成 data pack 分部行，并生成 `main_business.<label>` MetricPoint；PDF label 优先去重。
+- `capex_detail` 不得伪造：11 份官方 PDF 只有总 Capex，没有多行明细表。
+- 2026-10-21：用户确认 A，`capex_detail` 作为已接受的 `not_applicable`；Phase 2 覆盖 Gate 放行。
