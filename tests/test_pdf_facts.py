@@ -163,6 +163,21 @@ def test_phase2_gate_allows_documented_not_applicable():
     assert gate.missing() == ()
 
 
+def test_phase2_gate_blocks_unaccepted_not_applicable():
+    gate = CoverageGate(
+        {
+            "accounts_receiv": "not_applicable",
+            "inventory": "complete",
+            "contract_liab": "complete",
+            "dps": "complete",
+            "main_business": "complete",
+            "capex_detail": "not_applicable",
+        }
+    )
+    assert not gate.phase2_ready()
+    assert gate.unaccepted_not_applicable() == ("accounts_receiv",)
+
+
 def test_phase2_gate_blocks_missing_field():
     gate = CoverageGate(
         {
