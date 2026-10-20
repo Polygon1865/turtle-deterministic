@@ -107,7 +107,11 @@ def template_for(code: str) -> IndustryTemplate | None:
     return None
 
 
-def render_section(code: str, ledger: MetricRegistry) -> str:
+def render_section(
+    code: str,
+    ledger: MetricRegistry,
+    peer_metrics: list[dict[str, object]] | None = None,
+) -> str:
     template = template_for(code)
     if template is None:
         return ""
@@ -118,11 +122,27 @@ def render_section(code: str, ledger: MetricRegistry) -> str:
         else:
             rows.append([spec.label, "—", spec.note or "数据未取得"])
     peer_rows = [[peer.name, peer.code, peer.market or "—"] for peer in template.peers]
+    financial = ""
+    if peer_metrics:
+        financial = "\n\n**Peer 财务对比**\n\n" + _table(
+            ["公司", "营收 CAGR", "净利率", "ROE"],
+            [
+                [
+                    str(row.get("name", "")),
+                    str(row.get("revenue_cagr", "—")),
+                    str(row.get("net_margin", "—")),
+                    str(row.get("roe", "—")),
+                ]
+                for row in peer_metrics
+            ],
+            ["l", "r", "r", "r"],
+        )
     return (
         f"## 行业模板：{template.name}\n\n"
         f"{template.description}\n\n"
         + _table(["KPI", "数值", "状态"], rows, ["l", "r", "l"])
         + "\n\n**Peer 组**\n\n"
         + _table(["公司", "代码", "市场"], peer_rows, ["l", "l", "l"])
-        + "\n\n> Peer 财务指标尚未自动抓取；本表只定义 peer 范围，不填未核实数字。"
+        + financial
+        + "\n\n> Peer 财务指标缺失显示 `—`；本表不填未核实数字。"
     )

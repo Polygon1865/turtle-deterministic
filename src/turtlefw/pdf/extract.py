@@ -797,6 +797,10 @@ def extract_capex_detail_facts(
 ) -> list[FactRow]:
     """Extract obvious capex breakdown tables; never fabricate missing rows."""
     facts: list[FactRow] = []
+    scales = {
+        page: detect_scale(text, Decimal("0")) or Decimal("1")
+        for page, text in _read_pages(pdf_path, max_pages)
+    }
     for page, tables in _read_tables(pdf_path, max_pages):
         for table in tables:
             flat = " ".join(
@@ -812,6 +816,8 @@ def extract_capex_detail_facts(
                     page=page,
                     year=year,
                     unit=unit,
+                    currency="CNY",
+                    scale=scales.get(page, Decimal("1")),
                 )
             )
     return facts
@@ -826,6 +832,10 @@ def extract_main_business_facts(
 ) -> list[FactRow]:
     """Extract table rows from obvious main-business tables."""
     facts: list[FactRow] = []
+    scales = {
+        page: detect_scale(text, Decimal("0")) or Decimal("1")
+        for page, text in _read_pages(pdf_path, max_pages)
+    }
     for page, tables in _read_tables(pdf_path, max_pages):
         for table in tables:
             flat = " ".join(
@@ -844,6 +854,8 @@ def extract_main_business_facts(
                     page=page,
                     year=year,
                     unit=unit,
+                    currency="CNY",
+                    scale=scales.get(page, Decimal("1")),
                 )
             )
     return facts
@@ -898,6 +910,7 @@ def write_reported_numbers(
             ).hexdigest(),
             "document_hash": document_hash,
             "page": str(item.get("page", "")),
+            "period": f"{year}A" if year is not None else "",
             "section": str(item.get("source", "")),
             "label": str(item.get("item", "")),
             "value": str(item.get("value", "")),

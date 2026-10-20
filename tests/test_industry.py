@@ -1,7 +1,10 @@
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 
+from turtlefw import demo
+from turtlefw.cli import _peer_metrics_for_inputs
 from turtlefw.facts import MetricPoint, MetricRegistry
 from turtlefw.report.industry import TEMPLATES, render_section, template_for
 
@@ -29,6 +32,37 @@ def test_all_three_templates_render_with_missing_values(code, title):
     assert title in text
     assert "Peer 组" in text
     assert "—" in text
+
+
+def test_peer_metrics_fetch_for_a_share_template():
+    class FakeProvider:
+        def statements(self, code, report_type=None):
+            return demo.demo_rows()
+
+    inputs = SimpleNamespace(code="600887.SH", rows=demo.demo_rows())
+    rows = _peer_metrics_for_inputs(FakeProvider(), inputs)
+    assert rows
+    assert {row["name"] for row in rows} >= {"伊利股份"}
+    assert all("revenue_cagr" in row for row in rows)
+
+
+def test_render_section_with_peer_financials():
+    text = render_section(
+        "600887.SH",
+        MetricRegistry(),
+        [
+            {
+                "name": "伊利股份",
+                "code": "600887.SH",
+                "revenue_cagr": "8.00%",
+                "net_margin": "9.00%",
+                "roe": "18.00%",
+            }
+        ],
+    )
+    assert "Peer 财务对比" in text
+    assert "8.00%" in text
+    assert "18.00%" in text
 
 
 def test_render_section_marks_missing_and_shows_peers():

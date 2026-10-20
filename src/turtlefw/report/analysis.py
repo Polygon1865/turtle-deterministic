@@ -78,6 +78,7 @@ def render_analysis(
     metrics_out: dict[str, object] | None = None,
     document_facts: Sequence[dict[str, Any]] = (),
     fact_rows: Sequence[dict[str, Any]] = (),
+    industry_peers: Sequence[dict[str, Any]] = (),
 ) -> str:
     verdict, reason = final_verdict(results)
     rows = ctx.rows
@@ -127,7 +128,9 @@ def render_analysis(
     metric_ledger = metric_registry.build(
         ctx, results, composite=composite, premium=premium, stats=stats
     )
-    industry_md = industry.render_section(str(ctx.code), metric_ledger)
+    industry_md = industry.render_section(
+        str(ctx.code), metric_ledger, list(industry_peers)
+    )
     status_label = {"stable": "口径一致", "divergent": "口径分歧", "unavailable": "不可用"}[
         stats.status
     ]

@@ -9,6 +9,7 @@ import time
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 from . import __version__
 from .config import Settings, get_token, load_settings
@@ -343,6 +344,49 @@ def _pdf_sbc(path: str | None) -> Decimal | None:
         return Decimal(str(value)) if value not in (None, "") else None
     except (OSError, ValueError, TypeError, AttributeError):
         return None
+
+
+def _peer_metrics_for_inputs(provider, inputs) -> list[dict[str, object]]:
+    from .metrics import statements
+    from .report.industry import template_for
+
+    template = template_for(str(inputs.code))
+    if template is None:
+        return []
+    rows: list[dict[str, object]] = []
+    for peer in template.peers:
+        if not (peer.code.endswith(".SH") or peer.code.endswith(".SZ")):
+            continue
+        try:
+            if peer.code == str(inputs.code):
+                peer_rows = list(inputs.rows)
+            else:
+                peer_rows = provider.statements(StockCode.parse(peer.code))
+        except Exception:  # noqa: BLE001 - optional peer comparison
+            continue
+        if not peer_rows:
+            continue
+        revenue = statements.revenue(peer_rows)
+        income = statements.net_income(peer_rows)
+        equity = statements.equity(peer_rows)
+        latest = max(revenue) if revenue else None
+        cagr = statements.revenue_cagr(peer_rows)
+        net_margin = (
+            income[latest] / revenue[latest] * 100
+            if latest in income and revenue[latest]
+            else None
+        )
+        roe = income[latest] / equity[latest] * 100 if latest in equity and equity[latest] else None
+        rows.append(
+            {
+                "name": peer.name,
+                "code": peer.code,
+                "revenue_cagr": f"{cagr * 100:.2f}%" if cagr is not None else "—",
+                "net_margin": f"{net_margin:.2f}%" if net_margin is not None else "—",
+                "roe": f"{roe:.2f}%" if roe is not None else "—",
+            }
+        )
+    return rows
 
 
 def _governance(
@@ -2392,7 +2436,7 @@ def _report(
             if pdf_numbers and Path(pdf_numbers).is_file():
                 source_payload["pdf_numbers"] = file_hash(pdf_numbers)
             source_id = content_hash(source_payload)
-        pdf_payload: dict[str, object] = {}
+        pdf_payload: dict[str, Any] = {}
         if pdf_numbers and Path(pdf_numbers).is_file():
             from json import loads as json_loads
 
@@ -2432,6 +2476,7 @@ def _report(
             fact_rows=list(pdf_payload.get("fact_rows", [])),
             dps_fact=pdf_payload.get("dps"),
         )
+        inputs.industry_peers = _peer_metrics_for_inputs(provider, inputs)
         if save_snapshot:
             snap.freeze(
                 inputs,

@@ -292,6 +292,24 @@ def test_old_pdf_fact_hash_uses_file_fallback():
         shutil.rmtree(root, ignore_errors=True)
 
 
+def test_report_contains_peer_financials():
+    inputs = replace(
+        _inputs(),
+        industry_peers=[
+            {
+                "name": "伊利股份",
+                "code": "600887.SH",
+                "revenue_cagr": "8.00%",
+                "net_margin": "9.00%",
+                "roe": "18.00%",
+            }
+        ],
+    )
+    markdown, _ = render(inputs, load_settings())
+    assert "Peer 财务对比" in markdown
+    assert "18.00%" in markdown
+
+
 def test_snapshot_roundtrip_and_byte_identity():
     root = _root()
     try:

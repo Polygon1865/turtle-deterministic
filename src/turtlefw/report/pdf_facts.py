@@ -17,6 +17,8 @@ def _replacement(
     item: str,
     value: Decimal,
     page: object,
+    fact_period: object = None,
+    fact_currency: object = None,
 ) -> tuple[StatementRow, date] | None:
     annual = [
         row
@@ -26,6 +28,11 @@ def _replacement(
     if not annual:
         return None
     anchor = max(annual, key=lambda row: row.period_end)
+    period = str(fact_period) if fact_period is not None else ""
+    if period and str(anchor.period_end.year) not in period:
+        return None
+    if fact_currency and fact_currency != anchor.currency.value:
+        return None
     if anchor.value != 0:
         diff = abs(value - anchor.value) / abs(anchor.value)
         if diff > PDF_OVERRIDE_TOLERANCE:
@@ -90,7 +97,14 @@ def apply_document_facts(
             value = Decimal(str(fact.get("value")))
         except Exception:
             continue
-        applied = _replacement(result, item, value, fact.get("page", ""))
+        applied = _replacement(
+            result,
+            item,
+            value,
+            fact.get("page", ""),
+            fact.get("period"),
+            fact.get("currency"),
+        )
         if applied is None:
             continue
         replacement, period_end = applied

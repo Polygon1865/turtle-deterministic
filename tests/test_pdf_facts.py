@@ -131,6 +131,19 @@ def test_main_business_pdf_rows_win_on_duplicate():
     assert [row["bz_item"] for row in merged] == ["液体乳", "奶粉"]
 
 
+def test_document_fact_wrong_period_is_not_applied():
+    anchor = max(
+        (row for row in demo_rows() if row.statement == "balance" and row.period_type == "annual"),
+        key=lambda row: row.period_end,
+    )
+    rows = [replace(anchor, item="accounts_receiv", value=Decimal("100"))]
+    changed = apply_document_facts(
+        rows,
+        [{"label": "accounts_receiv", "value": "100", "period": "2020A", "page": "1"}],
+    )
+    assert changed[0].source == rows[0].source
+
+
 def test_main_business_uses_current_year_column():
     facts = rows_to_facts(
         [[["产品", "2024", "2025"], ["液体乳", "75,000", "80,000"]]],
@@ -244,6 +257,19 @@ def test_phase2_gate_blocks_missing_field():
     )
     assert not gate.phase2_ready()
     assert gate.missing() == ("capex_detail",)
+
+
+def test_rows_to_facts_applies_page_scale():
+    facts = rows_to_facts(
+        [[["产品", "2025"], ["A", "80"]]],
+        item="main_business",
+        dimension="product",
+        page=1,
+        year=2025,
+        unit="CNY",
+        scale=Decimal("1000000"),
+    )
+    assert facts[0].value == Decimal("80000000")
 
 
 def test_multiline_fact_hash_stable():

@@ -91,6 +91,7 @@ class ReportInputs:
     document_facts: list[dict[str, Any]] = field(default_factory=list)
     fact_rows: list[dict[str, Any]] = field(default_factory=list)
     dps_fact: dict[str, Any] | None = None
+    industry_peers: list[dict[str, Any]] = field(default_factory=list)
 
 
 def inputs_to_dict(inputs: ReportInputs) -> dict[str, Any]:
@@ -159,6 +160,7 @@ def inputs_to_dict(inputs: ReportInputs) -> dict[str, Any]:
         "document_facts": inputs.document_facts,
         "fact_rows": inputs.fact_rows,
         "dps_fact": inputs.dps_fact,
+        "industry_peers": inputs.industry_peers,
     }
 
 
@@ -237,6 +239,7 @@ def inputs_from_dict(payload: dict[str, Any]) -> ReportInputs:
         document_facts=list(payload.get("document_facts", [])),
         fact_rows=list(payload.get("fact_rows", [])),
         dps_fact=payload.get("dps_fact"),
+        industry_peers=list(payload.get("industry_peers", [])),
     )
 
 
@@ -571,6 +574,7 @@ def render(
             resolved_md=resolve_markdown(inputs.resolved_facts),
             document_facts=inputs.document_facts,
             fact_rows=inputs.fact_rows,
+            industry_peers=inputs.industry_peers,
         )
         metric_map.update(
             {
@@ -608,6 +612,7 @@ def render(
         resolved_md=resolve_markdown(inputs.resolved_facts),
         document_facts=inputs.document_facts,
         fact_rows=inputs.fact_rows,
+        industry_peers=inputs.industry_peers,
     )
     if decisions and research_document is not None:
         selected = "、".join(

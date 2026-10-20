@@ -25,6 +25,7 @@ class FactRow:
     value: Decimal
     unit: str
     page: int
+    currency: str = ""
     source: str = "pdf"
     confidence: str = "medium"
     quote: str = ""
@@ -41,6 +42,7 @@ class FactRow:
                 self.period,
                 str(self.value),
                 self.unit,
+                self.currency,
                 str(self.page),
                 self.source,
             )
@@ -56,6 +58,7 @@ class FactRow:
             "period": self.period,
             "value": f"{self.value:.2f}",
             "unit": self.unit,
+            "currency": self.currency,
             "page": self.page,
             "source": self.source,
             "confidence": self.confidence,
@@ -93,7 +96,9 @@ def rows_to_facts(
     page: int,
     year: int,
     unit: str,
+    currency: str = "",
     source: str = "pdf",
+    scale: Decimal = Decimal("1"),
 ) -> list[FactRow]:
     """Convert main-business/capex table rows into multi-row facts.
 
@@ -134,9 +139,10 @@ def rows_to_facts(
                     dimension=dimension,
                     label=label,
                     period=f"{year}A",
-                    value=value,
+                    value=value * scale,
                     unit=unit,
                     page=page,
+                    currency=currency,
                     source=source,
                     confidence="medium",
                     quote=" | ".join(cells[:4]),

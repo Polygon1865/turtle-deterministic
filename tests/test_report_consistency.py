@@ -100,7 +100,7 @@ class TestMetricRegistry:
         text, verdict = render()
         assert verdict == "观察"
         assert hashlib.sha256(text.encode("utf-8")).hexdigest() == (
-            "a2f5ae321c9ba5bf15fb594cc32c3e389a8cb0ab2bd31bf553496e3516152cfe"
+            "105679c7520ab442047c87ef5524496fa0c4982beb7369b1cf8ae5eaeabcd01a"
         )
 
     def test_core_metric_ledger(self):
