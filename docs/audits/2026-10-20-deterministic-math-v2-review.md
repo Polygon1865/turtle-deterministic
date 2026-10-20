@@ -5,7 +5,7 @@
 v2 参照：`.runs/v2ref`，HEAD `c61419c`（v2.1-beta，2026-07-04）  
 审查方式：只读代码、测试、快照与运行产物；未修改项目代码。
 
-> 修复进展（2026-10-20）：母公司 `report_type=6`、DPS 四路径统一、pack GG 加回购、现金桥 3/4 组件/缺 Capex 状态、clean-room 现金桥、snapshot/config/formula 闭合、ResearchDecision 默认禁用 + 显式 allow、路径漂移、fast screen 缺失 FCF 已修；Phase 0 又统一 engine/analysis/pack/CLI 的 floor 计算、finalize 的 decision-aware data pack、债务组件完整度、QA data_coverage、旧 snapshot formula 保护，以及 A 股 Data Pack 2.0（应收/存货/合同负债/预收/预付/OCF-净利润/股东/主营），以及 PDF 对上述经营质量字段的文本/表格双通道确定性提取、审计映射和 fact_hash；并建立6 份真实 PDF gold set（00700/600941/600887/600519/601318/000858）；pdf_fact_hash 已进入 manifest/snapshot identity。仍保留：债务数值仍是存在项求和（只补状态）、QA research_quality、货币旁路、CAGR/单位等 P2。
+> 修复进展（2026-10-20）：母公司 `report_type=6`、DPS 四路径统一、pack GG 加回购、现金桥 3/4 组件/缺 Capex 状态、clean-room 现金桥、snapshot/config/formula 闭合、ResearchDecision 默认禁用 + 显式 allow、路径漂移、fast screen 缺失 FCF 已修；Phase 0 又统一 engine/analysis/pack/CLI 的 floor 计算、finalize 的 decision-aware data pack、债务组件完整度、QA data_coverage、旧 snapshot formula 保护，以及 A 股 Data Pack 2.0（应收/存货/合同负债/预收/预付/OCF-净利润/股东/主营），以及 PDF 对上述经营质量字段的文本/表格双通道确定性提取、审计映射和 fact_hash；并建立10 份真实 PDF gold set（00700/600941/600887/600519/601318/000858/600276/000651/600036/601398）；pdf_fact_hash 已进入 manifest/snapshot identity。仍保留：债务数值仍是存在项求和（只补状态）、QA research_quality、货币旁路、CAGR/单位等 P2。
 
 ---
 

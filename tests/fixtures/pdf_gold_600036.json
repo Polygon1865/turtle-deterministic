@@ -1,0 +1,9 @@
+{
+  "source": ".runs/reports/600036_2025_年报.pdf",
+  "year": 2025,
+  "items": {
+    "revenue": {"value": "337532000000.00", "page": "131"},
+    "ocf": {"value": "451457000000.00", "page": "135"},
+    "contract_liab": {"value": "3548000000.00", "page": "127"}
+  }
+}

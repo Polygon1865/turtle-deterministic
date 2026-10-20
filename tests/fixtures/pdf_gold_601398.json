@@ -1,0 +1,8 @@
+{
+  "source": ".runs/reports/601398_2025_年报.pdf",
+  "year": 2025,
+  "items": {
+    "revenue": {"value": "838270000000.00", "page": "14"},
+    "net_income": {"value": "368562000000.00", "page": "14"}
+  }
+}
