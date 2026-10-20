@@ -19,6 +19,7 @@ from typing import Any
 from ..config import Settings, load_settings
 from ..data.protocol import StatementRow
 from ..facts import (
+    FORMULA_VERSION,
     ReportManifest,
     config_payload,
     content_hash,
@@ -80,6 +81,11 @@ class ReportInputs:
     source_id: str = ""
     source_policy: str = "record-only"
     resolved_facts: list[dict[str, Any]] = field(default_factory=list)
+    holders: list[dict[str, Any]] = field(default_factory=list)
+    main_business: list[dict[str, Any]] = field(default_factory=list)
+    footnotes: dict[str, Any] | None = None
+    pdf_sections: dict[str, Any] | None = None
+    pit_note: str = ""
 
 
 def inputs_to_dict(inputs: ReportInputs) -> dict[str, Any]:
@@ -140,6 +146,11 @@ def inputs_to_dict(inputs: ReportInputs) -> dict[str, Any]:
         "source_id": inputs.source_id,
         "source_policy": inputs.source_policy,
         "resolved_facts": inputs.resolved_facts,
+        "holders": inputs.holders,
+        "main_business": inputs.main_business,
+        "footnotes": inputs.footnotes,
+        "pdf_sections": inputs.pdf_sections,
+        "pit_note": inputs.pit_note,
     }
 
 
@@ -210,6 +221,11 @@ def inputs_from_dict(payload: dict[str, Any]) -> ReportInputs:
         source_id=str(payload.get("source_id", "")),
         source_policy=str(payload.get("source_policy", "record-only")),
         resolved_facts=list(payload.get("resolved_facts", [])),
+        holders=list(payload.get("holders", [])),
+        main_business=list(payload.get("main_business", [])),
+        footnotes=payload.get("footnotes"),
+        pdf_sections=payload.get("pdf_sections"),
+        pit_note=str(payload.get("pit_note", "")),
     )
 
 
@@ -266,6 +282,11 @@ def verify_manifest(
         errors.append(f"as_of: manifest={manifest.as_of} inputs={inputs.as_of}")
     if manifest.currency != inputs.currency:
         errors.append(f"currency: manifest={manifest.currency} inputs={inputs.currency}")
+    if manifest.formula_version != FORMULA_VERSION:
+        errors.append(
+            "formula_version mismatch: "
+            f"manifest={manifest.formula_version} current={FORMULA_VERSION}; regenerate snapshot"
+        )
     actual_facts = content_hash(statement_payload(inputs.rows))
     if actual_facts != manifest.facts_hash:
         errors.append("facts_hash mismatch")

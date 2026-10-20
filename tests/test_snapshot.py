@@ -173,6 +173,58 @@ def test_finalize_attaches_research_without_mutating_old_snapshot(tmp_path, monk
     assert "research_audit" in state["artifacts"]
 
 
+def test_finalize_decision_rebuilds_data_pack(tmp_path, monkeypatch):
+    monkeypatch.setenv("TURTLE_OUTPUT_DIR", str(tmp_path / "out"))
+    settings = load_settings()
+    old = tmp_path / "snapshot"
+    freeze(_inputs(), settings, old)
+    research = tmp_path / "research.json"
+    research.write_text(
+        json.dumps(
+            {
+                "evidence": [
+                    {"id": "ev1", "url": "https://example.com/a", "quote": "原文"}
+                ],
+                "claims": [
+                    {
+                        "claim_id": "D2.1",
+                        "dimension": "D2",
+                        "statement": "护城河 R={{metric:r}}",
+                        "judgment": "positive",
+                        "confidence": "high",
+                        "evidence_ids": ["ev1"],
+                    }
+                ],
+                "decisions": [
+                    {
+                        "decision_id": "g",
+                        "metric_id": "g",
+                        "selected": "1.50",
+                        "candidates": ["0.85", "1.15", "1.50"],
+                        "evidence_ids": ["ev1"],
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    target = finalize_research(
+        old,
+        research,
+        tmp_path / "final",
+        report_path=tmp_path / "report.md",
+        min_claims=1,
+        min_dimensions=1,
+        allow_research_decisions=True,
+    )
+    manifest = json.loads((target / "manifest.json").read_text(encoding="utf-8"))
+    pack = (target / "data_pack.md").read_text(encoding="utf-8")
+    report = (tmp_path / "report.md").read_text(encoding="utf-8")
+    assert manifest["snapshot_id"] in pack
+    assert "research decisions" in report
+
+
 def test_finalize_refuses_existing_target(tmp_path):
     settings = load_settings()
     old = tmp_path / "snapshot"

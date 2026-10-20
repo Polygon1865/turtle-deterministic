@@ -76,6 +76,24 @@ class TestAnalysisReport:
         assert items["穿透回报率 R"] == dict(results["2"].metrics)["粗算回报率 R"]
         assert items["精算回报率 GG"] == dict(results["3"].metrics)["精算回报率 GG"]
 
+    def test_kpi_floor_matches_report_floor(self):
+        text, _verdict = render()
+        items = dict(
+            kpi_summary(
+                demo.DEMO_CODE,
+                demo.demo_rows(),
+                demo.demo_dividends(),
+                market_cap=Money(demo.DEMO_MARKET_CAP, Currency.CNY),
+                shares=demo.DEMO_SHARES,
+                rf_pct=Decimal("1.8"),
+                settings=load_settings(),
+                closes=demo.demo_closes(),
+                price=Decimal("28.3"),
+            )
+        )
+        assert "26.80" in items["底价"]
+        assert "26.80" in text
+
 
 class TestMetricRegistry:
     def test_golden_report_hash(self):

@@ -175,6 +175,58 @@ def floor_stats(
 
 
 @dataclass(frozen=True, slots=True)
+class FloorResult:
+    baselines: tuple[Baseline, ...]
+    composite: Decimal | None
+    stats: "FloorStats"
+    premium: Decimal | None
+
+
+def compute_floor(
+    *,
+    cash: Decimal | None = None,
+    trad_assets: Decimal | None = None,
+    debt: Decimal | None = None,
+    equity: Decimal | None = None,
+    shares: Decimal | None = None,
+    closes: Sequence[Decimal] | None = None,
+    average_dps: Decimal | None = None,
+    min_fcf: Decimal | None = None,
+    rf_pct: Decimal | None = None,
+    price: Decimal | None = None,
+    dividend_floor_pct: Decimal = Decimal("3"),
+    composite_method: str = "median",
+    divergence_threshold: Decimal = Decimal("20"),
+) -> FloorResult:
+    """Single deterministic floor calculation for report, pack and CLI."""
+    baselines = tuple(
+        five_baselines(
+            cash=cash,
+            trad_assets=trad_assets,
+            debt=debt,
+            equity=equity,
+            shares=shares,
+            closes=closes,
+            average_dps=average_dps,
+            min_fcf=min_fcf,
+            rf_pct=rf_pct,
+            dividend_floor_pct=dividend_floor_pct,
+        )
+    )
+    composite, stats = choose_composite(
+        baselines,
+        composite_method,
+        divergence_threshold,
+    )
+    return FloorResult(
+        baselines=baselines,
+        composite=composite,
+        stats=stats,
+        premium=premium(price, composite) if price is not None else None,
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class ValuationSnapshot:
     ev: Decimal | None
     ebitda: Decimal | None

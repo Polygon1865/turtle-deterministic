@@ -59,7 +59,7 @@ def render_analysis(
         else None
     )
     avg_dps = average_dps(ctx.dividends)
-    baselines = valuation.five_baselines(
+    floor = valuation.compute_floor(
         cash=cash.get(latest) if latest else None,
         trad_assets=statements.annual_series(rows, "balance", "trad_asset").get(latest)
         if latest
@@ -71,14 +71,15 @@ def render_analysis(
         average_dps=avg_dps,
         min_fcf=min_fcf,
         rf_pct=ctx.rf_pct,
+        price=ctx.price,
         dividend_floor_pct=settings.valuation.dividend_discount_floor,
+        composite_method=settings.valuation.composite_method,
+        divergence_threshold=settings.valuation.divergence_threshold,
     )
-    composite, stats = valuation.choose_composite(
-        baselines,
-        settings.valuation.composite_method,
-        settings.valuation.divergence_threshold,
-    )
-    premium = valuation.premium(ctx.price, composite) if ctx.price and composite else None
+    baselines = floor.baselines
+    composite = floor.composite
+    stats = floor.stats
+    premium = floor.premium
     metric_ledger = metric_registry.build(
         ctx, results, composite=composite, premium=premium, stats=stats
     )

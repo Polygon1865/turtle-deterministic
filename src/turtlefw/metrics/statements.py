@@ -98,6 +98,23 @@ def interest_bearing_debt(rows: Iterable[StatementRow]) -> dict[int, Decimal]:
     return result
 
 
+def debt_component_counts(rows: Iterable[StatementRow]) -> dict[int, int]:
+    """Number of interest-bearing debt components present per year."""
+    index = annual_index(rows)
+    return {
+        year: sum(1 for item in DEBT_ITEMS if ("balance", item) in values)
+        for year, values in index.items()
+    }
+
+
+def debt_complete(rows: Iterable[StatementRow]) -> dict[int, bool]:
+    """Whether all four debt components are present; absent is not zero."""
+    return {
+        year: count == len(DEBT_ITEMS)
+        for year, count in debt_component_counts(rows).items()
+    }
+
+
 def net_cash(rows: Iterable[StatementRow], currency: Currency) -> dict[int, Money]:
     """Cash and equivalents minus interest-bearing debt."""
     index = annual_index(rows)

@@ -38,7 +38,7 @@ def run_qa(code: str, root: Path | str | None = None, *, allow_missing_qualitati
         missing = [row.label for row in cap_rows if row.status == "missing"]
         add(
             "data_coverage",
-            True,
+            not missing,
             "missing: " + ",".join(missing) if missing else "no missing capabilities",
         )
     except Exception as exc:

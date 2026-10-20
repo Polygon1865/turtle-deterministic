@@ -126,6 +126,26 @@ class TestStatements:
     def test_interest_bearing_debt(self):
         assert statements.interest_bearing_debt(ROWS)[2024] == Decimal("15")
 
+    def test_debt_completeness_is_explicit(self):
+        assert statements.debt_complete(ROWS)[2024] is False
+        complete = make_rows(
+            {
+                ("balance", "st_borr"): {2024: "10"},
+                ("balance", "lt_borr"): {2024: "20"},
+                ("balance", "bond_payable"): {2024: "30"},
+                ("balance", "non_cur_liab_due_1y"): {2024: "40"},
+            }
+        )
+        assert statements.debt_component_counts(complete)[2024] == 4
+        assert statements.debt_complete(complete)[2024] is True
+        partial = make_rows(
+            {
+                ("balance", "st_borr"): {2024: "10"},
+            }
+        )
+        assert statements.debt_component_counts(partial)[2024] == 1
+        assert statements.debt_complete(partial)[2024] is False
+
     def test_net_cash(self):
         assert statements.net_cash(ROWS, Currency.CNY)[2024] == Money(Decimal("45"), Currency.CNY)
 

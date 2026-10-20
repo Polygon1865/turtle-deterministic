@@ -141,8 +141,9 @@ def kpi_summary(
         else None
     )
     trad = statements.annual_series(rows, "balance", "trad_asset")
-
-    baselines = valuation.five_baselines(
+    if price is None and shares:
+        price = market_cap.amount / shares
+    floor = valuation.compute_floor(
         cash=cash_latest,
         trad_assets=trad.get(latest_year) if latest_year else None,
         debt=debt_latest,
@@ -152,15 +153,14 @@ def kpi_summary(
         average_dps=avg_dps,
         min_fcf=min_fcf,
         rf_pct=rf_pct,
+        price=price,
+        dividend_floor_pct=settings.valuation.dividend_discount_floor,
+        composite_method=settings.valuation.composite_method,
+        divergence_threshold=settings.valuation.divergence_threshold,
     )
-    composite, _stats = valuation.choose_composite(
-        baselines,
-        settings.valuation.composite_method,
-        settings.valuation.divergence_threshold,
-    )
-    if price is None and shares:
-        price = market_cap.amount / shares
-    premium = valuation.premium(price, composite) if price and composite else None
+    baselines = floor.baselines
+    composite = floor.composite
+    premium = floor.premium
 
     return [
         ("股票代码", str(code)),
@@ -2430,6 +2430,11 @@ def _report(
                 if pdf_sections_path and Path(pdf_sections_path).is_file()
                 else None
             )
+            inputs.holders = list(holders)
+            inputs.main_business = list(main_business)
+            inputs.footnotes = footnotes
+            inputs.pdf_sections = pdf_sections
+            inputs.pit_note = pit_note
             pack_markdown = render_data_pack(
                 code,
                 inputs.rows,

@@ -6,10 +6,13 @@ import hashlib
 import json
 import re
 import shutil
+from decimal import Decimal
 from pathlib import Path
 
 from ..facts import file_hash
+from ..metrics import grids, statements
 from ..paths import output_root
+from ..types import Currency, Money, StockCode
 from .. import state as st
 from ..research import load as load_research
 from ..research import quality as research_quality
@@ -18,6 +21,7 @@ from ..research import engine_decisions
 from . import snapshot as snap
 from .html import convert_file
 from .manifest import build_manifest
+from .pack import render_data_pack
 
 
 class FinalizeError(Exception):
@@ -59,23 +63,13 @@ def finalize_research(
         raise FinalizeError(
             f"dimensions {len(covered)} < min_dimensions {min_dimensions}"
         )
-    engine_decisions(document, allow=allow_research_decisions)
+    decisions = engine_decisions(document, allow=allow_research_decisions)
 
     shutil.copytree(source, target)
     (target / "research.json").write_bytes(research_file.read_bytes())
     provenance = research_file.with_name("research_provenance.json")
     if provenance.is_file():
         shutil.copyfile(provenance, target / "research_provenance.json")
-    if allow_research_decisions and document.decisions:
-        # The source data pack was generated before research decisions. Do not
-        # silently present it as decision-adjusted; report remains authoritative.
-        pack_path = target / "data_pack.md"
-        if pack_path.is_file():
-            with pack_path.open("a", encoding="utf-8") as handle:
-                handle.write(
-                    "\n\n> 注意：本数据包生成于 research decisions 之前；"
-                    "决策只作用于最终报告，不改变本数据包的默认口径。\n"
-                )
 
     inputs, settings = snap.load(target)
     # Identity fields (facts/config/research/template/versions) do not include
@@ -83,7 +77,41 @@ def finalize_research(
     # rendering. Use it for the header and the final manifest.
     final_snapshot_id = build_manifest(inputs, settings, target).snapshot_id
     pack_path = target / "data_pack.md"
-    if pack_path.is_file():
+    if decisions:
+        code = StockCode.parse(inputs.code)
+        currency = Currency(inputs.currency)
+        pack_path.write_text(
+            render_data_pack(
+                code,
+                inputs.rows,
+                inputs.dividends,
+                quote=inputs.quote,
+                history=inputs.history,
+                market_cap=Money(Decimal(inputs.market_cap), currency),
+                shares=Decimal(inputs.shares),
+                diluted_shares=statements.diluted_shares(inputs.rows),
+                rf_pct=Decimal(inputs.rf_pct),
+                settings=settings,
+                issues=inputs.issues,
+                tax_pct=grids.default_tax_rate(code),
+                rf_source=inputs.rf_source,
+                parent_cash=Decimal(inputs.parent_cash) if inputs.parent_cash else None,
+                pledge_pct=Decimal(inputs.pledge_pct) if inputs.pledge_pct else None,
+                buyback=Money(Decimal(inputs.buyback), currency) if inputs.buyback else None,
+                sbc=Money(Decimal(inputs.sbc), currency) if inputs.sbc else None,
+                pdf_bridge=inputs.pdf_bridge,
+                holders=inputs.holders,
+                main_business=inputs.main_business,
+                as_of=inputs.as_of,
+                footnotes=inputs.footnotes,
+                pdf_sections=inputs.pdf_sections,
+                pit_note=inputs.pit_note,
+                decisions=decisions,
+                snapshot_id=final_snapshot_id,
+            ),
+            encoding="utf-8",
+        )
+    elif pack_path.is_file():
         pack_text = pack_path.read_text(encoding="utf-8")
         pack_text = re.sub(
             r"(数据快照：`)[0-9a-f]{8,32}(`)",

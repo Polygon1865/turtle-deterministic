@@ -450,7 +450,7 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
         if recent_fcf_all and min(recent_fcf_all.values()) > 0
         else None
     )
-    baselines = valuation.five_baselines(
+    floor = valuation.compute_floor(
         cash=cash.get(latest) if latest else None,
         trad_assets=trad.get(latest) if latest else None,
         debt=debt.get(latest) if latest else None,
@@ -460,16 +460,15 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
         average_dps=avg_dps,
         min_fcf=min_fcf,
         rf_pct=ctx.rf_pct,
+        price=price,
         dividend_floor_pct=ctx.settings.valuation.dividend_discount_floor,
+        composite_method=ctx.settings.valuation.composite_method,
+        divergence_threshold=ctx.settings.valuation.divergence_threshold,
     )
-    composite, stats = valuation.choose_composite(
-        baselines,
-        ctx.settings.valuation.composite_method,
-        ctx.settings.valuation.divergence_threshold,
-    )
-    floor_premium = (
-        valuation.premium(price, composite) if price is not None and composite else None
-    )
+    baselines = floor.baselines
+    composite = floor.composite
+    stats = floor.stats
+    floor_premium = floor.premium
 
     if gg is None or margin is None:
         position, verdict = "观察仓位", "观察"

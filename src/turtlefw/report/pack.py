@@ -139,6 +139,7 @@ def render_data_pack(
     fcf = statements.fcf_series(rows)
     da = statements.da_series(rows)
     debt = statements.interest_bearing_debt(rows)
+    debt_full = statements.debt_complete(rows)
     equity = statements.equity(rows)
     cash = statements.cash_and_equivalents(rows)
     trad = _series(rows, "balance", "trad_asset")
@@ -242,24 +243,26 @@ def render_data_pack(
         if min_fcf_all and min(min_fcf_all.values()) > 0
         else None
     )
-    baselines = valuation.five_baselines(
+    avg_dps = average_dps(dividends)
+    floor = valuation.compute_floor(
         cash=cash.get(latest_year) if latest_year else None,
         trad_assets=trad.get(latest_year) if latest_year else None,
         debt=debt.get(latest_year) if latest_year else None,
         equity=equity.get(latest_year) if latest_year else None,
         shares=diluted_shares or shares,
         closes=closes,
-        average_dps=average_dps(dividends),
+        average_dps=avg_dps,
         min_fcf=min_fcf,
         rf_pct=rf_pct,
+        price=price,
         dividend_floor_pct=settings.valuation.dividend_discount_floor,
+        composite_method=settings.valuation.composite_method,
+        divergence_threshold=settings.valuation.divergence_threshold,
     )
-    composite, stats = valuation.choose_composite(
-        baselines,
-        settings.valuation.composite_method,
-        settings.valuation.divergence_threshold,
-    )
-    premium = valuation.premium(price, composite) if price and composite else None
+    baselines = floor.baselines
+    composite = floor.composite
+    stats = floor.stats
+    premium = floor.premium
     status_label = {"stable": "口径一致", "divergent": "口径分歧", "unavailable": "不可用"}[
         stats.status
     ]
@@ -514,6 +517,7 @@ def render_data_pack(
         ["维持性 Capex 系数 G", f"{g_row.g}（{g_reason}）"],
         ["最新 FCF（百万元）", pack_ledger.display("fcf.latest")],
         ["有息负债（百万元）", pack_ledger.display("debt.latest")],
+        ["有息负债完整度", "完整" if latest_year is not None and debt_full.get(latest_year) else "部分"],
         ["净现金（百万元）", pack_ledger.display("net_cash.latest")],
         ["穿透回报率 R", pack_ledger.display("r")],
         ["精算回报率 GG", pack_ledger.display("gg")],
