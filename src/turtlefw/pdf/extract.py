@@ -362,7 +362,13 @@ def extract_from_pages(
                         source=f"{year}{report_type}",
                         confidence=confidence,
                         score=_line_score(line, page_score, item)
-                        - (10 if item == "ocf" and highlight_page else 0),
+                        - (10 if item == "ocf" and highlight_page else 0)
+                        + (
+                            10
+                            if item == "ocf"
+                            and "将净利润调节为经营活动现金流量" in text
+                            else 0
+                        ),
                     )
                 )
                 break  # one item per line

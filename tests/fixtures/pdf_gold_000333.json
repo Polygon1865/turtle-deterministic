@@ -4,6 +4,9 @@
   "items": {
     "revenue": {"value": "456451731000.00", "page": "135"},
     "equity": {"value": "223221305000.00", "page": "133"},
-    "contract_liab": {"value": "46993060000.00", "page": "133"}
+    "contract_liab": {"value": "46993060000.00", "page": "133"},
+    "accounts_receiv": {"value": "40450097000.00", "page": "132"},
+    "inventory": {"value": "64628834000.00", "page": "132"},
+    "total_assets": {"value": "608791766000.00", "page": "132"}
   }
 }
