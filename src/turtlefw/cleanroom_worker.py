@@ -292,24 +292,16 @@ def main(argv: list[str] | None = None) -> int:
                 true_cash += advance_change
         parts = [goods.get(year), employees.get(year), taxes.get(year), other.get(year)]
         present = [value for value in parts if value is not None]
-        outflows = sum(present, Decimal("0")) if len(present) >= 3 else None
-        derived = False
+        outflows = sum(present, Decimal("0")) if len(present) == 4 else None
         if outflows is None and inflow_total.get(year) is not None and ocf.get(year) is not None:
             outflows = inflow_total[year] - ocf[year]
-            derived = True
-        if derived and rev is not None and ar_change is not None and advance_change is not None:
-            true_cash = (
-                rev
-                - max(ar_change, Decimal("0"))
-                - max(prepay_change or Decimal("0"), Decimal("0"))
-                - max(-advance_change, Decimal("0"))
-                + max(advance_change, Decimal("0"))
-            )
         capex_value = abs(capex[year]) if year in capex else None
+        if capex_value is None:
+            continue
         if true_cash is not None and outflows is not None:
-            surplus_value = true_cash - outflows - (capex_value or Decimal("0"))
+            surplus_value = true_cash - outflows - capex_value
         elif ocf.get(year) is not None:
-            surplus_value = ocf[year] - (capex_value or Decimal("0"))
+            surplus_value = ocf[year] - capex_value
         else:
             continue
         surplus[year] = surplus_value
@@ -326,8 +318,9 @@ def main(argv: list[str] | None = None) -> int:
         aa_value = _mean(aa_values[-2:])
     if aa_value is None:
         fcf_values = [
-            ocf[year] - abs(capex.get(year, Decimal("0")))
+            ocf[year] - abs(capex[year])
             for year in sorted(ocf)
+            if year in capex
         ]
         aa_value = _mean(fcf_values)
 

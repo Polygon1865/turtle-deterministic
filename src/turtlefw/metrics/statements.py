@@ -66,14 +66,14 @@ def _sum_items(values: Mapping[tuple[str, str], Decimal], statement: str, items:
 
 
 def fcf_series(rows: Iterable[StatementRow]) -> dict[int, Decimal]:
-    """FCF = operating cash flow - |capex|."""
+    """FCF = operating cash flow - |capex|; missing capex is not zero."""
     index = annual_index(rows)
     result: dict[int, Decimal] = {}
     for year, values in index.items():
         ocf = values.get(("cashflow", "n_cashflow_act"))
-        if ocf is None:
+        capex = values.get(("cashflow", "c_pay_acq_const_fiolta"))
+        if ocf is None or capex is None:
             continue
-        capex = values.get(("cashflow", "c_pay_acq_const_fiolta")) or Decimal("0")
         result[year] = ocf - abs(capex)
     return result
 

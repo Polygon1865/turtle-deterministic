@@ -49,9 +49,10 @@ Read the context. It includes metrics, facts, governance, coverage, data pack an
 Write `.runs/<code>/snapshot/research.json`:
 
 - D1–D6 claims;
-- evidence with URL + verbatim quote;
+- evidence with URL + verbatim quote (internal data evidence may use a `data:` id and quote);
 - params;
-- only allowed decisions from context candidates;
+- **do not write decisions by default**; the deterministic CLI ignores/rejects them unless the user explicitly asks for `--allow-research-decisions`;
+- when explicitly enabled, a decision may only select a context candidate and must carry evidence;
 - no raw numbers: `{{metric:id}}` / `{{fact:id}}`;
 - missing data = `unknown`.
 
@@ -87,6 +88,10 @@ If it fails, fix `research.json`; do not weaken thresholds.
   --min-claims <min-claims> --min-dimensions <min-dimensions> `
   --strict --html
 ```
+
+Only add `--allow-research-decisions` when the user explicitly wants research
+selections to change G/M/Q/AA/scenario; every such decision must have evidence.
+Without the flag, the command fails rather than silently ignoring decisions.
 
 This copies the frozen snapshot, renders the report with research, writes
 `research_audit.json`, recomputes metrics/numeric audit and rebuilds the

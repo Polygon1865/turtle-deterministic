@@ -20,12 +20,12 @@ If the user passed `--rf`, `--rf-source`, `--currency`, `--pdf-numbers`, `--evid
   --out .runs/<code>/snapshot/research_context.json
 ```
 
-Use `output/<code>/snapshot` instead of `.runs/<code>/snapshot` when `TURTLE_OUTPUT_DIR` is not set.
+Use `$TURTLE_OUTPUT_DIR/<code>/snapshot` when `TURTLE_OUTPUT_DIR` is set; otherwise use `.runs/<code>/snapshot`.
 
 3. Read the context and write `.runs/<code>/snapshot/research.json`:
    - D1–D6 claims with evidence;
    - params;
-   - decisions only from candidates;
+   - **no decisions by default**; only add `--allow-research-decisions` when explicitly requested, and then only choose context candidates with evidence;
    - no raw numbers; only `{{metric:id}}` / `{{fact:id}}`;
    - missing data becomes `unknown`.
 
@@ -55,6 +55,10 @@ Use `output/<code>/snapshot` instead of `.runs/<code>/snapshot` when `TURTLE_OUT
   --min-claims 6 --min-dimensions 3 `
   --strict --html
 ```
+
+Only add `--allow-research-decisions` when the user explicitly asks for
+research-selected G/M/Q/AA/scenario; every such decision must have evidence.
+Without it, decisions are rejected rather than silently ignored.
 
 6. Run QA:
 

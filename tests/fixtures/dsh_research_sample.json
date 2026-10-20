@@ -64,7 +64,7 @@
     {
       "claim_id": "D6.1",
       "dimension": "D6",
-      "statement": "控股股东质押率为{{metric:pledge_pct}}，回购/市值为{{metric:buyback_ratio}}，母公司现金/市值为{{metric:parent_cash_ratio}}；审计意见为标准无保留，完整控股结构仍需补充。",
+      "statement": "控股股东质押率为{{metric:pledge_pct}}，回购/市值为{{metric:buyback_ratio}}，母公司现金/合并现金为{{metric:parent_cash_ratio}}；审计意见为标准无保留，完整控股结构仍需补充。",
       "judgment": "positive",
       "confidence": "medium",
       "evidence_ids": ["data:governance"],

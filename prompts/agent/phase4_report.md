@@ -4,13 +4,13 @@
 
 ## 输入（只读）
 
-- `output/<code>/analysis_report.md`（CLI 生成，结论与指标）
-- `output/<code>/data_pack.md`（数据包）
-- `output/<code>/qualitative.json`（定性判断与证据）
+- `.runs/<code>/analysis_report.md`（CLI 生成，结论与指标）
+- `.runs/<code>/data_pack.md`（数据包）
+- `.runs/<code>/qualitative.json`（定性判断与证据）
 - 若 Phase 2 产出了 `reported_numbers.json`，先重跑确定性报告并传入 PDF 数字，同时冻结 snapshot：
-  `python -m turtlefw.cli report <code> --pdf-numbers output/<code>/reported_numbers.json --save-snapshot output/<code>/snapshot`
+  `python -m turtlefw.cli report <code> --pdf-numbers .runs/<code>/reported_numbers.json --save-snapshot .runs/<code>/snapshot`
 - 若无 PDF 数字，也必须冻结 snapshot：
-  `python -m turtlefw.cli report <code> --save-snapshot output/<code>/snapshot`
+  `python -m turtlefw.cli report <code> --save-snapshot .runs/<code>/snapshot`
 
 ## 结构（固定）
 
@@ -42,7 +42,7 @@
 ## 校验
 
 ```powershell
-python -m turtlefw.cli narrative <code> --file output/<code>/narrative.md
+python -m turtlefw.cli narrative <code> --file .runs/<code>/narrative.md
 ```
 
 - 报出"无法追溯的数字"：删掉该数字或回到 CLI 产物里找依据，**不许改报告去迁就叙述**；
@@ -50,5 +50,5 @@ python -m turtlefw.cli narrative <code> --file output/<code>/narrative.md
 
 ```powershell
 python -m turtlefw.cli state <code> --phase report `
-  --artifact narrative=output/<code>/narrative.md
+  --artifact narrative=.runs/<code>/narrative.md
 ```

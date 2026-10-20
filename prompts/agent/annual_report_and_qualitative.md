@@ -28,7 +28,7 @@ python -m turtlefw.cli pack <code>      # 先确认结构化数据可用
 
 ```powershell
 python -m turtlefw.cli fetch-report --url "<PDF_URL>" --stock-code SH600887 `
-  --report-type 年报 --year 2024 --save-dir output\600887.SH
+  --report-type 年报 --year 2024 --save-dir .runs\600887.SH
 ```
 
 脚本会校验 `%PDF-` magic bytes 与最小体积；失败会给出明确 exit code。
@@ -36,8 +36,8 @@ python -m turtlefw.cli fetch-report --url "<PDF_URL>" --stock-code SH600887 `
 ## 3. PDF 章节预处理
 
 ```powershell
-python -m turtlefw.cli pdf --pdf output\600887.SH\600887_2024_年报.pdf `
-  --output output\600887.SH\pdf_sections.json --verbose
+python -m turtlefw.cli pdf --pdf .runs\600887.SH\600887_2024_年报.pdf `
+  --output .runs\600887.SH\pdf_sections.json --verbose
 ```
 
 输出 7 个目标章节：P2 受限资产、P3 应收账龄、P4 关联交易、P6 或有负债、
@@ -56,7 +56,7 @@ P13 非经常性损益、MDA、SUB 子公司。某项为 `null` 表示未定位�
 
 ```powershell
 python -m turtlefw.cli qualitative <code> --init   # 生成模板
-# 填写 output/<code>/qualitative.json（或 source 目录）
+# 填写 .runs/<code>/qualitative.json（或 source 目录）
 python -m turtlefw.cli qualitative <code> --check  # 结构校验
 ```
 
@@ -82,7 +82,7 @@ python -m turtlefw.cli qualitative <code> --check  # 结构校验
 
 ```powershell
 python -m turtlefw.cli audit <code> --doc reported_numbers.json --threshold 1 `
-  --write output\<标准化代码>\qualitative.json
+  --write .runs\<标准化代码>\qualitative.json
 ```
 
 规则：
@@ -97,7 +97,7 @@ python -m turtlefw.cli audit <code> --doc reported_numbers.json --threshold 1 `
 python -m turtlefw.cli report <code> --rf 1.6516 --rf-source "ICBC 2026-10-15"
 ```
 
-报告会自动读取 `output/<code>/qualitative.json`。
+报告会自动读取 `.runs/<code>/qualitative.json`。
 
 ## 数据分层与交叉验证
 

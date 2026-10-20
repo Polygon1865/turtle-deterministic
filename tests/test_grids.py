@@ -163,6 +163,40 @@ class TestAAAndLambda:
         )
         assert k_star == Decimal("1")
 
+    def test_buyback_is_included_in_sensitivity_and_break_even(self):
+        base = dict(
+            payout_pct=Decimal("50"),
+            tax_pct=Decimal("0"),
+            market_cap=Decimal("10000"),
+            ii_pct=Decimal("5"),
+        )
+        without = grids.revenue_sensitivity(
+            Decimal("1000"),
+            Decimal("5000"),
+            Decimal("0.2"),
+            **base,
+        )
+        with_buyback = grids.revenue_sensitivity(
+            Decimal("1000"),
+            Decimal("5000"),
+            Decimal("0.2"),
+            buyback=Decimal("100"),
+            **base,
+        )
+        assert with_buyback[0][2] - without[0][2] == Decimal("1.0")
+        assert grids.break_even_revenue_multiple(
+            Decimal("1000"),
+            Decimal("5000"),
+            Decimal("0.2"),
+            buyback=Decimal("100"),
+            **base,
+        ) < grids.break_even_revenue_multiple(
+            Decimal("1000"),
+            Decimal("5000"),
+            Decimal("0.2"),
+            **base,
+        )
+
 
 class TestConfidence:
     def test_high_confidence(self):

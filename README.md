@@ -38,7 +38,7 @@ Turtle Framework 把链路拆开：
 ### 三条硬规则
 
 1. **报告数字只能来自 Python 指标或 PDF/SEC fact。**
-2. **LLM/DSH 只写 `research.json`，不写最终报告数字。**
+2. **LLM/DSH 只写 `research.json`，默认不改变数字；只有显式 `--allow-research-decisions` 才可从预计算 candidates 选择，且必须带 evidence。**
 3. **同一 snapshot 离线重渲染必须逐字节一致。**
 
 ---
@@ -132,7 +132,7 @@ TUSHARE_TOKEN=your_token_here
 ```powershell
 $env:TURTLE_OUTPUT_DIR = ".runs"
 
-# 一键确定性流程：state → pack → report → snapshot → QA
+# 一键确定性流程：单次取数 → data_pack/report/snapshot → QA
 turtle run 600887.SH --rf 1.6516 --rf-source "ICBC 2026-10-15"
 ```
 
@@ -367,9 +367,9 @@ turtle research-agent --snapshot .runs\600887.SH\snapshot --out research.json `
 研究硬规则：
 
 - 不写裸数字，只能 `{{metric:id}}` / `{{fact:id}}`；
-- 非 `unknown` 必须有 evidence；
-- Decision 只能从预计算 candidates 选；
-- 未解析引用、非法 Decision 直接失败。
+- 非 `unknown` 必须有 evidence；web/document evidence 必须有 http(s) URL + quote，内部 data evidence 可用 `data:` id + quote；
+- Decision 默认禁用；只有显式 `--allow-research-decisions` 才可从预计算 candidates 选，且必须有 evidence；
+- 未解析引用、非法 Decision、无 evidence 的 Decision 直接失败。
 
 ---
 
@@ -485,7 +485,7 @@ src/turtlefw/
 当前基线：
 
 ```text
-346 tests passed
+357 tests passed
 ```
 
 CI：pytest + selected ruff + selected mypy，见

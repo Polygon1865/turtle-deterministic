@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-from collections import defaultdict
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -17,6 +16,7 @@ from ..data.protocol import StatementRow
 from ..facts import MetricPoint, MetricRegistry
 from ..metrics import cashflow
 from ..metrics import dividends as div_metrics
+from ..metrics.dividends import average_dps
 from ..metrics import grids, owner_earnings, returns, statements, valuation
 from ..pdf.hk_facts import extract as extract_hk_facts
 from ..types import Currency, DividendEvent, FetchIssue, Money, StockCode
@@ -96,46 +96,6 @@ def _week52(
     return (max(highs) if highs else None, min(lows) if lows else None)
 
 
-def _completed_fiscal_year(events: Sequence[DividendEvent]) -> bool:
-    """Whether the dividend rows for one fiscal year include a year-end event."""
-    dated = []
-    for event in events:
-        raw = event.event_id.split(":", 1)[0]
-        if len(raw) == 10 and raw[4] == "-" and raw[7] == "-":
-            dated.append(raw)
-    if not dated:
-        # Vendors that emit one annual DPS row use the fiscal year as the id.
-        return True
-    return any(event_id[5:] == "12-31" for event_id in dated)
-
-
-def average_dps(dividends: Sequence[DividendEvent], years: int = 3) -> Decimal | None:
-    """Mean annual DPS over the most recent ``years`` completed fiscal years.
-
-    Events are summed per year first: a year with an interim and a final
-    dividend is one year, not two. A year with only an interim event (for
-    example the current FY before the final dividend is declared) is excluded.
-    Rows whose DPS is a repeated vendor placeholder (``dps_reliable=False``)
-    are skipped.
-    """
-    reliable = [event for event in dividends if event.dps_reliable]
-    if not reliable:
-        return None
-    per_year: dict[int, list[DividendEvent]] = defaultdict(list)
-    for event in reliable:
-        per_year[event.fiscal_year].append(event)
-    completed = [
-        year for year, events in per_year.items() if _completed_fiscal_year(events)
-    ]
-    recent = sorted(completed)[-years:]
-    if not recent:
-        return None
-    return sum(
-        (sum((event.dps for event in per_year[year]), Decimal("0")) for year in recent),
-        Decimal("0"),
-    ) / Decimal(len(recent))
-
-
 def render_data_pack(
     code: StockCode,
     rows: Sequence[StatementRow],
@@ -162,7 +122,12 @@ def render_data_pack(
     footnotes: Mapping[str, Any] | None = None,
     pdf_sections: Mapping[str, Any] | None = None,
     pit_note: str = "",
+    decisions: Mapping[str, str] | None = None,
+    snapshot_id: str | None = None,
 ) -> str:
+    decisions = decisions or {}
+    if decisions.get("tax"):
+        tax_pct = Decimal(decisions["tax"])
     currency = rows[0].currency if rows else Currency.CNY
     years = sorted({r.period_end.year for r in rows if r.period_type == "annual"})[-5:]
 
@@ -186,6 +151,8 @@ def render_data_pack(
     )
     if payout_check.recommended is not None:
         mean_payout = payout_check.recommended
+    if decisions.get("payout"):
+        mean_payout = Decimal(decisions["payout"])
 
     latest_year = max(years) if years else None
     latest_fcf = fcf.get(latest_year) if latest_year else None
@@ -202,6 +169,13 @@ def render_data_pack(
     _g_rows, g_row, g_reason = grids.g_grid(
         latest_ni, latest_da, capex_ratio, settings.returns
     )
+    if decisions.get("g"):
+        selected_g = Decimal(decisions["g"])
+        g_matches = [row for row in _g_rows if row.g == selected_g]
+        if not g_matches:
+            raise ValueError(f"research decision g={selected_g} is not in the G grid")
+        g_row = g_matches[0]
+        g_reason = "research decision"
     oe = (
         latest_ni + latest_da - latest_da * g_row.g
         if latest_ni is not None and latest_da is not None
@@ -215,9 +189,17 @@ def render_data_pack(
     aa_source_base = cashflow.bridge_label(aa_bridge)
     aa_all = grids.aa_variants(aa_surplus) if aa_surplus else grids.aa_variants(fcf)
     aa_value = aa_all[0].value if aa_all else None
+    if decisions.get("aa"):
+        selected_aa = decisions["aa"]
+        aa_matches = [variant for variant in aa_all if variant.label == selected_aa]
+        if not aa_matches:
+            raise ValueError(f"research decision aa={selected_aa} is not available")
+        aa_value = aa_matches[0].value
     aa_label = (
-        f"{aa_all[0].label}（{aa_source_base}）" if aa_all else "不可用"
+        f"{aa_all[0].label} · {aa_source_base}" if aa_all else "不可用"
     )
+    if decisions.get("aa"):
+        aa_label = f"{decisions['aa']} · {aa_source_base}"
     cash_bridge_rows = [
         [
             str(year),
@@ -229,21 +211,29 @@ def render_data_pack(
     ]
     sbc_amount = sbc.amount if sbc is not None else Decimal("0")
     aa_net = (aa_value - sbc_amount) if aa_value is not None else None
-    r_value = returns.penetration_return(
-        Money(oe, currency) if oe is not None else Money.zero(currency),
-        mean_payout or Decimal("0"),
-        tax_pct,
-        buyback or Money.zero(currency),
-        market_cap,
-        Decimal("1"),
+    r_value = (
+        returns.penetration_return(
+            Money(oe, currency),
+            mean_payout or Decimal("0"),
+            tax_pct,
+            buyback or Money.zero(currency),
+            market_cap,
+            Decimal("1"),
+        )
+        if oe is not None
+        else None
     )
-    gg_value = returns.penetration_return(
-        Money(aa_net, currency) if aa_net is not None else Money.zero(currency),
-        mean_payout or Decimal("0"),
-        tax_pct,
-        Money.zero(currency),
-        market_cap,
-        Decimal("1"),
+    gg_value = (
+        returns.penetration_return(
+            Money(aa_net, currency),
+            mean_payout or Decimal("0"),
+            tax_pct,
+            buyback or Money.zero(currency),
+            market_cap,
+            Decimal("1"),
+        )
+        if aa_net is not None
+        else None
     )
 
     min_fcf_all = dict(sorted(fcf.items())[-5:])
@@ -698,7 +688,7 @@ def render_data_pack(
         "market": code.market.value,
         "currency": currency.value,
         "generated_at": str(as_of or (quote.get("trade_date", "") if quote else "")),
-        "snapshot_id": _snapshot_id(rows),
+        "snapshot_id": snapshot_id or _snapshot_id(rows),
         "as_of": str(as_of or (quote.get("trade_date", "") if quote else "")),
         "pit_note": pit_note,
         "data_basis": "annual" if not ttm_rows else "annual+TTM",

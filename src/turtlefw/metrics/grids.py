@@ -352,6 +352,7 @@ def revenue_sensitivity(
     tax_pct: Decimal,
     market_cap: Decimal,
     ii_pct: Decimal,
+    buyback: Decimal = Decimal("0"),
     ks: Sequence[Decimal] = (Decimal("1.0"), Decimal("0.9"), Decimal("0.8"), Decimal("0.7")),
 ) -> tuple[tuple[Decimal, Decimal | None, Decimal | None], ...]:
     """λ-based GG scenarios and the break-even revenue multiple."""
@@ -365,10 +366,12 @@ def revenue_sensitivity(
     ):
         return ()
     factor = payout_pct / Decimal("100") * (Decimal("1") - tax_pct / Decimal("100"))
+    if factor <= 0:
+        return ()
     rows: list[tuple[Decimal, Decimal | None, Decimal | None]] = []
     for k in ks:
         aa_k = base_aa + lam * (k - Decimal("1")) * base_revenue
-        gg = aa_k * factor / market_cap * Decimal("100")
+        gg = (aa_k * factor + buyback) / market_cap * Decimal("100")
         rows.append((k, aa_k, gg))
     return tuple(rows)
 
@@ -382,6 +385,7 @@ def break_even_revenue_multiple(
     tax_pct: Decimal,
     market_cap: Decimal,
     ii_pct: Decimal,
+    buyback: Decimal = Decimal("0"),
 ) -> Decimal | None:
     if (
         base_aa is None
@@ -394,7 +398,9 @@ def break_even_revenue_multiple(
     ):
         return None
     factor = payout_pct / Decimal("100") * (Decimal("1") - tax_pct / Decimal("100"))
-    required_aa = ii_pct / Decimal("100") * market_cap / factor
+    if factor <= 0:
+        return None
+    required_aa = (ii_pct / Decimal("100") * market_cap - buyback) / factor
     return Decimal("1") + (required_aa - base_aa) / (lam * base_revenue)
 
 

@@ -31,7 +31,8 @@ from ..metrics import grids, statements
 from ..metrics.valuation import build_valuation
 from ..qualitative import load as load_qualitative
 from ..report.analysis import render_analysis
-from ..report.pack import _snapshot_id, average_dps
+from ..metrics.dividends import average_dps
+from ..report.pack import _snapshot_id
 from ..types import Currency, DividendEvent, FetchIssue, Money, StockCode
 
 
@@ -311,6 +312,7 @@ def render(
     metrics_out: dict[str, object] | None = None,
     facts: dict[str, str] | None = None,
     refresh_metrics: bool = False,
+    allow_research_decisions: bool = False,
 ) -> tuple[str, str]:
     code = StockCode.parse(inputs.code)
     currency = Currency(inputs.currency)
@@ -357,13 +359,17 @@ def render(
         else Path(research_path) if research_path is not None else None
     )
     if research_candidate is not None and research_candidate.is_file():
-        from ..research import load as load_research
+        from ..research import engine_decisions, load as load_research
 
         research_document = load_research(research_candidate)
-    decisions = {
-        decision.metric_id: decision.selected
-        for decision in (research_document.decisions if research_document else ())
-    }
+    decisions = (
+        engine_decisions(
+            research_document,
+            allow=allow_research_decisions,
+        )
+        if research_document is not None
+        else {}
+    )
     ctx = FactorContext(
         code=code,
         rows=rows,
@@ -537,4 +543,12 @@ def render(
         metrics_out=metrics_out,
         resolved_md=resolve_markdown(inputs.resolved_facts),
     )
+    if decisions and research_document is not None:
+        selected = "、".join(
+            decision.metric_id for decision in research_document.decisions
+        )
+        markdown += (
+            "\n\n> 本轮启用了 research decisions："
+            f"{selected}（LLM 从候选值选择，均带 evidence；不是裸数字）。\n"
+        )
     return markdown, dict(results["4"].metrics).get("结论", "观察")

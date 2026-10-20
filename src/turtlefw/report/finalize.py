@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -13,10 +14,10 @@ from .. import state as st
 from ..research import load as load_research
 from ..research import quality as research_quality
 from ..research import snapshot_audit
+from ..research import engine_decisions
 from . import snapshot as snap
 from .html import convert_file
 from .manifest import build_manifest
-from .pack import _snapshot_id
 
 
 class FinalizeError(Exception):
@@ -33,6 +34,7 @@ def finalize_research(
     min_claims: int = 0,
     min_dimensions: int = 0,
     html: bool = False,
+    allow_research_decisions: bool = False,
 ) -> Path:
     source = Path(snapshot_dir)
     target = Path(out_dir)
@@ -57,22 +59,48 @@ def finalize_research(
         raise FinalizeError(
             f"dimensions {len(covered)} < min_dimensions {min_dimensions}"
         )
+    engine_decisions(document, allow=allow_research_decisions)
 
     shutil.copytree(source, target)
     (target / "research.json").write_bytes(research_file.read_bytes())
     provenance = research_file.with_name("research_provenance.json")
     if provenance.is_file():
         shutil.copyfile(provenance, target / "research_provenance.json")
+    if allow_research_decisions and document.decisions:
+        # The source data pack was generated before research decisions. Do not
+        # silently present it as decision-adjusted; report remains authoritative.
+        pack_path = target / "data_pack.md"
+        if pack_path.is_file():
+            with pack_path.open("a", encoding="utf-8") as handle:
+                handle.write(
+                    "\n\n> 注意：本数据包生成于 research decisions 之前；"
+                    "决策只作用于最终报告，不改变本数据包的默认口径。\n"
+                )
 
     inputs, settings = snap.load(target)
+    # Identity fields (facts/config/research/template/versions) do not include
+    # report/metrics hashes, so the final snapshot id is available before
+    # rendering. Use it for the header and the final manifest.
+    final_snapshot_id = build_manifest(inputs, settings, target).snapshot_id
+    pack_path = target / "data_pack.md"
+    if pack_path.is_file():
+        pack_text = pack_path.read_text(encoding="utf-8")
+        pack_text = re.sub(
+            r"(数据快照：`)[0-9a-f]{8,32}(`)",
+            rf"\g<1>{final_snapshot_id}\g<2>",
+            pack_text,
+            count=1,
+        )
+        pack_path.write_text(pack_text, encoding="utf-8")
     metrics_out: dict[str, object] = {}
     markdown, _verdict = snap.render(
         inputs,
         settings,
-        snapshot_id=_snapshot_id(inputs.rows),
+        snapshot_id=final_snapshot_id,
         snapshot_dir=target,
         metrics_out=metrics_out,
         refresh_metrics=True,
+        allow_research_decisions=allow_research_decisions,
     )
     out_report = (
         Path(report_path)
@@ -163,6 +191,11 @@ def finalize_research(
         numeric_sources=tuple(item.name for item in used_sources),
     )
     manifest.write(target / "manifest.json")
+    if manifest.snapshot_id != final_snapshot_id:
+        raise FinalizeError(
+            "snapshot identity changed during finalize: "
+            f"{final_snapshot_id} != {manifest.snapshot_id}"
+        )
     errors = snap.verify_manifest(inputs, settings, markdown, manifest, target)
     if errors:
         raise FinalizeError("finalize 后校验失败：" + "; ".join(errors))

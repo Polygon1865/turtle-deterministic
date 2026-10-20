@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 SNAPSHOT_VERSION = 1
-FORMULA_VERSION = "2026-10-19.1"
+FORMULA_VERSION = "2026-10-20.2"
 
 SOURCE_RANKS = {
     "pdf": 1,

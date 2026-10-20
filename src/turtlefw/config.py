@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import tomllib
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Mapping
@@ -118,31 +118,10 @@ class Settings:
     config_path: Path
 
     def save_snapshot(self) -> dict[str, Any]:
-        """Deterministic representation used for report metadata."""
-        return {
-            "config_path": str(self.config_path),
-            "screening": {
-                "min_roe": str(self.screening.min_roe),
-                "min_gross_margin": str(self.screening.min_gross_margin),
-                "max_debt_ratio": str(self.screening.max_debt_ratio),
-                "min_coverage": self.screening.min_coverage,
-                "weights": {k: str(v) for k, v in sorted(self.screening.score_weights.items())},
-            },
-            "returns": {
-                "a_share_floor": str(self.returns.a_share_floor),
-                "a_share_spread": str(self.returns.a_share_spread),
-                "hk_floor": str(self.returns.hk_floor),
-                "hk_spread": str(self.returns.hk_spread),
-                "g_light": str(self.returns.g_light),
-                "g_mid": str(self.returns.g_mid),
-                "g_heavy": str(self.returns.g_heavy),
-            },
-            "valuation": {
-                "dividend_discount_floor": str(self.valuation.dividend_discount_floor),
-                "composite_method": self.valuation.composite_method,
-            },
-            "fx": {"cny_per_hkd": str(self.fx.cny_per_hkd)},
-        }
+        """Deterministic representation of the complete effective config."""
+        payload = asdict(self)
+        payload.pop("config_path", None)
+        return payload
 
 
 def load_settings(path: Path | None = None) -> Settings:

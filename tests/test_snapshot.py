@@ -165,9 +165,10 @@ def test_finalize_attaches_research_without_mutating_old_snapshot(tmp_path, monk
     text = report.read_text(encoding="utf-8")
     assert "D2.1" in text
     assert "**研究摘要**" not in text
+    assert manifest["snapshot_id"] in text
     state_path = tmp_path / "out" / "600887.SH" / "run_state.json"
     state = json.loads(state_path.read_text(encoding="utf-8"))
-    assert state["snapshot_id"]
+    assert state["snapshot_id"] == manifest["snapshot_id"]
     assert "snapshot" in state["artifacts"]
     assert "research_audit" in state["artifacts"]
 

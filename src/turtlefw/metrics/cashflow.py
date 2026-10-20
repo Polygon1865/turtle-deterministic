@@ -4,6 +4,12 @@ This is the local counterpart of the upstream v2 factor-3 cash bridge. It
 uses the cash-flow statement where available and falls back to OCF − capex
 when the bridge components are missing (notably HK line-item data).
 
+The A-share derived path is a deliberately conservative *sales-cash* bridge:
+it keeps actual sales receipts (``c_fr_sale_sg``) but derives total operating
+outflows from ``c_inf_fr_operate_a - OCF``. It therefore excludes other
+operating inflows; the report labels it "销售收现保守口径" and never presents it
+as a neutral OCF-equivalent. A year without capex gets no AA/FCF at all.
+
 The output is deliberately explicit: every step is kept so the report can
 show where ``AA`` came from, and missing components never become zero.
 """
@@ -102,7 +108,7 @@ def build_cash_bridge(
 
         outflow_parts = [goods.get(year), employees.get(year), taxes.get(year), other.get(year)]
         present = [value for value in outflow_parts if value is not None]
-        outflows = sum(present, Decimal("0")) if len(present) >= 3 else None
+        outflows = sum(present, Decimal("0")) if len(present) == 4 else None
         derived_outflows = False
         ocf_value = ocf.get(year)
         if outflows is None and inflow_total.get(year) is not None and ocf_value is not None:
@@ -132,11 +138,16 @@ def build_cash_bridge(
         fcf = (
             ocf_value - capex_value
             if ocf_value is not None and capex_value is not None
-            else ocf_value
+            else None
         )
 
-        if true_cash is not None and outflows is not None:
-            surplus = true_cash - outflows - (capex_value or Decimal("0"))
+        if capex_value is None:
+            # AA is not defined without capex; do not silently treat capex=0.
+            surplus = None
+            source = "ocf_no_capex" if ocf_value is not None else "unavailable"
+            complete = False
+        elif true_cash is not None and outflows is not None:
+            surplus = true_cash - outflows - capex_value
             if derived_outflows:
                 # Total outflow came from inflow subtotal - OCF; the bridge is
                 # useful but not a complete gross cash bridge.
@@ -154,7 +165,7 @@ def build_cash_bridge(
                 source = "cash_bridge"
                 complete = True
         elif ocf_value is not None:
-            surplus = ocf_value - (capex_value or Decimal("0"))
+            surplus = ocf_value - capex_value
             source = "ocf_fallback"
             complete = False
         else:
@@ -237,14 +248,14 @@ def bridge_label(bridge: Mapping[int, CashBridgeYear]) -> str:
         return "PDF间接现金桥+OCF"
     if "pdf_indirect" in sources:
         if "derived_bridge" in sources:
-            return "PDF间接现金桥+推导桥（部分）"
+            return "PDF间接现金桥+销售收现保守口径（部分）"
         return "PDF间接现金桥+历史口径"
     if sources == {"derived_bridge"}:
-        return "推导现金桥（部分）"
+        return "销售收现保守口径（部分）"
     if sources == {"cash_bridge", "derived_bridge"}:
-        return "现金桥+推导桥（部分）"
+        return "现金桥+销售收现保守口径（部分）"
     if "derived_bridge" in sources:
-        return "推导现金桥+其他口径（部分）"
+        return "销售收现保守口径+其他口径（部分）"
     if sources == {"cash_bridge"}:
         return "现金桥"
     if sources == {"indirect_bridge"}:

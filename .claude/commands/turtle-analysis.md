@@ -18,26 +18,26 @@ python -m turtlefw.cli pack <code>
 
 # 2. PDF (optional; skip with a warning if unavailable)
 #    Find the annual report via WebSearch, then:
-python -m turtlefw.cli fetch-report --url "<PDF_URL>" --stock-code <digits> --report-type 年报 --year <FY> --save-dir output/<code>
-python -m turtlefw.cli pdf --pdf output/<code>/<file>.pdf --output output/<code>/pdf_sections.json --verbose
-python -m turtlefw.cli pdf-footnotes --sections output/<code>/pdf_sections.json --output output/<code>/footnotes.json
-python -m turtlefw.cli pdf-numbers --pdf output/<code>/<file>.pdf --year <FY> --output output/<code>/reported_numbers.json
+python -m turtlefw.cli fetch-report --url "<PDF_URL>" --stock-code <digits> --report-type 年报 --year <FY> --save-dir .runs/<code>
+python -m turtlefw.cli pdf --pdf .runs/<code>/<file>.pdf --output .runs/<code>/pdf_sections.json --verbose
+python -m turtlefw.cli pdf-footnotes --sections .runs/<code>/pdf_sections.json --output .runs/<code>/footnotes.json
+python -m turtlefw.cli pdf-numbers --pdf .runs/<code>/<file>.pdf --year <FY> --output .runs/<code>/reported_numbers.json
 # review reported_numbers.json (value/page/confidence), then:
-python -m turtlefw.cli audit <code> --doc output/<code>/reported_numbers.json --threshold 1 --write output/<code>/qualitative.json
-python -m turtlefw.cli pack <code> --pdf-numbers output/<code>/reported_numbers.json
+python -m turtlefw.cli audit <code> --doc .runs/<code>/reported_numbers.json --threshold 1 --write .runs/<code>/qualitative.json
+python -m turtlefw.cli pack <code> --pdf-numbers .runs/<code>/reported_numbers.json
 python -m turtlefw.cli state <code> --phase report_pdf
 
 # 3. qualitative JSON
 python -m turtlefw.cli qualitative <code> --init
-# fill output/<code>/qualitative.json per prompts/agent/phase3_qualitative.md
+# fill .runs/<code>/qualitative.json per prompts/agent/phase3_qualitative.md
 python -m turtlefw.cli verify <code> --write
 python -m turtlefw.cli qualitative <code> --check
 python -m turtlefw.cli state <code> --phase qualitative
 
 # 4. deterministic report + optional narrative
-python -m turtlefw.cli report <code> --pdf-numbers output/<code>/reported_numbers.json --save-snapshot output/<code>/snapshot
-# write output/<code>/narrative.md per phase4_report.md, then:
-python -m turtlefw.cli narrative <code> --file output/<code>/narrative.md
+python -m turtlefw.cli report <code> --pdf-numbers .runs/<code>/reported_numbers.json --save-snapshot .runs/<code>/snapshot
+# write .runs/<code>/narrative.md per phase4_report.md, then:
+python -m turtlefw.cli narrative <code> --file .runs/<code>/narrative.md
 python -m turtlefw.cli state <code> --phase report
 
 # 5. delivery gate
@@ -48,7 +48,7 @@ If `qa` fails, return to the corresponding phase; never bypass it. If PDF or qua
 
 ## Deliver
 
-- `output/<code>/analysis_report.md` (final)
-- `output/<code>/qualitative.json` + evidence URLs
-- `output/<code>/run_state.json`
+- `.runs/<code>/analysis_report.md` (final)
+- `.runs/<code>/qualitative.json` + evidence URLs
+- `.runs/<code>/run_state.json`
 - one-line conclusion: 买入 / 观察 / 排除 + reason

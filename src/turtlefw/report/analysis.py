@@ -58,18 +58,7 @@ def render_analysis(
         if min_fcf_recent and min(min_fcf_recent.values()) > 0
         else None
     )
-    dps_by_year: dict[int, Decimal] = {}
-    for event in ctx.dividends:
-        if event.dps_reliable:
-            dps_by_year[event.fiscal_year] = (
-                dps_by_year.get(event.fiscal_year, Decimal("0")) + event.dps
-            )
-    recent_dps = sorted(dps_by_year)[-3:]
-    avg_dps = (
-        sum((dps_by_year[y] for y in recent_dps), Decimal("0")) / Decimal(len(recent_dps))
-        if recent_dps
-        else average_dps(ctx.dividends)
-    )
+    avg_dps = average_dps(ctx.dividends)
     baselines = valuation.five_baselines(
         cash=cash.get(latest) if latest else None,
         trad_assets=statements.annual_series(rows, "balance", "trad_asset").get(latest)

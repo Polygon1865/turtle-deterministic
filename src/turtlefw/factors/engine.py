@@ -241,22 +241,24 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
     lam, lam_note = grids.operating_lambda(revenue, lam_series)
     effective_lam = lam if lam is not None and lam > 0 else None
     sensitivity = grids.revenue_sensitivity(
-        aa,
+        aa_net,
         revenue.get(latest) if latest else None,
         effective_lam,
         payout_pct=mean_payout or Decimal("0"),
         tax_pct=tax_pct,
         market_cap=ctx.market_cap.amount,
         ii_pct=ii,
+        buyback=ctx.buyback.amount if ctx.buyback is not None else Decimal("0"),
     )
     k_star = grids.break_even_revenue_multiple(
-        aa,
+        aa_net,
         revenue.get(latest) if latest else None,
         effective_lam,
         payout_pct=mean_payout or Decimal("0"),
         tax_pct=tax_pct,
         market_cap=ctx.market_cap.amount,
         ii_pct=ii,
+        buyback=ctx.buyback.amount if ctx.buyback is not None else Decimal("0"),
     )
     scenario_k = Decimal("1.0")
     if "scenario" in ctx.decisions:
@@ -265,13 +267,7 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
             raise ValueError(
                 f"decision scenario: {scenario_k} is not a supported k"
             )
-    scenario_gg = None
-    for row_k, _row_aa, row_gg in sensitivity:
-        if row_k == scenario_k:
-            scenario_gg = row_gg
-            break
-    if scenario_gg is None and gg is not None:
-        scenario_gg = gg * scenario_k
+    scenario_gg = _scenario_value(sensitivity, gg, scenario_k)
 
     # ---- Factor 1A ----------------------------------------------------
     checks_1a: list[Check] = []
@@ -447,18 +443,7 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
 
     # Floor-price constraint: a rich premium or an unstable composite caps the verdict.
     trad = statements.annual_series(rows, "balance", "trad_asset")
-    dps_by_year: dict[int, Decimal] = {}
-    for event in ctx.dividends:
-        if event.dps_reliable:
-            dps_by_year[event.fiscal_year] = (
-                dps_by_year.get(event.fiscal_year, Decimal("0")) + event.dps
-            )
-    recent_dps = sorted(dps_by_year)[-3:]
-    avg_dps = (
-        sum((dps_by_year[y] for y in recent_dps), Decimal("0")) / Decimal(len(recent_dps))
-        if recent_dps
-        else None
-    )
+    avg_dps = div_metrics.average_dps(ctx.dividends)
     recent_fcf_all = dict(sorted(fcf.items())[-5:])
     min_fcf = (
         min(recent_fcf_all.values())
@@ -654,9 +639,9 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
                 *((f"aa.candidate.{index}", row.value) for index, row in enumerate(aa_all)),
                 ("lambda", effective_lam),
                 ("k_star", k_star),
-                ("scenario_gg_10", gg * Decimal("0.9") if gg is not None else None),
-                ("scenario_gg_20", gg * Decimal("0.8") if gg is not None else None),
-                ("scenario_gg_30", gg * Decimal("0.7") if gg is not None else None),
+                ("scenario_gg_10", _scenario_value(sensitivity, gg, Decimal("0.9"))),
+                ("scenario_gg_20", _scenario_value(sensitivity, gg, Decimal("0.8"))),
+                ("scenario_gg_30", _scenario_value(sensitivity, gg, Decimal("0.7"))),
                 *((f"tax_r_{index}", row[2]) for index, row in enumerate(tax_rows)),
                 *((f"tax_gg_{index}", row[3]) for index, row in enumerate(tax_rows)),
                 *((f"scenario_gg_{index}", row[2]) for index, row in enumerate(sensitivity)),
@@ -759,17 +744,23 @@ def _decimal(value: Decimal | None) -> str:
     return "—" if value is None else f"{value:,.2f}"
 
 
+def _scenario_value(
+    sensitivity: tuple[tuple[Decimal, Decimal | None, Decimal | None], ...],
+    gg: Decimal | None,
+    k: Decimal,
+) -> Decimal | None:
+    for row_k, _aa, row_gg in sensitivity:
+        if row_k == k:
+            return row_gg
+    return gg * k if gg is not None else None
+
+
 def _scenario(
     sensitivity: tuple[tuple[Decimal, Decimal | None, Decimal | None], ...],
     gg: Decimal | None,
     k: Decimal,
 ) -> str:
-    for row_k, _aa, row_gg in sensitivity:
-        if row_k == k:
-            return _pct(row_gg)
-    if gg is None:
-        return "—"
-    return _pct(gg * k)
+    return _pct(_scenario_value(sensitivity, gg, k))
 
 
 def _num_price(value: Decimal | None) -> str:

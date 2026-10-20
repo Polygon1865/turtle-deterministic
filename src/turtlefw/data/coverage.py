@@ -29,7 +29,12 @@ def capabilities(code: StockCode) -> list[Capability]:
     if code.is_a_share:
         rows.extend(
             [
-                Capability("parent_cash", "母公司现金", "available", "A 股治理接口"),
+                Capability(
+                    "parent_cash",
+                    "母公司现金",
+                    "available",
+                    "A 股治理接口（report_type=6；缺失时保持 unknown）",
+                ),
                 Capability("pledge", "质押", "available", "A 股治理接口"),
                 Capability("buyback", "回购", "available", "A 股治理接口"),
                 Capability("holders", "十大股东", "available", "A 股接口"),

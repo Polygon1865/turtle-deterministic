@@ -293,6 +293,38 @@ def snapshot_audit(snapshot_dir: Path | str) -> dict[str, Any]:
     return result
 
 
+def engine_decisions(
+    document: ResearchDocument,
+    *,
+    allow: bool = False,
+) -> dict[str, str]:
+    """Return decisions only when explicitly enabled and evidence-backed.
+
+    A decision is a numeric selection (G/M/Q/AA/scenario), not a free number.
+    It is therefore disabled by default; enabling it requires an explicit
+    command-line flag and at least one evidence id per decision.
+    """
+    if not document.decisions:
+        return {}
+    if not allow:
+        raise ValueError(
+            "research decisions are disabled; "
+            "use --allow-research-decisions to apply them"
+        )
+    missing = [
+        decision.decision_id
+        for decision in document.decisions
+        if not decision.evidence_ids
+    ]
+    if missing:
+        raise ValueError(
+            "research decisions require evidence: " + ", ".join(missing)
+        )
+    return {
+        decision.metric_id: decision.selected for decision in document.decisions
+    }
+
+
 def audit(
     document: ResearchDocument,
     metrics: Mapping[str, str] | None = None,
@@ -387,6 +419,8 @@ def evidence_markdown(document: ResearchDocument) -> str:
     for evidence_id, item in sorted(document.evidence.items()):
         url = str(item.get("url", ""))
         page = str(item.get("page", ""))
+        if not url and str(item.get("source_type", "web")) == "data":
+            url = f"internal:{evidence_id}"
         quote = " ".join(str(item.get("quote", "")).split())[:180]
         lines.append(f"| {evidence_id} | {url} | {page} | {quote} |")
     return "\n".join(lines)
@@ -441,7 +475,8 @@ def load_payload(payload: Mapping[str, Any]) -> ResearchDocument:
             raise ValueError("evidence missing id")
         evidence[key] = dict(item)
     validate_evidence(
-        item for item in evidence.values() if str(item.get("source_type", "web")) != "data"
+        evidence.values(),
+        allow_data=True,
     )
 
     claims: list[ResearchClaim] = []
@@ -548,11 +583,20 @@ def load_payload(payload: Mapping[str, Any]) -> ResearchDocument:
     )
 
 
-def validate_evidence(items: Iterable[Mapping[str, object]]) -> None:
+def validate_evidence(
+    items: Iterable[Mapping[str, object]],
+    *,
+    allow_data: bool = False,
+) -> None:
     for item in items:
         url = str(item.get("url", "")).strip()
         quote = str(item.get("quote", "")).strip()
-        if not url.startswith(("http://", "https://")):
-            raise ValueError(f"evidence {item.get('id')}: invalid url")
+        source_type = str(item.get("source_type", "web")).strip()
         if not quote:
             raise ValueError(f"evidence {item.get('id')}: empty quote")
+        if allow_data and source_type == "data":
+            # Internal data evidence is addressable by its data: id; it has no
+            # web URL, but still needs a quote/value.
+            continue
+        if not url.startswith(("http://", "https://")):
+            raise ValueError(f"evidence {item.get('id')}: invalid url")

@@ -119,6 +119,10 @@ class TestStatements:
             2024: Decimal("17"),
         }
 
+    def test_fcf_missing_capex_is_not_ocf(self):
+        rows = make_rows({("cashflow", "n_cashflow_act"): {2024: "10"}})
+        assert statements.fcf_series(rows) == {}
+
     def test_interest_bearing_debt(self):
         assert statements.interest_bearing_debt(ROWS)[2024] == Decimal("15")
 

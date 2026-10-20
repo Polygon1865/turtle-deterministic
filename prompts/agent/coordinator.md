@@ -9,11 +9,11 @@
 
 ## 状态文件
 
-`output/<标准化代码>/run_state.json`，由 CLI 维护：
+`.runs/<标准化代码>/run_state.json`，由 CLI 维护：
 
 ```powershell
 python -m turtlefw.cli state <code> --init
-python -m turtlefw.cli state <code> --phase data --artifact data_pack=output/<code>/data_pack.md
+python -m turtlefw.cli state <code> --phase data --artifact data_pack=.runs/<code>/data_pack.md
 python -m turtlefw.cli state <code> --warning "D&A 缺失"
 ```
 
@@ -47,5 +47,5 @@ python -m turtlefw.cli state <code> --warning "D&A 缺失"
 定性：6 模块结论与置信度（附证据链接）
 数字交叉验证：冲突项或"无"
 未验证：unknown 列表
-产物：output/<code>/...
+产物：.runs/<code>/...
 ```

@@ -6,7 +6,6 @@ import argparse
 import os
 import sys
 import time
-from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -134,17 +133,7 @@ def kpi_summary(
         else None
     )
 
-    per_year: dict[int, Decimal] = defaultdict(Decimal)
-    for event in dividends:
-        if event.dps_reliable:
-            per_year[event.fiscal_year] += event.dps
-    recent_years = sorted(per_year)[-3:]
-    avg_dps = (
-        sum((per_year[year] for year in recent_years), Decimal("0"))
-        / Decimal(len(recent_years))
-        if recent_years
-        else None
-    )
+    avg_dps = div_metrics.average_dps(dividends)
     min_fcf_all = dict(sorted(fcf.items())[-5:])
     min_fcf = (
         min(min_fcf_all.values())
@@ -365,10 +354,14 @@ def _governance(
     buyback: Money | None = None
     if code.is_a_share:
         try:
-            parent_rows = provider.statements(code, report_type="4")
+            parent_rows = provider.statements(code, report_type="6")
             parent_cash_series = statements.cash_and_equivalents(parent_rows)
             if parent_cash_series:
                 parent_cash = parent_cash_series[max(parent_cash_series)]
+            else:
+                # Never fall back to consolidated cash: report_type 6 is the
+                # only parent-company statement. Missing data must stay unknown.
+                parent_cash = None
         except Exception:  # noqa: BLE001 - parent statements are optional
             parent_cash = None
         try:
@@ -904,7 +897,7 @@ def _valuation(
     from .data.tushare_provider import TushareProvider
     from .metrics import dividends as div_metrics
     from .metrics import statements, valuation_models
-    from .report.pack import average_dps
+    from .metrics.dividends import average_dps
 
     settings = load_settings()
     code = StockCode.parse(raw_code)
@@ -1972,6 +1965,7 @@ def _run_cmd(
     qa: bool,
     min_claims: int = 0,
     min_dimensions: int = 0,
+    allow_research_decisions: bool = False,
 ) -> int:
     """One-command deterministic workflow: fetch once -> pack/report/snapshot -> QA."""
     from .paths import ensure_output_root
@@ -2035,6 +2029,7 @@ def _run_cmd(
         str(base / "data_pack.md"),
         footnotes,
         pdf_sections,
+        allow_research_decisions,
     )
     if rc != 0:
         print(f"run 在 report 阶段失败：{rc}", file=sys.stderr)
@@ -2092,6 +2087,7 @@ def _finalize_cmd(
     min_claims: int,
     min_dimensions: int,
     html: bool,
+    allow_research_decisions: bool = False,
 ) -> int:
     from .report.finalize import FinalizeError, finalize_research
 
@@ -2105,6 +2101,7 @@ def _finalize_cmd(
             min_claims=min_claims,
             min_dimensions=min_dimensions,
             html=html,
+            allow_research_decisions=allow_research_decisions,
         )
     except (FinalizeError, ValueError, OSError) as exc:
         print(f"finalize 失败：{exc}", file=sys.stderr)
@@ -2134,6 +2131,7 @@ def _report(
     data_pack_out: str | None = None,
     footnotes_path: str | None = None,
     pdf_sections_path: str | None = None,
+    allow_research_decisions: bool = False,
 ) -> int:
     from .data.tushare_provider import TushareProvider
     from .metrics import statements
@@ -2171,6 +2169,7 @@ def _report(
             settings,
             snapshot_id=manifest.snapshot_id if manifest else _snapshot_id(inputs.rows),
             snapshot_dir=snapshot_dir,
+            allow_research_decisions=allow_research_decisions,
         )
         if manifest is not None:
             errors = snap.verify_manifest(inputs, settings, markdown, manifest, snapshot_dir)
@@ -2287,6 +2286,13 @@ def _report(
             if research_path
             else output_root() / str(code) / "research.json"
         )
+        if research_file.is_file():
+            from .research import engine_decisions, load as load_research
+
+            engine_decisions(
+                load_research(research_file),
+                allow=allow_research_decisions,
+            )
         evidence_facts = _pdf_facts(pdf_numbers) | _evidence_facts(evidence_path)
         parent_cash, pledge_pct, buyback = _governance(provider, code, unit)
         pdf_bridge = _pdf_bridge(pdf_numbers)
@@ -2377,10 +2383,30 @@ def _report(
             source_policy=source_policy,
             resolved_facts=resolved_facts,
         )
+        if save_snapshot:
+            snap.freeze(
+                inputs,
+                settings,
+                save_snapshot,
+                qualitative_source=qual_path if qual_path.is_file() else None,
+                research_source=research_file if research_file.is_file() else None,
+            )
+        frozen_manifest = (
+            build_manifest(inputs, settings, Path(save_snapshot))
+            if save_snapshot
+            else None
+        )
         if data_pack_out:
             from json import loads as json_loads
 
+            from .research import engine_decisions, load as load_research
             from .report.pack import render_data_pack
+
+            pack_decisions: dict[str, str] = {}
+            if allow_research_decisions and research_file.is_file():
+                pack_decisions = engine_decisions(
+                    load_research(research_file), allow=True
+                )
 
             try:
                 holders = provider.holders(code) if hasattr(provider, "holders") else []
@@ -2433,19 +2459,14 @@ def _report(
                 footnotes=footnotes,
                 pdf_sections=pdf_sections,
                 pit_note=pit_note,
+                decisions=pack_decisions,
+                snapshot_id=(
+                    frozen_manifest.snapshot_id if frozen_manifest else None
+                ),
             )
             pack_path = Path(data_pack_out)
             pack_path.parent.mkdir(parents=True, exist_ok=True)
             pack_path.write_bytes(pack_markdown.encode("utf-8"))
-        if save_snapshot:
-            snap.freeze(
-                inputs,
-                settings,
-                save_snapshot,
-                qualitative_source=qual_path if qual_path.is_file() else None,
-                research_source=research_file if research_file.is_file() else None,
-            )
-        frozen_manifest = build_manifest(inputs, settings, Path(save_snapshot)) if save_snapshot else None
         metrics_out: dict[str, object] = {}
         markdown, verdict = snap.render(
             inputs,
@@ -2459,6 +2480,7 @@ def _report(
             metrics_out=metrics_out,
             facts=evidence_facts,
             refresh_metrics=True,
+            allow_research_decisions=allow_research_decisions,
         )
 
     code_text = inputs.code
@@ -2817,6 +2839,11 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("--as-of", default=None, help="近似 PIT 日期（YYYY-MM-DD）")
     report.add_argument("--ttm", action="store_true", help="用最新 interim 构造 TTM 年度行")
     report.add_argument("--pit", action="store_true", help="从本地 PIT 库读取 as-of 财务")
+    report.add_argument(
+        "--allow-research-decisions",
+        action="store_true",
+        help="允许 research.json 的决策改变 G/M/Q/AA/scenario（必须带 evidence）",
+    )
 
     run = sub.add_parser(
         "run",
@@ -2855,6 +2882,11 @@ def build_parser() -> argparse.ArgumentParser:
     run.set_defaults(qa=True)
     run.add_argument("--min-claims", type=int, default=0)
     run.add_argument("--min-dimensions", type=int, default=0)
+    run.add_argument(
+        "--allow-research-decisions",
+        action="store_true",
+        help="允许 research 决策改变数字（必须带 evidence）",
+    )
     report.add_argument(
         "--source-policy",
         choices=["record-only", "display-primary", "engine-primary"],
@@ -2975,6 +3007,11 @@ def build_parser() -> argparse.ArgumentParser:
     finalize.add_argument("--min-claims", type=int, default=0)
     finalize.add_argument("--min-dimensions", type=int, default=0)
     finalize.add_argument("--html", action="store_true", help="同时生成 HTML")
+    finalize.add_argument(
+        "--allow-research-decisions",
+        action="store_true",
+        help="允许 research 决策改变数字（必须带 evidence）",
+    )
 
     agent = sub.add_parser("agent", help="检查/推进 Agent 阶段 artifact 契约")
     agent.add_argument("--dir", required=True, help="artifact 目录")
@@ -3139,6 +3176,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.qa,
                 args.min_claims,
                 args.min_dimensions,
+                args.allow_research_decisions,
             )
         if args.command == "analyze":
             return _demo_analyze() if args.demo else _live_analyze(
@@ -3245,6 +3283,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.strict_numeric,
                 args.evidence,
                 args.html,
+                args.allow_research_decisions,
             )
         if args.command == "valuation":
             return _valuation(args.code, args.currency, args.rf, args.rf_source, args.ttm)
@@ -3311,6 +3350,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.min_claims,
                 args.min_dimensions,
                 args.html,
+                args.allow_research_decisions,
             )
         if args.command == "agent":
             return _agent_cmd(

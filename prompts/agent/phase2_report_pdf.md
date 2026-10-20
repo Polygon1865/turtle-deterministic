@@ -12,21 +12,21 @@
 
 ```powershell
 python -m turtlefw.cli fetch-report --url "<PDF_URL>" --stock-code <数字代码> `
-  --report-type 年报 --year <年份> --save-dir output/<标准化代码>
+  --report-type 年报 --year <年份> --save-dir .runs/<标准化代码>
 ```
 
 3. **解析章节**：
 
 ```powershell
-python -m turtlefw.cli pdf --pdf output/<code>/<file>.pdf `
-  --output output/<code>/pdf_sections.json --verbose
+python -m turtlefw.cli pdf --pdf .runs/<code>/<file>.pdf `
+  --output .runs/<code>/pdf_sections.json --verbose
 ```
 
 4. **结构化附注表格**：
 
 ```powershell
-python -m turtlefw.cli pdf-footnotes --sections output/<code>/pdf_sections.json `
-  --output output/<code>/footnotes.json
+python -m turtlefw.cli pdf-footnotes --sections .runs/<code>/pdf_sections.json `
+  --output .runs/<code>/footnotes.json
 ```
 
 输出每个章节的 `pages/tables/text_excerpt`；P3/P4/P6 的账龄、关联方、或有负债表可直接引用，
@@ -35,8 +35,8 @@ python -m turtlefw.cli pdf-footnotes --sections output/<code>/pdf_sections.json 
 5. **自动抽取审计数字**：
 
 ```powershell
-python -m turtlefw.cli pdf-numbers --pdf output/<code>/<file>.pdf `
-  --year <年份> --report-type 年报 --output output/<code>/reported_numbers.json
+python -m turtlefw.cli pdf-numbers --pdf .runs/<code>/<file>.pdf `
+  --year <年份> --report-type 年报 --output .runs/<code>/reported_numbers.json
 ```
 
 默认抽取 6 项：`revenue/net_income/ocf/capex/equity/total_assets`。港股年报还会附带
@@ -50,8 +50,8 @@ python -m turtlefw.cli pdf-numbers --pdf output/<code>/<file>.pdf `
 6. **用 PDF 数字重跑数据包/报告**：
 
 ```powershell
-python -m turtlefw.cli pack <code> --pdf-numbers output/<code>/reported_numbers.json
-python -m turtlefw.cli report <code> --pdf-numbers output/<code>/reported_numbers.json
+python -m turtlefw.cli pack <code> --pdf-numbers .runs/<code>/reported_numbers.json
+python -m turtlefw.cli report <code> --pdf-numbers .runs/<code>/reported_numbers.json
 ```
 
 港股有 `cash_bridge` 时，报告 AA 会标为 `PDF间接现金桥`；这是间接法，**不是**
@@ -61,7 +61,7 @@ python -m turtlefw.cli report <code> --pdf-numbers output/<code>/reported_number
 
 ```powershell
 python -m turtlefw.cli audit <code> --doc reported_numbers.json --threshold 1 `
-  --write output/<code>/qualitative.json
+  --write .runs/<code>/qualitative.json
 ```
 
 ## 验收
@@ -82,6 +82,6 @@ python -m turtlefw.cli audit <code> --doc reported_numbers.json --threshold 1 `
 
 ```powershell
 python -m turtlefw.cli state <code> --phase report_pdf `
-  --artifact pdf=output/<code>/<file>.pdf `
-  --artifact pdf_sections=output/<code>/pdf_sections.json
+  --artifact pdf=.runs/<code>/<file>.pdf `
+  --artifact pdf_sections=.runs/<code>/pdf_sections.json
 ```

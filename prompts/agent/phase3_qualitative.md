@@ -1,6 +1,6 @@
 # Phase 3：定性研究（evidence-backed）
 
-目标：产出 `output/<code>/qualitative.json`，六个模块尽量有证据，不能有证据的一律 `unknown`。
+目标：产出 `.runs/<code>/qualitative.json`，六个模块尽量有证据，不能有证据的一律 `unknown`。
 
 ## PDF-first 规则
 
@@ -12,8 +12,8 @@
 
 ## 输入
 
-- `output/<code>/data_pack.md`（数字，只读）
-- `output/<code>/pdf_sections.json`（P2/P3/P4/P6/P13/MDA/SUB，可能缺项）
+- `.runs/<code>/data_pack.md`（数字，只读）
+- `.runs/<code>/pdf_sections.json`（P2/P3/P4/P6/P13/MDA/SUB，可能缺项）
 - 网页检索结果（公司公告、交易所、监管、行业数据）
 - 每模块 rubric：`references/<module>.md`
 - 行业锚点：`references/industry_metrics.md`（先定位行业，再取 2–4 个核心指标）
@@ -87,7 +87,7 @@ python -m turtlefw.cli qualitative <code> --check
 
 ```powershell
 python -m turtlefw.cli state <code> --phase qualitative `
-  --artifact qualitative=output/<code>/qualitative.json
+  --artifact qualitative=.runs/<code>/qualitative.json
 ```
 
 ## 红线

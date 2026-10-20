@@ -9,7 +9,7 @@ python -m turtlefw.cli state <code> --phase data
 python -m turtlefw.cli pack <code>
 ```
 
-`pack` 默认写 `output/<标准化代码>/data_pack.md`。
+`pack` 默认写 `.runs/<标准化代码>/data_pack.md`。
 
 ## 验收
 
@@ -21,7 +21,7 @@ python -m turtlefw.cli pack <code>
 
 ```powershell
 python -m turtlefw.cli state <code> --phase data `
-  --artifact data_pack=output/<code>/data_pack.md `
+  --artifact data_pack=.runs/<code>/data_pack.md `
   --artifact snapshot=<快照哈希>
 ```
 

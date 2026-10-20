@@ -69,7 +69,7 @@ class TestCashBridge:
         assert item.source == "derived_bridge"
         assert item.complete is False
         assert cashflow.coverage({2024: item}) == (0, 1)
-        assert cashflow.bridge_label({2024: item}) == "推导现金桥（部分）"
+        assert cashflow.bridge_label({2024: item}) == "销售收现保守口径（部分）"
 
     def test_indirect_bridge_for_hk(self):
         rows = make_rows(
@@ -104,13 +104,45 @@ class TestCashBridge:
         assert item.surplus == Decimal("200")
         assert item.complete is False
 
+    def test_missing_capex_is_not_zero(self):
+        rows = make_rows(
+            {
+                ("income", "revenue"): {2024: "1000"},
+                ("cashflow", "n_cashflow_act"): {2024: "300"},
+            }
+        )
+        item = cashflow.build_cash_bridge(rows)[2024]
+        assert item.source == "ocf_no_capex"
+        assert item.surplus is None
+        assert item.fcf is None
+        assert item.complete is False
+
+    def test_three_of_four_outflow_parts_is_not_complete(self):
+        rows = make_rows(
+            {
+                ("income", "revenue"): {2024: "1000"},
+                ("cashflow", "c_fr_sale_sg"): {2024: "900"},
+                ("cashflow", "c_inf_fr_operate_a"): {2024: "800"},
+                ("cashflow", "n_cashflow_act"): {2024: "300"},
+                ("cashflow", "c_paid_goods_srv"): {2024: "300"},
+                ("cashflow", "c_paid_to_for_empl"): {2024: "100"},
+                ("cashflow", "c_paid_for_taxes"): {2024: "100"},
+                ("cashflow", "c_pay_acq_const_fiolta"): {2024: "100"},
+            }
+        )
+        item = cashflow.build_cash_bridge(rows)[2024]
+        assert item.source == "derived_bridge"
+        assert item.complete is False
+        assert cashflow.coverage({2024: item}) == (0, 1)
+
     def test_coverage(self):
         rows = make_rows(
             {
                 ("income", "revenue"): {2023: "1000", 2024: "1100"},
                 ("cashflow", "n_cashflow_act"): {2023: "300", 2024: "400"},
+                ("cashflow", "c_pay_acq_const_fiolta"): {2023: "100", 2024: "100"},
             }
         )
         bridge = cashflow.build_cash_bridge(rows)
         assert cashflow.coverage(bridge) == (0, 2)
-        assert cashflow.surplus_series(bridge) == {2023: Decimal("300"), 2024: Decimal("400")}
+        assert cashflow.surplus_series(bridge) == {2023: Decimal("200"), 2024: Decimal("300")}

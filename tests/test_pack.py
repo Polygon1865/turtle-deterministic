@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from turtlefw import demo
 from turtlefw.config import load_settings
 from turtlefw.data.protocol import StatementRow
@@ -47,6 +49,23 @@ class TestDataPack:
     def test_floor_methods_are_numbered(self):
         text = render()
         assert "## 6. 底价（" in text and "法）" in text
+
+    def test_gg_includes_buyback(self):
+        text = render_data_pack(
+            demo.DEMO_CODE,
+            demo.demo_rows(),
+            demo.demo_dividends(),
+            quote={"trade_date": "20261016", "close": 28.2},
+            history=[
+                {"trade_date": "20261016", "close": 28.2, "high": 30.0, "low": 27.0},
+            ],
+            market_cap=Money(demo.DEMO_MARKET_CAP, Currency.CNY),
+            shares=demo.DEMO_SHARES,
+            rf_pct=demo.DEMO_RF,
+            settings=load_settings(),
+            buyback=Money(Decimal("1000000000"), Currency.CNY),
+        )
+        assert "| 精算回报率 GG | 5.60% |" in text
 
     def test_interim_section_when_available(self):
         from datetime import date

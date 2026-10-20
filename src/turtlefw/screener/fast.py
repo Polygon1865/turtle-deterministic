@@ -114,7 +114,9 @@ def fast_screen(
         else pd.Series(float("nan"), index=merged.index)
     )
     if prev_fcf is not None and "fcf" in merged:
-        aa = (merged["fcf"].fillna(0) + prev_fcf.reindex(merged.index).fillna(0)) / 2
+        previous = prev_fcf.reindex(merged.index)
+        valid = merged["fcf"].notna() & previous.notna()
+        aa = ((merged["fcf"] + previous) / 2).where(valid)
 
     merged["payout"] = payout
     merged["R%"] = ni * payout / 100 / mktcap * 100

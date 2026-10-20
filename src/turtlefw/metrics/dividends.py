@@ -78,7 +78,55 @@ def mean_payout(
 ) -> tuple[Decimal | None, int]:
     """Mean payout over the most recent ``years`` available observations."""
     recent = sorted(payouts, reverse=True)[:years]
-    values = [payouts[year] for year in recent if payouts[year] is not None]
+    values: list[Decimal] = []
+    for year in recent:
+        value = payouts[year]
+        if value is not None:
+            values.append(value)
     if not values:
         return None, 0
     return sum(values, Decimal("0")) / Decimal(len(values)), len(values)
+
+
+def _completed_fiscal_year(events: Sequence[DividendEvent]) -> bool:
+    """Whether the dividend rows for one fiscal year include a year-end event."""
+    dated = []
+    for event in events:
+        raw = event.event_id.split(":", 1)[0]
+        if len(raw) == 10 and raw[4] == "-" and raw[7] == "-":
+            dated.append(raw)
+    if not dated:
+        # Vendors that emit one annual DPS row use the fiscal year as the id.
+        return True
+    return any(event_id[5:] == "12-31" for event_id in dated)
+
+
+def average_dps(dividends: Sequence[DividendEvent], years: int = 3) -> Decimal | None:
+    """Mean annual DPS over the most recent completed fiscal years.
+
+    Events are summed per year first. A year with only an interim event is
+    excluded until its year-end dividend exists; otherwise the current partial
+    fiscal year would dilute the three-year average.
+    """
+    reliable = [event for event in dividends if event.dps_reliable]
+    if not reliable:
+        return None
+    per_year: dict[int, list[DividendEvent]] = defaultdict(list)
+    for event in reliable:
+        per_year[event.fiscal_year].append(event)
+    completed = [
+        year for year, events in per_year.items() if _completed_fiscal_year(events)
+    ]
+    recent = sorted(completed)[-years:]
+    if not recent:
+        return None
+    return sum(
+        (
+            sum(
+                (event.dps for event in per_year[year] if event.dps is not None),
+                Decimal("0"),
+            )
+            for year in recent
+        ),
+        Decimal("0"),
+    ) / Decimal(len(recent))
