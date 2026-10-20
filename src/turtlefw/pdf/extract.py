@@ -64,7 +64,7 @@ ALIASES: dict[str, tuple[str, ...]] = {
         "Advances from customers",
         "Receipts in advance",
     ),
-    "prepayments": ("预付款项", "预付账款", "Prepayments", "Prepaid expenses"),
+    "prepayments": ("预付款项", "预付账款"),
 }
 
 EXTRA_ALIASES: dict[str, tuple[str, ...]] = {
@@ -73,6 +73,24 @@ EXTRA_ALIASES: dict[str, tuple[str, ...]] = {
         "Purchase of intangible assets",
     )
 }
+
+BALANCE_ITEMS = {
+    "total_assets",
+    "accounts_receiv",
+    "inventory",
+    "contract_liab",
+    "adv_receipts",
+    "prepayments",
+}
+
+
+def _is_balance_page(text: str) -> bool:
+    lower = text.lower()
+    return (
+        "合并资产负债表" in text
+        or "consolidated statement of financial position" in lower
+        or "statement of financial position" in lower
+    )
 
 STATEMENT_TITLES = (
     "合并资产负债表",
@@ -227,9 +245,12 @@ def extract_from_pages(
             continue
         page_score = _statement_score(text)
         page_scale = detect_scale(text)
+        balance_page = _is_balance_page(text)
         lines = [line.strip() for line in text.splitlines() if line.strip()]
         for index, line in enumerate(lines):
             for item, aliases in {**ALIASES, **EXTRA_ALIASES}.items():
+                if item in BALANCE_ITEMS and not balance_page:
+                    continue
                 if not any(_matches(alias, line) for alias in aliases):
                     continue
                 # Some HK statements put the label on one line and the total
@@ -282,7 +303,14 @@ def extract_from_pages(
                 numbers = _tokens(line)
                 target_line = line
                 if not numbers and index + 1 < len(lines):
-                    target_line = lines[index + 1]
+                    next_line = lines[index + 1]
+                    if any(
+                        _matches(alias, next_line)
+                        for aliases in {**ALIASES, **EXTRA_ALIASES}.values()
+                        for alias in aliases
+                    ):
+                        continue
+                    target_line = next_line
                     numbers = _tokens(target_line)
                 value = None
                 for token in numbers:
@@ -515,7 +543,7 @@ def extract_sbc_from_pages(
 
 
 def extract_from_tables(
-    pages_tables: Sequence[tuple[int, Sequence[Sequence[str]]]],
+    pages_tables: Sequence[tuple[int, Sequence[Sequence[Sequence[str | None]]]]],
     *,
     year: int,
     report_type: str = "年报",
@@ -603,12 +631,12 @@ def _read_pages(pdf_path: Path | str, max_pages: int | None = None) -> list[tupl
 
 def _read_tables(
     pdf_path: Path | str, max_pages: int | None = None
-) -> list[tuple[int, list[list[list[str]]]]]:
+) -> list[tuple[int, list[list[list[str | None]]]]]:
     try:
         import pdfplumber
     except ImportError as exc:  # pragma: no cover - dependency error
         raise RuntimeError("pdfplumber is not installed; install .[pdf]") from exc
-    pages: list[tuple[int, list[list[list[str]]]]] = []
+    pages: list[tuple[int, list[list[list[str | None]]]]] = []
     with pdfplumber.open(str(pdf_path)) as pdf:
         selected = pdf.pages[:max_pages] if max_pages else pdf.pages
         for number, page in enumerate(selected, start=1):
@@ -636,7 +664,8 @@ def extract_pdf(
         _read_tables(pdf_path, max_pages), year=year, report_type=report_type
     )
     merged = {item["item"]: item for item in text_items}
-    merged.update({item["item"]: item for item in table_items})
+    for item in table_items:
+        merged.setdefault(item["item"], item)
     return list(merged.values())
 
 
@@ -653,7 +682,8 @@ def extract_pdf_bundle(
         _read_tables(pdf_path, max_pages), year=year, report_type=report_type
     )
     merged = {item["item"]: item for item in text_items}
-    merged.update({item["item"]: item for item in table_items})
+    for item in table_items:
+        merged.setdefault(item["item"], item)
     return (
         list(merged.values()),
         extract_cash_bridge_from_pages(pages),
