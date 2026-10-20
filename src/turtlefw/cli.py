@@ -830,6 +830,11 @@ def _audit(raw_code: str, doc_path: str, write_path: str | None, threshold: floa
         "capex": series(rows, "cashflow", "c_pay_acq_const_fiolta").get(latest),
         "equity": series(rows, "balance", "total_hldr_eqy_exc_min_int").get(latest),
         "total_assets": series(rows, "balance", "total_assets").get(latest),
+        "accounts_receiv": series(rows, "balance", "accounts_receiv").get(latest),
+        "inventory": series(rows, "balance", "inventory").get(latest),
+        "contract_liab": series(rows, "balance", "contract_liab").get(latest),
+        "adv_receipts": series(rows, "balance", "adv_receipts").get(latest),
+        "prepayments": series(rows, "balance", "prepayments").get(latest),
     }
     cli = {key: value for key, value in cli.items() if value is not None}
 

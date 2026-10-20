@@ -49,6 +49,21 @@ ALIASES: dict[str, tuple[str, ...]] = {
         "Total equity attributable to shareholders",
     ),
     "total_assets": ("资产总计", "总资产", "Total assets"),
+    "accounts_receiv": (
+        "应收账款",
+        "应收票据及应收账款",
+        "Trade receivables",
+        "Accounts receivable",
+    ),
+    "inventory": ("存货", "Inventories", "Inventory"),
+    "contract_liab": ("合同负债", "Contract liabilities"),
+    "adv_receipts": (
+        "预收款项",
+        "预收款",
+        "Advances from customers",
+        "Receipts in advance",
+    ),
+    "prepayments": ("预付款项", "预付账款", "Prepayments", "Prepaid expenses"),
 }
 
 EXTRA_ALIASES: dict[str, tuple[str, ...]] = {

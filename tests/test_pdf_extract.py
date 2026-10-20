@@ -107,6 +107,25 @@ class TestExtract:
         assert item["item"] == "revenue"
         assert item["value"] == "1234000.00"
 
+    def test_working_capital_items_from_balance_sheet(self):
+        pages = [
+            (
+                1,
+                "合并资产负债表\n"
+                "应收账款 1,100\n"
+                "存货 2,100\n"
+                "合同负债 3,100\n"
+                "预收款项 1,400\n"
+                "预付款项 1,500",
+            )
+        ]
+        items = {item["item"]: item for item in extract_from_pages(pages, year=2025)}
+        assert items["accounts_receiv"]["value"] == "1100.00"
+        assert items["inventory"]["value"] == "2100.00"
+        assert items["contract_liab"]["value"] == "3100.00"
+        assert items["adv_receipts"]["value"] == "1400.00"
+        assert items["prepayments"]["value"] == "1500.00"
+
     def test_label_and_value_on_next_line(self):
         pages = [(1, "合并资产负债表\n资产总计\n9,999,999")]
         item = {x["item"]: x for x in extract_from_pages(pages, year=2025)}["total_assets"]

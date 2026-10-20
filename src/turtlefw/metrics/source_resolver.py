@@ -21,6 +21,11 @@ ITEM_MAP = {
     "capex": ("cashflow", "c_pay_acq_const_fiolta"),
     "equity": ("balance", "total_hldr_eqy_exc_min_int"),
     "total_assets": ("balance", "total_assets"),
+    "accounts_receiv": ("balance", "accounts_receiv"),
+    "inventory": ("balance", "inventory"),
+    "contract_liab": ("balance", "contract_liab"),
+    "adv_receipts": ("balance", "adv_receipts"),
+    "prepayments": ("balance", "prepayments"),
 }
 
 
