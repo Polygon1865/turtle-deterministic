@@ -12,6 +12,7 @@ the first number is used and ``confidence`` is downgraded.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
@@ -513,6 +514,80 @@ def extract_sbc_from_pages(
     return {"sbc": f"{abs(best[1]):.2f}", "page": str(best[0])}
 
 
+def extract_from_tables(
+    pages_tables: Sequence[tuple[int, Sequence[Sequence[str]]]],
+    *,
+    year: int,
+    report_type: str = "年报",
+) -> list[dict[str, str]]:
+    """Extract the same audit items from pdfplumber table rows.
+
+    Tables are more reliable than line scans for balance-sheet items: the label
+    is the first cell and the current-period value is one of the following
+    cells. The caller still keeps the page number and original cell text.
+    """
+    candidates: list[Candidate] = []
+    aliases = {**ALIASES, **EXTRA_ALIASES}
+    for page_number, tables in pages_tables:
+        for table in tables:
+            for row in table:
+                cells = [str(cell).strip() for cell in row if cell is not None]
+                if len(cells) < 2:
+                    continue
+                label = cells[0]
+                if not label:
+                    continue
+                for item, item_aliases in aliases.items():
+                    if not any(_matches(alias, label) for alias in item_aliases):
+                        continue
+                    value: Decimal | None = None
+                    for cell in cells[1:]:
+                        tokens = _tokens(cell)
+                        for token in tokens:
+                            parsed = parse_number(token, detect_scale(cell))
+                            if parsed is not None and abs(parsed) > Decimal("1000"):
+                                value = (
+                                    abs(parsed)
+                                    if item in {"capex", "capex_intangibles"}
+                                    else parsed
+                                )
+                                break
+                        if value is not None:
+                            break
+                    if value is None:
+                        continue
+                    candidates.append(
+                        Candidate(
+                            item=item,
+                            value=value,
+                            page=page_number,
+                            source=f"{year}{report_type}",
+                            confidence="high",
+                            score=_line_score(" ".join(cells), 3, item),
+                        )
+                    )
+                    break
+    best: dict[str, Candidate] = {}
+    for candidate in candidates:
+        current = best.get(candidate.item)
+        if current is None or (candidate.score, -candidate.page) > (
+            current.score,
+            -current.page,
+        ):
+            best[candidate.item] = candidate
+    return [
+        {
+            "item": item,
+            "value": f"{candidate.value:.2f}",
+            "unit": "元",
+            "source": candidate.source,
+            "page": str(candidate.page),
+            "confidence": candidate.confidence,
+        }
+        for item, candidate in best.items()
+    ]
+
+
 def _read_pages(pdf_path: Path | str, max_pages: int | None = None) -> list[tuple[int, str]]:
     try:
         import pdfplumber
@@ -526,6 +601,21 @@ def _read_pages(pdf_path: Path | str, max_pages: int | None = None) -> list[tupl
     return pages
 
 
+def _read_tables(
+    pdf_path: Path | str, max_pages: int | None = None
+) -> list[tuple[int, list[list[list[str]]]]]:
+    try:
+        import pdfplumber
+    except ImportError as exc:  # pragma: no cover - dependency error
+        raise RuntimeError("pdfplumber is not installed; install .[pdf]") from exc
+    pages: list[tuple[int, list[list[list[str]]]]] = []
+    with pdfplumber.open(str(pdf_path)) as pdf:
+        selected = pdf.pages[:max_pages] if max_pages else pdf.pages
+        for number, page in enumerate(selected, start=1):
+            pages.append((number, page.extract_tables() or []))
+    return pages
+
+
 def extract_pdf(
     pdf_path: Path | str,
     *,
@@ -533,10 +623,21 @@ def extract_pdf(
     report_type: str = "年报",
     max_pages: int | None = None,
 ) -> list[dict[str, str]]:
-    """Read a PDF with pdfplumber and extract the six audit items."""
-    return extract_from_pages(
+    """Read a PDF with pdfplumber and extract statement items.
+
+    Text extraction handles statement lines that pdfplumber does not expose as
+    a table; table extraction is preferred when a row has an explicit label and
+    value cells.
+    """
+    text_items = extract_from_pages(
         _read_pages(pdf_path, max_pages), year=year, report_type=report_type
     )
+    table_items = extract_from_tables(
+        _read_tables(pdf_path, max_pages), year=year, report_type=report_type
+    )
+    merged = {item["item"]: item for item in text_items}
+    merged.update({item["item"]: item for item in table_items})
+    return list(merged.values())
 
 
 def extract_pdf_bundle(
@@ -547,8 +648,14 @@ def extract_pdf_bundle(
     max_pages: int | None = None,
 ) -> tuple[list[dict[str, str]], dict[str, str | None], dict[str, str]]:
     pages = _read_pages(pdf_path, max_pages)
+    text_items = extract_from_pages(pages, year=year, report_type=report_type)
+    table_items = extract_from_tables(
+        _read_tables(pdf_path, max_pages), year=year, report_type=report_type
+    )
+    merged = {item["item"]: item for item in text_items}
+    merged.update({item["item"]: item for item in table_items})
     return (
-        extract_from_pages(pages, year=year, report_type=report_type),
+        list(merged.values()),
         extract_cash_bridge_from_pages(pages),
         extract_sbc_from_pages(pages),
     )
@@ -576,6 +683,17 @@ def write_reported_numbers(
     facts = [
         {
             "id": f"pdf:{item.get('item', '')}:{item.get('page', '')}",
+            "fact_hash": hashlib.sha256(
+                "|".join(
+                    (
+                        document_hash,
+                        str(item.get("item", "")),
+                        str(item.get("page", "")),
+                        str(item.get("value", "")),
+                        str(item.get("unit", "")),
+                    )
+                ).encode("utf-8")
+            ).hexdigest(),
             "document_hash": document_hash,
             "page": str(item.get("page", "")),
             "section": str(item.get("source", "")),

@@ -6,6 +6,7 @@ from turtlefw.pdf.extract import (
     detect_scale,
     extract_cash_bridge_from_pages,
     extract_from_pages,
+    extract_from_tables,
     extract_pdf,
     extract_sbc_from_pages,
     parse_number,
@@ -125,6 +126,26 @@ class TestExtract:
         assert items["contract_liab"]["value"] == "3100.00"
         assert items["adv_receipts"]["value"] == "1400.00"
         assert items["prepayments"]["value"] == "1500.00"
+
+    def test_working_capital_items_from_tables(self):
+        tables = [
+            (
+                2,
+                [
+                    [
+                        ["项目", "2025", "2024"],
+                        ["应收账款", "1,100", "900"],
+                        ["存货", "2,100", "1,900"],
+                        ["合同负债", "3,100", "2,900"],
+                    ]
+                ],
+            )
+        ]
+        items = {item["item"]: item for item in extract_from_tables(tables, year=2025)}
+        assert items["accounts_receiv"]["value"] == "1100.00"
+        assert items["inventory"]["value"] == "2100.00"
+        assert items["contract_liab"]["value"] == "3100.00"
+        assert items["accounts_receiv"]["page"] == "2"
 
     def test_label_and_value_on_next_line(self):
         pages = [(1, "合并资产负债表\n资产总计\n9,999,999")]

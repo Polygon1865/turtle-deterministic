@@ -20,7 +20,7 @@
 | 因子 3 调整项 | 11 步现金桥（S/T/U、W1–W4、V1/V5、X1/X2） | 核心现金桥（真实现金收入、经营流出、Capex、WC）；PDF 间接桥；未覆盖全部 V/X 调整 | 方法论细节差距 |
 | 估值广度 | 1,516 行 valuation_engine；方法选择/假设更多 | 纯函数 DCF/DDM/PE/PEG/PS + 分类/权重/5×5/反推；无 peer comps、SOTP、公司特定 WACC | 广度差距 |
 | 缓存/刷新 | TTL + `--refresh-market` | 内容寻址缓存，无 refresh 命令 | 运维差距 |
-| 测试规模 | 875 个测试函数 / ~923 收集 | 363 收集 / 363 通过 / 0 setup error | 覆盖差距，但不是纯数量可比 |
+| 测试规模 | 875 个测试函数 / ~923 收集 | 364 收集 / 364 通过 / 0 setup error | 覆盖差距，但不是纯数量可比 |
 | Agent 自动化 | 41 个 prompt、8k 行、slash command/skill | 17 个 prompt + `.claude` 入口；流程仍需手动/Claude 驱动 | 自动化差距 |
 
 ## 本地已经追平或反超的地方
