@@ -240,6 +240,12 @@ def test_metric_registry_points_to_capex_detail_fact():
     assert point["source_fact_ids"] == ["pdf:row:capex"]
 
 
+def test_report_contains_industry_template():
+    markdown, _ = render(_inputs(), load_settings())
+    assert "## 行业模板：食品饮料" in markdown
+    assert "Peer 组" in markdown
+
+
 def test_snapshot_roundtrip_and_byte_identity():
     root = _root()
     try:

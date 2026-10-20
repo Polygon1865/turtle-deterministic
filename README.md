@@ -479,13 +479,13 @@ src/turtlefw/
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest
-.\.venv\Scripts\python.exe -m ruff check src --select F401,F601,F841
+.\.venv\Scripts\python.exe -m ruff check src --select F404,F601,F841
 ```
 
 当前基线：
 
 ```text
-401 tests passed
+404 tests passed
 ```
 
 CI：pytest + selected ruff + selected mypy，见

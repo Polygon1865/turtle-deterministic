@@ -15,6 +15,7 @@ from ..metrics.dps_check import crosscheck_dps
 from ..qualitative import MODULES, all_evidence, summary as qual_summary
 from ..types import DividendEvent, FetchIssue
 from .format import TEMPLATE_DIR, _m, _num, _pct, _table
+from . import industry
 from ..metrics.dividends import average_dps
 
 STATUS = {"pass": "通过", "veto": "否决", "unknown": "未验证", "info": "观察"}
@@ -117,6 +118,7 @@ def render_analysis(
     metric_ledger = metric_registry.build(
         ctx, results, composite=composite, premium=premium, stats=stats
     )
+    industry_md = industry.render_section(str(ctx.code), metric_ledger)
     status_label = {"stable": "口径一致", "divergent": "口径分歧", "unavailable": "不可用"}[
         stats.status
     ]
@@ -374,6 +376,7 @@ def render_analysis(
         "market_cap": _m(ctx.market_cap.amount),
         "metric": metric_ledger.display,
         "metric_registry": metric_ledger,
+        "industry_md": industry_md,
         "pdf_fact_rows": [
             [
                 str(fact.get("label", "")),
