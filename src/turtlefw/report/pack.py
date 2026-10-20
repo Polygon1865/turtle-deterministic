@@ -731,4 +731,18 @@ def render_data_pack(
     }
 
     env = Environment(loader=FileSystemLoader(TEMPLATE_DIR), autoescape=False)
-    return env.get_template("data_pack.md.j2").render(**context)
+    text = env.get_template("data_pack.md.j2").render(**context)
+    if document_facts:
+        rows = [
+            [
+                str(fact.get("label", "")),
+                str(fact.get("value", "")),
+                str(fact.get("unit", "")),
+                str(fact.get("page", "")),
+            ]
+            for fact in document_facts
+        ]
+        text += "\n\n## PDF 证据\n\n" + _table(
+            ["项目", "数值", "单位", "页码"], rows
+        )
+    return text

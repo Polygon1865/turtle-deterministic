@@ -19,6 +19,16 @@ from ..metrics.dividends import average_dps
 STATUS = {"pass": "通过", "veto": "否决", "unknown": "未验证", "info": "观察"}
 
 
+def _pdf_value(raw: object) -> str:
+    if raw in (None, ""):
+        return "—"
+    try:
+        value = Decimal(str(raw))
+    except Exception:
+        return str(raw)
+    return _m(value) if abs(value) >= Decimal("1000") else _num(value, 4)
+
+
 def render_analysis(
     ctx: FactorContext,
     results: dict[str, FactorResult],
@@ -36,6 +46,7 @@ def render_analysis(
     resolved_md: str = "",
     metrics_out: dict[str, object] | None = None,
     document_facts: Sequence[dict[str, Any]] = (),
+    fact_rows: Sequence[dict[str, Any]] = (),
 ) -> str:
     verdict, reason = final_verdict(results)
     rows = ctx.rows
@@ -345,12 +356,18 @@ def render_analysis(
         "pdf_fact_rows": [
             [
                 str(fact.get("label", "")),
-                _m(Decimal(str(fact.get("value"))))
-                if fact.get("value") not in (None, "")
-                else "—",
+                _pdf_value(fact.get("value")),
                 str(fact.get("page", "")),
             ]
             for fact in document_facts
+        ]
+        + [
+            [
+                f"{row.get('item', '')}:{row.get('label', '')}",
+                _pdf_value(row.get("value")),
+                str(row.get("page", "")),
+            ]
+            for row in fact_rows
         ],
         "summary_table": _table(
             ["项目", "数值"],

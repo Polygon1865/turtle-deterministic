@@ -157,6 +157,46 @@ def test_metric_registry_points_to_pdf_balance_facts():
     assert point["source_fact_ids"] == ["pdf:inventory:132"]
 
 
+def test_dps_pdf_fact_reaches_report_and_metrics():
+    fact = {
+        "id": "pdf:dps:12",
+        "label": "dps",
+        "value": "1.2345",
+        "unit": "CNY/股",
+        "page": "12",
+    }
+    inputs = replace(
+        _inputs(),
+        document_facts=[fact],
+        dps_fact={"dps": "1.2345", "currency": "CNY", "page": "12"},
+    )
+    metrics: dict[str, object] = {}
+    markdown, _ = render(inputs, load_settings(), metrics_out=metrics)
+    point = metrics["dps.pdf"]
+    assert isinstance(point, dict)
+    assert point["source_fact_ids"] == ["pdf:dps:12"]
+    assert "PDF 证据" in markdown
+    assert "1.2345" in markdown
+
+
+def test_report_shows_main_business_fact_row():
+    inputs = replace(
+        _inputs(),
+        fact_rows=[
+            {
+                "fact_id": "pdf:row:1",
+                "item": "main_business",
+                "label": "液体乳",
+                "value": "80000.00",
+                "page": 88,
+            }
+        ],
+    )
+    markdown, _ = render(inputs, load_settings())
+    assert "main_business:液体乳" in markdown
+    assert "0.08" in markdown
+
+
 def test_snapshot_roundtrip_and_byte_identity():
     root = _root()
     try:

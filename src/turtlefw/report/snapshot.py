@@ -440,6 +440,11 @@ def render(
             for fact in inputs.document_facts
             if fact.get("label") and fact.get("id")
         },
+        pdf_values={
+            str(fact.get("label")): str(fact.get("value"))
+            for fact in inputs.document_facts
+            if fact.get("label") and fact.get("value") is not None
+        },
         decisions=decisions,
     )
     results = run(ctx)
@@ -554,6 +559,7 @@ def render(
             metrics_out=probe_metrics,
             resolved_md=resolve_markdown(inputs.resolved_facts),
             document_facts=inputs.document_facts,
+            fact_rows=inputs.fact_rows,
         )
         metric_map.update(
             {
@@ -590,6 +596,7 @@ def render(
         metrics_out=metrics_out,
         resolved_md=resolve_markdown(inputs.resolved_facts),
         document_facts=inputs.document_facts,
+        fact_rows=inputs.fact_rows,
     )
     if decisions and research_document is not None:
         selected = "、".join(

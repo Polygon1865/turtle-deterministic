@@ -7,7 +7,7 @@ import pytest
 from turtlefw.pdf.dps import extract_dps_from_pages
 from turtlefw.pdf.extract import write_reported_numbers
 from turtlefw.pdf.multiline import FactRow, make_fact_id, rows_to_facts
-from turtlefw.report.pdf_facts import apply_document_facts
+from turtlefw.report.pdf_facts import apply_document_facts, main_business_rows
 from turtlefw.demo import demo_rows
 
 
@@ -64,6 +64,28 @@ def test_document_fact_overrides_other_balance_items(item):
     after = changed[0]
     assert after.value == Decimal("987654321.00")
     assert after.source == f"pdf:{item}:133"
+
+
+def test_main_business_fact_rows_convert_to_pack_rows():
+    rows = main_business_rows(
+        [
+            {
+                "fact_id": "pdf:row:1",
+                "item": "main_business",
+                "label": "液体乳",
+                "value": "80000.00",
+                "page": 88,
+            }
+        ]
+    )
+    assert rows == [
+        {
+            "bz_item": "液体乳",
+            "bz_sales": "80000.00",
+            "bz_profit": None,
+            "source": "pdf",
+        }
+    ]
 
 
 def test_main_business_table_rows_to_facts():

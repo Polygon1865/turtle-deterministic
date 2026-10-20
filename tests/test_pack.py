@@ -127,6 +127,30 @@ class TestDataPack:
         )
         assert "64,628.83" in text
 
+    def test_pdf_evidence_section_renders_dps(self):
+        text = render_data_pack(
+            demo.DEMO_CODE,
+            demo.demo_rows(),
+            demo.demo_dividends(),
+            quote={"trade_date": "20261016", "close": 28.2},
+            history=[{"trade_date": "20261016", "close": 28.2, "high": 30.0, "low": 27.0}],
+            market_cap=Money(demo.DEMO_MARKET_CAP, Currency.CNY),
+            shares=demo.DEMO_SHARES,
+            rf_pct=demo.DEMO_RF,
+            settings=load_settings(),
+            document_facts=[
+                {
+                    "id": "pdf:dps:12",
+                    "label": "dps",
+                    "value": "1.2345",
+                    "unit": "CNY/股",
+                    "page": "12",
+                }
+            ],
+        )
+        assert "## PDF 证据" in text
+        assert "1.2345" in text
+
     def test_floor_methods_are_numbered(self):
         text = render()
         assert "## 6. 底价（" in text and "法）" in text

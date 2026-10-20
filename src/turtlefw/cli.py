@@ -2456,6 +2456,9 @@ def _report(
                 )
             except Exception:  # noqa: BLE001 - optional pack section
                 main_business = []
+            from .report.pdf_facts import main_business_rows
+
+            main_business = list(main_business) + main_business_rows(inputs.fact_rows)
             footnotes = (
                 json_loads(Path(footnotes_path).read_text(encoding="utf-8-sig"))
                 if footnotes_path and Path(footnotes_path).is_file()

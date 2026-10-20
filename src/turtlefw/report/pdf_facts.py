@@ -39,6 +39,22 @@ def _replacement(
     return replacement, anchor.period_end
 
 
+def main_business_rows(fact_rows: list[dict[str, object]] | None) -> list[dict[str, object]]:
+    result: list[dict[str, object]] = []
+    for row in fact_rows or []:
+        if row.get("item") != "main_business":
+            continue
+        result.append(
+            {
+                "bz_item": str(row.get("label", "")),
+                "bz_sales": row.get("value"),
+                "bz_profit": None,
+                "source": "pdf",
+            }
+        )
+    return result
+
+
 def apply_document_facts(
     rows: list[StatementRow],
     document_facts: list[dict[str, object]] | None,

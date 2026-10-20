@@ -436,6 +436,26 @@ def build(
                     ),
                 )
             )
+        pdf_dps = ctx.pdf_values.get("dps")
+        if pdf_dps:
+            try:
+                dps_value = Decimal(pdf_dps)
+            except InvalidOperation:
+                dps_value = None
+            if dps_value is not None:
+                registry.add(
+                    MetricPoint(
+                        id="dps.pdf",
+                        name="PDF 每股派息",
+                        value=dps_value,
+                        unit="CNY/股",
+                        period=period,
+                        formula_id="dividends.pdf",
+                        source_fact_ids=(ctx.pdf_source_ids.get("dps", "pdf:dps"),),
+                        coverage="ok",
+                        display=f"{dps_value:.4f}",
+                    )
+                )
     return registry
 
 
