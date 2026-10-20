@@ -45,7 +45,7 @@ pwsh -File scripts\init.ps1
 - 创建 `.venv`
 - 安装 `.[dev,pdf,hk]`
 - 检查 `.env` / `TUSHARE_TOKEN`
-- 创建 `output/`
+- 创建 `.runs/`
 - 运行测试
 
 ### 2.3 手动安装
@@ -87,7 +87,7 @@ TUSHARE_TOKEN=your_token_here
 默认：
 
 ```text
-output/<code>/
+.runs/<code>/
 ```
 
 受限环境（例如 DSH workspace-write）建议：
@@ -105,7 +105,7 @@ turtle --output-dir .runs report 600887
 所有写运行产物的命令共用这个根目录：
 
 ```text
-output/600887.SH/
+.runs/600887.SH/
 ├─ data_pack.md
 ├─ analysis_report.md
 ├─ analysis_report.html
@@ -248,8 +248,8 @@ available / partial / pdf_optional / not_applicable / external / missing
 
 ```powershell
 .\.venv\Scripts\python.exe -m turtlefw.cli pack 600887.SH `
-  --pdf-numbers output\600887.SH\reported_numbers.json `
-  --footnotes output\600887.SH\footnotes.json
+  --pdf-numbers .runs\600887.SH\reported_numbers.json `
+  --footnotes .runs\600887.SH\footnotes.json
 ```
 
 常用参数：
@@ -276,7 +276,7 @@ available / partial / pdf_optional / not_applicable / external / missing
 
 ```powershell
 .\.venv\Scripts\python.exe -m turtlefw.cli qualitative 600887.SH --init
-# 编辑 output/600887.SH/qualitative.json
+# 编辑 .runs/600887.SH/qualitative.json
 .\.venv\Scripts\python.exe -m turtlefw.cli qualitative 600887.SH --check
 .\.venv\Scripts\python.exe -m turtlefw.cli report 600887.SH
 ```
@@ -302,12 +302,12 @@ available / partial / pdf_optional / not_applicable / external / missing
 
 ```powershell
 .\.venv\Scripts\python.exe -m turtlefw.cli pack 00700.HK `
-  --pdf-numbers output\00700.HK\reported_numbers.json `
-  --pdf-sections output\00700.HK\pdf_sections.json
+  --pdf-numbers .runs\00700.HK\reported_numbers.json `
+  --pdf-sections .runs\00700.HK\pdf_sections.json
 
 .\.venv\Scripts\python.exe -m turtlefw.cli report 00700.HK `
-  --pdf-numbers output\00700.HK\reported_numbers.json `
-  --evidence output\00700.HK\evidence.json `
+  --pdf-numbers .runs\00700.HK\reported_numbers.json `
+  --evidence .runs\00700.HK\evidence.json `
   --html
 ```
 
@@ -326,7 +326,7 @@ available / partial / pdf_optional / not_applicable / external / missing
   --code 00700 `
   --keyword "Next Day Disclosure" `
   --from 20240101 --to 20261231 `
-  --out output\00700.HK\hkex_buyback.json
+  --out .runs\00700.HK\hkex_buyback.json
 ```
 
 输出公告级 evidence：
@@ -349,13 +349,13 @@ quote = 日期 + 标题
 
 # SEC 独立证据
 .\.venv\Scripts\python.exe -m turtlefw.cli sec-evidence `
-  --ticker AAPL --out output\AAPL.US\evidence.json
+  --ticker AAPL --out .runs\AAPL.US\evidence.json
 
 # SEC 复核
 .\.venv\Scripts\python.exe -m turtlefw.cli sec-audit `
-  --snapshot output\AAPL.US\snapshot `
+  --snapshot .runs\AAPL.US\snapshot `
   --ticker AAPL `
-  --out output\AAPL.US\sec_audit.json
+  --out .runs\AAPL.US\sec_audit.json
 ```
 
 美股边界：
@@ -384,33 +384,33 @@ quote = 日期 + 标题
 或手动放入：
 
 ```text
-output/600887.SH/2025年报.pdf
+.runs/600887.SH/2025年报.pdf
 ```
 
 ### 8.2 章节预处理
 
 ```powershell
 .\.venv\Scripts\python.exe -m turtlefw.cli pdf `
-  --pdf output\600887.SH\2025年报.pdf `
-  --output output\600887.SH\pdf_sections.json
+  --pdf .runs\600887.SH\2025年报.pdf `
+  --output .runs\600887.SH\pdf_sections.json
 ```
 
 ### 8.3 审计数字与附注
 
 ```powershell
 .\.venv\Scripts\python.exe -m turtlefw.cli pdf-numbers `
-  --pdf output\600887.SH\2025年报.pdf --year 2025
+  --pdf .runs\600887.SH\2025年报.pdf --year 2025
 
 .\.venv\Scripts\python.exe -m turtlefw.cli pdf-footnotes `
-  --sections output\600887.SH\pdf_sections.json
+  --sections .runs\600887.SH\pdf_sections.json
 ```
 
 ### 8.4 页级证据
 
 ```powershell
 .\.venv\Scripts\python.exe -m turtlefw.cli pdf-evidence `
-  --sections output\600887.SH\pdf_sections.json `
-  --output output\600887.SH\evidence.json
+  --sections .runs\600887.SH\pdf_sections.json `
+  --output .runs\600887.SH\evidence.json
 ```
 
 生成：
@@ -426,8 +426,8 @@ pdf:parent_company
 
 ```powershell
 .\.venv\Scripts\python.exe -m turtlefw.cli report 600887.SH `
-  --pdf-numbers output\600887.SH\reported_numbers.json `
-  --evidence output\600887.SH\evidence.json `
+  --pdf-numbers .runs\600887.SH\reported_numbers.json `
+  --evidence .runs\600887.SH\evidence.json `
   --html
 ```
 
@@ -447,26 +447,26 @@ pdf:parent_company
 ```powershell
 # 1. 导出上下文
 .\.venv\Scripts\python.exe -m turtlefw.cli research-context `
-  --snapshot output\600887.SH\snapshot `
-  --out output\600887.SH\snapshot\research_context.json
+  --snapshot .runs\600887.SH\snapshot `
+  --out .runs\600887.SH\snapshot\research_context.json
 
 # 2. 由 DSH 模型写 research.json
-#    路径：output/600887.SH/snapshot/research.json
+#    路径：.runs/600887.SH/snapshot/research.json
 
 # 3. 校验
 .\.venv\Scripts\python.exe -m turtlefw.cli research-audit `
-  --file output\600887.SH\snapshot\research.json `
-  --metrics output\600887.SH\snapshot\metrics.json `
-  --facts output\600887.SH\snapshot\evidence.json `
+  --file .runs\600887.SH\snapshot\research.json `
+  --metrics .runs\600887.SH\snapshot\metrics.json `
+  --facts .runs\600887.SH\snapshot\evidence.json `
   --min-claims 6 --min-dimensions 3 `
-  --out output\600887.SH\snapshot\research_audit.json
+  --out .runs\600887.SH\snapshot\research_audit.json
 
 # 4. provenance
 .\.venv\Scripts\python.exe -m turtlefw.cli research-provenance `
-  --research output\600887.SH\snapshot\research.json `
-  --snapshot output\600887.SH\snapshot `
+  --research .runs\600887.SH\snapshot\research.json `
+  --snapshot .runs\600887.SH\snapshot `
   --provider dsh --model deepseek-v4-flash `
-  --out output\600887.SH\snapshot\research_provenance.json
+  --out .runs\600887.SH\snapshot\research_provenance.json
 ```
 
 ### 9.3 附加 research 并生成最终 snapshot
@@ -475,9 +475,9 @@ pdf:parent_company
 
 ```powershell
 .\.venv\Scripts\python.exe -m turtlefw.cli finalize `
-  --snapshot output\600887.SH\snapshot `
-  --research output\600887.SH\snapshot\research.json `
-  --out output\600887.SH\snapshot_final `
+  --snapshot .runs\600887.SH\snapshot `
+  --research .runs\600887.SH\snapshot\research.json `
+  --out .runs\600887.SH\snapshot_final `
   --min-claims 6 --min-dimensions 3 `
   --strict --html
 ```
@@ -488,7 +488,7 @@ pdf:parent_company
 
 ```powershell
 .\.venv\Scripts\python.exe -m turtlefw.cli report 600887.SH `
-  --snapshot output\600887.SH\snapshot_final
+  --snapshot .runs\600887.SH\snapshot_final
 ```
 
 ### 9.4 OpenAI-compatible 模式
@@ -497,8 +497,8 @@ pdf:parent_company
 $env:TURTLE_LLM_API_KEY = "..."
 $env:TURTLE_LLM_MODEL = "your-model"
 .\.venv\Scripts\python.exe -m turtlefw.cli research-agent `
-  --snapshot output\600887.SH\snapshot `
-  --out output\600887.SH\research.json `
+  --snapshot .runs\600887.SH\snapshot `
+  --out .runs\600887.SH\research.json `
   --retries 1 --min-claims 6 --min-dimensions 3
 ```
 
@@ -506,8 +506,8 @@ $env:TURTLE_LLM_MODEL = "your-model"
 
 ```powershell
 .\.venv\Scripts\python.exe -m turtlefw.cli research-agent `
-  --snapshot output\600887.SH\snapshot `
-  --out output\600887.SH\research.json `
+  --snapshot .runs\600887.SH\snapshot `
+  --out .runs\600887.SH\research.json `
   --response tests\fixtures\dsh_research_sample.json
 ```
 
@@ -564,15 +564,15 @@ $env:TURTLE_LLM_MODEL = "your-model"
 
 ```powershell
 .\.venv\Scripts\python.exe -m turtlefw.cli report 600887.SH `
-  --save-snapshot output\600887.SH\snapshot `
-  --research output\600887.SH\research.json
+  --save-snapshot .runs\600887.SH\snapshot `
+  --research .runs\600887.SH\research.json
 ```
 
 ### 10.2 离线渲染
 
 ```powershell
 .\.venv\Scripts\python.exe -m turtlefw.cli report 600887.SH `
-  --snapshot output\600887.SH\snapshot
+  --snapshot .runs\600887.SH\snapshot
 ```
 
 ### 10.3 完整性
@@ -590,7 +590,7 @@ $env:TURTLE_LLM_MODEL = "your-model"
 
 ```powershell
 .\.venv\Scripts\python.exe -m turtlefw.cli report 600887.SH `
-  --save-snapshot output\600887.SH\snapshot `
+  --save-snapshot .runs\600887.SH\snapshot `
   --strict-numeric
 ```
 
@@ -634,9 +634,9 @@ QA 检查：
 
 ```powershell
 .\.venv\Scripts\python.exe -m turtlefw.cli numeric-audit `
-  --report output\600887.SH\analysis_report.md `
-  --source output\600887.SH\snapshot\metrics.json `
-  --source output\600887.SH\snapshot\resolved_facts.json `
+  --report .runs\600887.SH\analysis_report.md `
+  --source .runs\600887.SH\snapshot\metrics.json `
+  --source .runs\600887.SH\snapshot\resolved_facts.json `
   --strict
 ```
 
@@ -644,8 +644,8 @@ QA 检查：
 
 ```powershell
 .\.venv\Scripts\python.exe -m turtlefw.cli cleanroom `
-  --snapshot output\600887.SH\snapshot `
-  --pdf-numbers output\600887.SH\reported_numbers.json `
+  --snapshot .runs\600887.SH\snapshot `
+  --pdf-numbers .runs\600887.SH\reported_numbers.json `
   --strict
 ```
 
@@ -653,9 +653,9 @@ QA 检查：
 
 ```powershell
 .\.venv\Scripts\python.exe -m turtlefw.cli research-audit `
-  --file output\600887.SH\research.json `
-  --metrics output\600887.SH\snapshot\metrics.json `
-  --facts output\600887.SH\snapshot\evidence.json `
+  --file .runs\600887.SH\research.json `
+  --metrics .runs\600887.SH\snapshot\metrics.json `
+  --facts .runs\600887.SH\snapshot\evidence.json `
   --min-claims 6 --min-dimensions 3
 ```
 
@@ -690,7 +690,7 @@ PIT 是本地快照，不是 vendor 级历史数据库。
 ### 13.2 深度分析
 
 ```powershell
-.\.venv\Scripts\python.exe -m turtlefw.cli screen --fast --deep 10 --csv output\screen.csv
+.\.venv\Scripts\python.exe -m turtlefw.cli screen --fast --deep 10 --csv .runs\screen.csv
 ```
 
 ### 13.3 估值

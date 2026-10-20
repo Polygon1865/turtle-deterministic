@@ -2696,7 +2696,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output-dir",
         default=None,
-        help="运行产物根目录（默认 output；也可设 TURTLE_OUTPUT_DIR，如 .runs）",
+        help="运行产物根目录（默认 .runs；也可设 TURTLE_OUTPUT_DIR）",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -2731,7 +2731,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     pack = sub.add_parser("pack", help="生成 Markdown 数据包")
     pack.add_argument("code", help="股票代码，如 600887")
-    pack.add_argument("--out", default=None, help="输出路径，默认 output/<code>/data_pack.md")
+    pack.add_argument("--out", default=None, help="输出路径，默认 .runs/<code>/data_pack.md")
     pack.add_argument(
         "--currency",
         choices=[c.value for c in Currency],
@@ -2748,7 +2748,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     report = sub.add_parser("report", help="生成四因子分析报告")
     report.add_argument("code", help="股票代码，如 600887")
-    report.add_argument("--out", default=None, help="输出路径，默认 output/<code>/analysis_report.md")
+    report.add_argument("--out", default=None, help="输出路径，默认 .runs/<code>/analysis_report.md")
     report.add_argument(
         "--currency",
         choices=[c.value for c in Currency],
@@ -2760,7 +2760,7 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument(
         "--qualitative",
         default=None,
-        help="定性 JSON 路径，默认 output/<code>/qualitative.json",
+        help="定性 JSON 路径，默认 .runs/<code>/qualitative.json",
     )
     report.add_argument("--pdf-numbers", default=None, help="reported_numbers.json（含 cash_bridge）")
     report.add_argument("--evidence", default=None, help="pdf-evidence 生成的 evidence.json")

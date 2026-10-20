@@ -155,7 +155,7 @@ turtle report 600887.SH --save-snapshot .runs\600887.SH\snapshot
 └─ snapshot/
 ```
 
-> `TURTLE_OUTPUT_DIR` 用于受限环境。默认根目录是 `output/`；也可使用
+> `TURTLE_OUTPUT_DIR` 用于受限环境。默认根目录是 `.runs/`；也可使用
 > `python -m turtlefw.cli --output-dir .runs ...`。
 >
 > 下文 `turtle` 指 `.venv\Scripts\turtle.exe`；未安装 console script 时，
@@ -234,7 +234,7 @@ turtle valuation 600887.SH
 
 ```powershell
 turtle pack 00700.HK
-turtle report 00700.HK --pdf-numbers output\00700.HK\reported_numbers.json --html
+turtle report 00700.HK --pdf-numbers .runs\00700.HK\reported_numbers.json --html
 ```
 
 港股注意：
@@ -249,9 +249,9 @@ turtle report 00700.HK --pdf-numbers output\00700.HK\reported_numbers.json --htm
 
 ```powershell
 turtle pack AAPL.US
-turtle report AAPL.US --save-snapshot output\AAPL.US\snapshot --html
-turtle sec-evidence --ticker AAPL --out output\AAPL.US\evidence.json
-turtle sec-audit --snapshot output\AAPL.US\snapshot --ticker AAPL
+turtle report AAPL.US --save-snapshot .runs\AAPL.US\snapshot --html
+turtle sec-evidence --ticker AAPL --out .runs\AAPL.US\evidence.json
+turtle sec-audit --snapshot .runs\AAPL.US\snapshot --ticker AAPL
 ```
 
 美股注意：
@@ -269,17 +269,17 @@ turtle sec-audit --snapshot output\AAPL.US\snapshot --ticker AAPL
 turtle fetch-report --url "<PDF URL>" --stock-code SH600887 --report-type 年报 --year 2025
 
 # 2. 章节定位
-turtle pdf --pdf output\600887.SH\2025年报.pdf --output output\600887.SH\pdf_sections.json
+turtle pdf --pdf .runs\600887.SH\2025年报.pdf --output .runs\600887.SH\pdf_sections.json
 
 # 3. 审计数字 / 附注
-turtle pdf-numbers --pdf output\600887.SH\2025年报.pdf --year 2025
-turtle pdf-footnotes --sections output\600887.SH\pdf_sections.json
+turtle pdf-numbers --pdf .runs\600887.SH\2025年报.pdf --year 2025
+turtle pdf-footnotes --sections .runs\600887.SH\pdf_sections.json
 
 # 4. 页级研究证据
-turtle pdf-evidence --sections output\600887.SH\pdf_sections.json --output output\600887.SH\evidence.json
+turtle pdf-evidence --sections .runs\600887.SH\pdf_sections.json --output .runs\600887.SH\evidence.json
 
 # 5. 带证据出报告
-turtle report 600887.SH --pdf-numbers output\600887.SH\reported_numbers.json --evidence output\600887.SH\evidence.json
+turtle report 600887.SH --pdf-numbers .runs\600887.SH\reported_numbers.json --evidence .runs\600887.SH\evidence.json
 ```
 
 PDF evidence 包含：
@@ -507,7 +507,7 @@ CI：pytest + selected ruff + selected mypy，见
 - `TUSHARE_TOKEN` 只放 `.env` 或环境变量，不提交；
 - `TURTLE_LLM_API_KEY` 只放环境变量；
 - SEC 请求建议设置 `SEC_USER_AGENT`；
-- 不要提交 `output/`、`.runs/`、PDF、snapshot 中的私有数据。
+- 不要提交 `.runs/`、PDF、snapshot 中的私有数据。
 
 ---
 

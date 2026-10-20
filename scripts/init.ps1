@@ -40,7 +40,7 @@ if (Test-Path $envFile) {
     Write-Warning "  TUSHARE_TOKEN is not set. Copy .env.sample to .env and fill it in."
 }
 
-New-Item -ItemType Directory -Force (Join-Path $root "output") | Out-Null
+New-Item -ItemType Directory -Force (Join-Path $root ".runs") | Out-Null
 
 Write-Host "[4/4] running tests"
 & $venvPy -m pytest -q

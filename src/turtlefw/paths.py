@@ -1,8 +1,8 @@
 """Resolve the writable runtime root for reports and run state.
 
-Default stays ``output/`` for normal terminals. In a restricted DSH session,
-set ``TURTLE_OUTPUT_DIR`` (or pass ``--output-dir``) to a writable directory
-such as ``.runs``; every command that writes run artifacts uses this resolver.
+The default runtime root is ``.runs/`` so every command writes to the same
+workspace-local directory. ``TURTLE_OUTPUT_DIR`` / ``TURTLE_OUTPUT_ROOT`` or
+the global ``--output-dir`` option can still override it explicitly.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-DEFAULT_OUTPUT_DIR = "output"
+DEFAULT_OUTPUT_DIR = ".runs"
 ENV_ALIASES = ("TURTLE_OUTPUT_DIR", "TURTLE_OUTPUT_ROOT")
 
 

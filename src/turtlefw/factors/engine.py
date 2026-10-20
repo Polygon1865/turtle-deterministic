@@ -508,7 +508,7 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
         if floor_premium > Decimal("150"):
             caps.append(f"底价溢价 {floor_premium:.2f}% > 150%")
         elif stats.status == "divergent":
-            caps.append(f"底价口径分歧（均值/中位数偏离 {stats.divergence:.0f}%）")
+            caps.append(f"底价口径分歧（均值/中位数偏离 {stats.divergence:.2f}%）")
     elif stats.status == "unavailable":
         caps.append("底价不可用")
     if not payout_reliable:
