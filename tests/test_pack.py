@@ -46,6 +46,30 @@ class TestDataPack:
         text = render()
         assert "2020" in text and "2024" in text
 
+    def test_working_capital_and_cash_conversion_rows(self):
+        text = render()
+        for label in ("应收账款", "存货", "合同负债", "预收款项", "预付款项", "OCF/净利润（%）"):
+            assert label in text
+
+    def test_holders_and_main_business_are_rendered(self):
+        text = render_data_pack(
+            demo.DEMO_CODE,
+            demo.demo_rows(),
+            demo.demo_dividends(),
+            quote={"trade_date": "20261016", "close": 28.2},
+            history=[{"trade_date": "20261016", "close": 28.2, "high": 30.0, "low": 27.0}],
+            market_cap=Money(demo.DEMO_MARKET_CAP, Currency.CNY),
+            shares=demo.DEMO_SHARES,
+            rf_pct=demo.DEMO_RF,
+            settings=load_settings(),
+            holders=[{"holder_name": "测试股东", "hold_amount": 1000, "hold_ratio": 1.5}],
+            main_business=[{"bz_item": "测试业务", "bz_sales": 100, "bz_profit": 20}],
+        )
+        assert "前十大股东" in text
+        assert "测试股东" in text
+        assert "主营/分部" in text
+        assert "测试业务" in text
+
     def test_floor_methods_are_numbered(self):
         text = render()
         assert "## 6. 底价（" in text and "法）" in text

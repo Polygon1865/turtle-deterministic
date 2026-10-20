@@ -143,6 +143,11 @@ def render_data_pack(
     equity = statements.equity(rows)
     cash = statements.cash_and_equivalents(rows)
     trad = _series(rows, "balance", "trad_asset")
+    inventory = _series(rows, "balance", "inventory")
+    accounts_receiv = _series(rows, "balance", "accounts_receiv")
+    contract_liab = _series(rows, "balance", "contract_liab")
+    adv_receipts = _series(rows, "balance", "adv_receipts")
+    prepayments = _series(rows, "balance", "prepayments")
     net_cash = statements.net_cash(rows, currency)
     payouts = div_metrics.payout_by_year(dividends, net_income, shares=shares)
     mean_payout, payout_years = div_metrics.mean_payout(payouts)
@@ -338,6 +343,24 @@ def render_data_pack(
     add_metric("payout.mean", "支付率均值", mean_payout, f"{_pct(mean_payout)}（{payout_years} 年）", unit="%", formula="dividends.mean_payout")
     add_metric("fcf.latest", "最新 FCF", latest_fcf, _m(latest_fcf), unit=currency.value, formula="cashflow.fcf")
     add_metric("debt.latest", "有息负债", debt.get(latest_year) if latest_year else None, _m(debt.get(latest_year) if latest_year else None), unit=currency.value, formula="balance.debt")
+    latest_ocf = ocf.get(latest_year) if latest_year else None
+    latest_ni = net_income.get(latest_year) if latest_year else None
+    add_metric(
+        "ocf_ni_ratio",
+        "OCF/净利润",
+        (
+            latest_ocf / latest_ni * Decimal("100")
+            if latest_ocf is not None and latest_ni not in (None, 0)
+            else None
+        ),
+        _pct(
+            latest_ocf / latest_ni * Decimal("100")
+            if latest_ocf is not None and latest_ni not in (None, 0)
+            else None
+        ),
+        unit="%",
+        formula="cashflow.ocf_ni",
+    )
     add_metric("net_cash.latest", "净现金", net_cash[latest_year].amount if latest_year in net_cash else None, _m(net_cash[latest_year].amount) if latest_year in net_cash else "—", unit=currency.value, formula="balance.net_cash")
     add_metric("floor.mean", "底价均值", stats.mean, _num(stats.mean), unit=currency.value, formula="valuation.mean")
     add_metric("floor.median", "底价中位数", stats.median, _num(stats.median), unit=currency.value, formula="valuation.median")
@@ -363,6 +386,11 @@ def render_data_pack(
             ("debt", debt, _m, currency.value),
             ("equity", equity, _m, currency.value),
             ("cash", cash, _m, currency.value),
+            ("inventory", inventory, _m, currency.value),
+            ("accounts_receiv", accounts_receiv, _m, currency.value),
+            ("contract_liab", contract_liab, _m, currency.value),
+            ("adv_receipts", adv_receipts, _m, currency.value),
+            ("prepayments", prepayments, _m, currency.value),
         ):
             value = series.get(year)
             add_metric(
@@ -408,6 +436,18 @@ def render_data_pack(
         money_row("有息负债", "debt"),
         money_row("股东权益", "equity"),
         money_row("货币资金", "cash"),
+        money_row("应收账款", "accounts_receiv"),
+        money_row("存货", "inventory"),
+        money_row("合同负债", "contract_liab"),
+        money_row("预收款项", "adv_receipts"),
+        money_row("预付款项", "prepayments"),
+        ["OCF/净利润（%）"]
+        + [
+            f"{ocf[y] / net_income[y] * 100:.2f}%"
+            if y in ocf and y in net_income and net_income[y] not in (None, 0)
+            else "—"
+            for y in years
+        ],
         ["净现金"] + [pack_ledger.display(f"net_cash.{y}") for y in years],
         ["支付率（%）"] + [pack_ledger.display(f"payout.{y}") for y in years],
     ]
