@@ -1,6 +1,6 @@
 # Turtle Framework 使用说明
 
-> 当前审查基线：`383 passed`。本文按当前 CLI 实测编写，命令使用
+> 当前审查基线：`384 passed`。本文按当前 CLI 实测编写，命令使用
 > `.\.venv\Scripts\python.exe -m turtlefw.cli`，避免依赖 PATH 里的 `turtle`。
 
 ## 1. 这个项目做什么
@@ -805,7 +805,7 @@ research-audit --metrics ... --facts ...
 当前基线：
 
 ```text
-383 tests passed
+384 tests passed
 ```
 
 CI：

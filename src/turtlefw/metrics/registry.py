@@ -410,6 +410,27 @@ def build(
                 ),
             )
         )
+    if latest is not None:
+        accounts_receiv = statements.annual_series(ctx.rows, "balance", "accounts_receiv")
+        ar_value = accounts_receiv.get(latest)
+        ar_source = ctx.pdf_source_ids.get("accounts_receiv") or (
+            f"statement:{period}:balance:accounts_receiv"
+        )
+        registry.add(
+            MetricPoint(
+                id="accounts_receiv",
+                name="应收账款",
+                value=ar_value,
+                unit=ctx.market_cap.currency.value,
+                period=period,
+                formula_id="balance.accounts_receiv",
+                source_fact_ids=(ar_source,),
+                coverage="ok" if ar_value is not None else "missing",
+                display=(
+                    f"{ar_value / Decimal('1000000'):,.2f}" if ar_value is not None else "—"
+                ),
+            )
+        )
     return registry
 
 

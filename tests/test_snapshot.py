@@ -88,6 +88,32 @@ def test_inputs_carry_pdf_facts_and_semantic_hash():
         shutil.rmtree(root, ignore_errors=True)
 
 
+def test_metric_registry_points_to_pdf_fact():
+    rows = [
+        replace(row, item="accounts_receiv")
+        if row.statement == "balance" and row.item == "total_assets"
+        else row
+        for row in demo.demo_rows()
+    ]
+    inputs = replace(
+        _inputs(),
+        rows=rows,
+        document_facts=[
+            {
+                "id": "pdf:accounts_receiv:132",
+                "label": "accounts_receiv",
+                "value": "123456789.00",
+                "page": "132",
+            }
+        ],
+    )
+    metrics: dict[str, object] = {}
+    render(inputs, load_settings(), metrics_out=metrics)
+    point = metrics["accounts_receiv"]
+    assert isinstance(point, dict)
+    assert point["source_fact_ids"] == ["pdf:accounts_receiv:132"]
+
+
 def test_snapshot_roundtrip_and_byte_identity():
     root = _root()
     try:

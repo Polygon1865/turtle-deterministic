@@ -435,6 +435,11 @@ def render(
         buyback=Money(Decimal(inputs.buyback), currency) if inputs.buyback else None,
         sbc=Money(Decimal(inputs.sbc), currency) if inputs.sbc else None,
         pdf_cash_bridge=inputs.pdf_bridge,
+        pdf_source_ids={
+            str(fact.get("label")): str(fact.get("id"))
+            for fact in inputs.document_facts
+            if fact.get("label") and fact.get("id")
+        },
         decisions=decisions,
     )
     results = run(ctx)
