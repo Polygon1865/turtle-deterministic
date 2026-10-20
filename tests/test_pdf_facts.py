@@ -3,7 +3,7 @@ import json
 
 from turtlefw.pdf.dps import extract_dps_from_pages
 from turtlefw.pdf.extract import write_reported_numbers
-from turtlefw.pdf.multiline import FactRow, make_fact_id
+from turtlefw.pdf.multiline import FactRow, make_fact_id, rows_to_facts
 
 
 def test_dps_parses_small_value_and_currency():
@@ -17,6 +17,29 @@ def test_dps_parses_small_value_and_currency():
 
 def test_dps_rejects_large_statement_numbers():
     assert extract_dps_from_pages([(1, "每股派息 1,234,567")]) == {}
+
+
+def test_main_business_table_rows_to_facts():
+    tables = [
+        [
+            ["产品", "2025", "2024"],
+            ["液体乳", "80,000", "75,000"],
+            ["奶粉", "20,000", "18,000"],
+            ["合计", "100,000", "93,000"],
+        ]
+    ]
+    facts = rows_to_facts(
+        tables,
+        item="main_business",
+        dimension="product",
+        page=88,
+        year=2025,
+        unit="CNY",
+    )
+    assert [fact.label for fact in facts] == ["液体乳", "奶粉"]
+    assert facts[0].value == Decimal("80000")
+    assert all(fact.item == "main_business" for fact in facts)
+    assert all(fact.page == 88 for fact in facts)
 
 
 def test_multiline_fact_hash_stable():
