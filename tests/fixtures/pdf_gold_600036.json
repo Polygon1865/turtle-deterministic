@@ -4,6 +4,7 @@
   "items": {
     "revenue": {"value": "337532000000.00", "page": "131"},
     "net_income": {"value": "150181000000.00", "page": "131"},
+    "total_assets": {"value": "13070523000000.00", "page": "276"},
     "ocf": {"value": "451457000000.00", "page": "135"},
     "contract_liab": {"value": "3548000000.00", "page": "127"}
   }

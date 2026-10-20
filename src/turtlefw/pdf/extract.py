@@ -53,7 +53,7 @@ ALIASES: dict[str, tuple[str, ...]] = {
         "Equity attributable to equity holders of the Company",
         "Total equity attributable to shareholders",
     ),
-    "total_assets": ("资产总计", "总资产", "Total assets"),
+    "total_assets": ("资产总计", "总资产", "资产总额", "负债及股东权益总计", "Total assets"),
     "accounts_receiv": (
         "应收账款",
         "应收票据及应收账款",
