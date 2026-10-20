@@ -1894,7 +1894,7 @@ def _pdf_numbers(
     output: str | None,
     max_pages: int | None,
 ) -> int:
-    from .pdf.extract import extract_pdf_bundle, write_reported_numbers
+    from .pdf.extract import extract_dps_pdf, extract_pdf_bundle, write_reported_numbers
 
     source = Path(pdf_path)
     if not source.is_file():
@@ -1908,10 +1908,19 @@ def _pdf_numbers(
         print(str(exc), file=sys.stderr)
         return 2
     target = Path(output) if output else source.with_name("reported_numbers.json")
+    dps = extract_dps_pdf(source, max_pages=max_pages)
     write_reported_numbers(
-        items, target, pdf_path=str(source), cash_bridge=cash_bridge, sbc=sbc, year=year
+        items,
+        target,
+        pdf_path=str(source),
+        cash_bridge=cash_bridge,
+        sbc=sbc,
+        dps=dps,
+        year=year,
     )
     print(f"已抽取 {len(items)}/6 项数字 → {target.resolve()}")
+    if dps:
+        print(f"  DPS           {dps.get('dps', ''):>18}  p.{dps.get('page', '')} ({dps.get('currency', '')})")
     for item in items:
         print(f"  {item['item']:<12} {item['value']:>18}  p.{item['page']} ({item['confidence']})")
     if cash_bridge.get("ocf"):

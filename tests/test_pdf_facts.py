@@ -1,6 +1,8 @@
 from decimal import Decimal
+import json
 
 from turtlefw.pdf.dps import extract_dps_from_pages
+from turtlefw.pdf.extract import write_reported_numbers
 from turtlefw.pdf.multiline import FactRow, make_fact_id
 
 
@@ -32,3 +34,21 @@ def test_multiline_fact_hash_stable():
     second = FactRow(**kwargs)
     assert first.fact_hash == second.fact_hash
     assert first.to_dict()["fact_hash"] == first.fact_hash
+
+
+def test_reported_numbers_carries_dps(tmp_path):
+    target = write_reported_numbers(
+        [],
+        tmp_path / "reported_numbers.json",
+        dps={
+            "dps": "1.2345",
+            "currency": "CNY",
+            "page": "12",
+            "quote": "每股派息 1.2345 元",
+        },
+        year=2025,
+    )
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    assert payload["dps"]["dps"] == "1.2345"
+    assert payload["document_facts"][0]["label"] == "dps"
+    assert payload["document_facts"][0]["fact_hash"]

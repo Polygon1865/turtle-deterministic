@@ -19,6 +19,8 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Iterable, Sequence
 
+from .dps import extract_dps_from_pages
+
 ALIASES: dict[str, tuple[str, ...]] = {
     "revenue": ("营业收入", "营业总收入", "Revenues", "Revenue", "Total revenue"),
     "net_income": (
@@ -776,6 +778,18 @@ def extract_pdf_bundle(
     )
 
 
+def extract_dps_pdf(
+    pdf_path: Path | str,
+    *,
+    max_pages: int | None = None,
+    default_currency: str = "CNY",
+) -> dict[str, str]:
+    return extract_dps_from_pages(
+        _read_pages(pdf_path, max_pages),
+        default_currency=default_currency,
+    )
+
+
 def write_reported_numbers(
     items: Iterable[dict[str, str]],
     output_path: Path | str,
@@ -783,6 +797,7 @@ def write_reported_numbers(
     pdf_path: str = "",
     cash_bridge: dict[str, str | None] | None = None,
     sbc: dict[str, str] | None = None,
+    dps: dict[str, str] | None = None,
     year: int | None = None,
 ) -> Path:
     import json
@@ -828,6 +843,33 @@ def write_reported_numbers(
         "items": item_list,
         "document_facts": facts,
     }
+    if dps:
+        dps_fact = {
+            "id": f"pdf:dps:{dps.get('page', '')}",
+            "document_hash": document_hash,
+            "page": str(dps.get("page", "")),
+            "section": "dividend",
+            "label": "dps",
+            "value": str(dps.get("dps", "")),
+            "unit": f"{dps.get('currency', '')}/股",
+            "extraction_method": "pdf-dps",
+            "confidence": "medium",
+            "quote": str(dps.get("quote", "")),
+            "source_rank": 1,
+        }
+        dps_fact["fact_hash"] = hashlib.sha256(
+            "|".join(
+                (
+                    document_hash,
+                    "dps",
+                    str(dps_fact["page"]),
+                    str(dps_fact["value"]),
+                    str(dps_fact["unit"]),
+                )
+            ).encode("utf-8")
+        ).hexdigest()
+        facts.append(dps_fact)
+        payload["dps"] = dps
     if year is not None:
         payload["year"] = year
     if cash_bridge is not None:
