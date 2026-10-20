@@ -5,7 +5,7 @@ import json
 import pytest
 
 from turtlefw.pdf.dps import extract_dps_from_pages
-from turtlefw.pdf.extract import write_reported_numbers
+from turtlefw.pdf.extract import _is_capex_table, write_reported_numbers
 from turtlefw.pdf.multiline import FactRow, make_fact_id, rows_to_facts
 from turtlefw.metrics.dps_check import crosscheck_dps
 from turtlefw.report.facts_coverage import CoverageGate
@@ -90,6 +90,11 @@ def test_main_business_fact_rows_convert_to_pack_rows():
     ]
 
 
+def test_capex_table_requires_explicit_header():
+    assert not _is_capex_table([["资产", "2025"], ["存货", "100"]])
+    assert _is_capex_table([["项目", "2025"], ["设备", "100"]])
+
+
 def test_capex_detail_rows_to_facts():
     facts = rows_to_facts(
         [[["项目", "2025"], ["设备购置", "12,000"], ["在建工程", "8,000"]]],
@@ -111,6 +116,19 @@ def test_main_business_pdf_rows_win_on_duplicate():
     )
     assert merged[0]["bz_sales"] == 9
     assert [row["bz_item"] for row in merged] == ["液体乳", "奶粉"]
+
+
+def test_main_business_uses_current_year_column():
+    facts = rows_to_facts(
+        [[["产品", "2024", "2025"], ["液体乳", "75,000", "80,000"]]],
+        item="main_business",
+        dimension="product",
+        page=88,
+        year=2025,
+        unit="CNY",
+    )
+    assert len(facts) == 1
+    assert facts[0].value == Decimal("80000")
 
 
 def test_main_business_table_rows_to_facts():
@@ -146,6 +164,8 @@ def test_dps_crosscheck_matches_closest_event():
     check = crosscheck_dps(Decimal("1.20"), events)
     assert check.status == "match"
     assert check.provider_dps == Decimal("1.20")
+    unavailable = crosscheck_dps(Decimal("1.20"), events, fiscal_year=2026)
+    assert unavailable.status == "unavailable"
 
 
 def test_phase2_gate_allows_documented_not_applicable():
@@ -176,6 +196,26 @@ def test_phase2_gate_blocks_unaccepted_not_applicable():
     )
     assert not gate.phase2_ready()
     assert gate.unaccepted_not_applicable() == ("accounts_receiv",)
+
+
+def test_pdf_facts_hash_is_path_independent():
+    from turtlefw.pdf.fact_hash import pdf_facts_hash
+
+    a = pdf_facts_hash(
+        {
+            "document_facts": [
+                {"id": "pdf:ar:1", "label": "accounts_receiv", "value": "1", "source_url": "/a.pdf"}
+            ]
+        }
+    )
+    b = pdf_facts_hash(
+        {
+            "document_facts": [
+                {"id": "pdf:ar:1", "label": "accounts_receiv", "value": "1", "source_url": "/b.pdf"}
+            ]
+        }
+    )
+    assert a == b
 
 
 def test_phase2_gate_blocks_missing_field():

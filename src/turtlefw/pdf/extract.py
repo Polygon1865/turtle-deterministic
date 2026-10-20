@@ -779,6 +779,15 @@ def extract_pdf_bundle(
     )
 
 
+def _is_capex_table(table: list[list[str | None]]) -> bool:
+    first_cells = {
+        str(row[0]).strip()
+        for row in table
+        if row and row[0] is not None and str(row[0]).strip()
+    }
+    return bool(first_cells & {"项目", "资本开支", "资本开支明细"})
+
+
 def extract_capex_detail_facts(
     pdf_path: Path | str,
     *,
@@ -793,7 +802,7 @@ def extract_capex_detail_facts(
             flat = " ".join(
                 str(cell) for row in table for cell in row if cell is not None
             )
-            if "资本开支" not in flat:
+            if "资本开支" not in flat or not _is_capex_table(table):
                 continue
             facts.extend(
                 rows_to_facts(

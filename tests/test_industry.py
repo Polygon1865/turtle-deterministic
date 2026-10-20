@@ -11,6 +11,8 @@ def test_templates_cover_three_industries():
     assert template_for("600941.SH").key == "telecom"
     assert template_for("600887.SH").key == "food"
     assert template_for("00700.HK").key == "internet"
+    assert template_for("600276.SH") is None
+    assert template_for("000333.SZ") is None
     assert template_for("99999.SZ") is None
 
 

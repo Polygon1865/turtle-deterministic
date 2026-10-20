@@ -591,6 +591,23 @@ def _pack(
         import json
 
         pdf_sections = json.loads(Path(pdf_sections_path).read_text(encoding="utf-8-sig"))
+    pdf_payload: dict[str, object] = {}
+    if pdf_numbers and Path(pdf_numbers).is_file():
+        import json
+
+        pdf_payload = json.loads(Path(pdf_numbers).read_text(encoding="utf-8-sig"))
+    from .report.pdf_facts import (
+        apply_document_facts,
+        main_business_rows,
+        merge_main_business,
+    )
+
+    document_facts = list(pdf_payload.get("document_facts", []))
+    fact_rows = list(pdf_payload.get("fact_rows", []))
+    rows = apply_document_facts(list(rows), document_facts)
+    main_business = merge_main_business(
+        list(main_business), main_business_rows(fact_rows)
+    )
     markdown = render_data_pack(
         code,
         rows,
@@ -616,6 +633,7 @@ def _pack(
         footnotes=footnotes,
         pdf_sections=pdf_sections,
         pit_note=pit_note,
+        document_facts=document_facts,
     )
 
     path = Path(out) if out else output_root() / str(code) / "data_pack.md"

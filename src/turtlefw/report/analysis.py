@@ -13,7 +13,7 @@ from ..metrics import statements, valuation
 from ..metrics import registry as metric_registry
 from ..metrics.dps_check import crosscheck_dps
 from ..qualitative import MODULES, all_evidence, summary as qual_summary
-from ..types import DividendEvent, FetchIssue
+from ..types import Currency, DividendEvent, FetchIssue
 from .format import TEMPLATE_DIR, _m, _num, _pct, _table
 from . import industry
 from ..metrics.dividends import average_dps
@@ -32,7 +32,11 @@ def _pdf_value(raw: object) -> str:
 
 
 def _dps_check_text(
-    document_facts: Sequence[dict[str, Any]], dividends: Sequence[DividendEvent]
+    document_facts: Sequence[dict[str, Any]],
+    dividends: Sequence[DividendEvent],
+    *,
+    fiscal_year: int | None,
+    currency: Currency,
 ) -> str:
     for fact in document_facts:
         if fact.get("label") != "dps":
@@ -41,7 +45,12 @@ def _dps_check_text(
             pdf_dps = Decimal(str(fact.get("value")))
         except Exception:
             return ""
-        check = crosscheck_dps(pdf_dps, dividends)
+        check = crosscheck_dps(
+            pdf_dps,
+            dividends,
+            fiscal_year=fiscal_year,
+            currency=currency,
+        )
         if check.status == "unavailable":
             return "DPS 核对：供应商无可用分红事件"
         return (
@@ -393,7 +402,12 @@ def render_analysis(
             ]
             for row in fact_rows
         ],
-        "dps_check": _dps_check_text(document_facts, ctx.dividends),
+        "dps_check": _dps_check_text(
+            document_facts,
+            ctx.dividends,
+            fiscal_year=latest,
+            currency=ctx.market_cap.currency,
+        ),
         "summary_table": _table(
             ["项目", "数值"],
             [

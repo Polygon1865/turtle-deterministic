@@ -298,7 +298,8 @@ def verify_manifest(
             "formula_version mismatch: "
             f"manifest={manifest.formula_version} current={FORMULA_VERSION}; regenerate snapshot"
         )
-    actual_facts = content_hash(statement_payload(inputs.rows))
+    effective_rows = apply_document_facts(list(inputs.rows), inputs.document_facts)
+    actual_facts = content_hash(statement_payload(effective_rows))
     if actual_facts != manifest.facts_hash:
         errors.append("facts_hash mismatch")
     actual_config = content_hash(config_payload(settings))
@@ -312,13 +313,17 @@ def verify_manifest(
     actual_audit = file_hash(audit_file) if audit_file.is_file() else ""
     if manifest.research_audit_hash and actual_audit != manifest.research_audit_hash:
         errors.append("research_audit_hash mismatch")
-    actual_pdf_fact = pdf_facts_hash(
-        {
-            "document_facts": inputs.document_facts,
-            "fact_rows": inputs.fact_rows,
-            "dps": inputs.dps_fact,
-        }
-    )
+    if manifest.pdf_fact_hash_version >= 1:
+        actual_pdf_fact = pdf_facts_hash(
+            {
+                "document_facts": inputs.document_facts,
+                "fact_rows": inputs.fact_rows,
+                "dps": inputs.dps_fact,
+            }
+        )
+    else:
+        pdf_file = root / "reported_numbers.json"
+        actual_pdf_fact = file_hash(pdf_file) if pdf_file.is_file() else ""
     if manifest.pdf_fact_hash and actual_pdf_fact != manifest.pdf_fact_hash:
         errors.append("pdf_fact_hash mismatch")
     actual_template = template_hash(Path(__file__).parent / "templates")
@@ -444,6 +449,11 @@ def render(
             str(fact.get("label")): str(fact.get("value"))
             for fact in inputs.document_facts
             if fact.get("label") and fact.get("value") is not None
+        },
+        pdf_units={
+            str(fact.get("label")): str(fact.get("unit"))
+            for fact in inputs.document_facts
+            if fact.get("label") and fact.get("unit")
         },
         pdf_fact_rows=inputs.fact_rows,
         decisions=decisions,

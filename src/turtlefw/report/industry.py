@@ -60,7 +60,7 @@ TEMPLATES: dict[str, IndustryTemplate] = {
         key="food",
         name="食品饮料",
         description="产品结构、渠道、合同负债、库存与现金流质量。",
-        codes=("600887.SH", "600519.SH", "000858.SZ", "000333.SZ", "600276.SH"),
+        codes=("600887.SH", "600519.SH", "000858.SZ"),
         kpis=(
             KpiSpec("营业收入 CAGR", "revenue.cagr"),
             KpiSpec("归母净利润 CAGR", "net_income.cagr"),

@@ -102,6 +102,12 @@ def rows_to_facts(
     """
     facts: list[FactRow] = []
     for table in tables:
+        current_column: int | None = None
+        for row in table:
+            header = [str(cell).strip() if cell is not None else "" for cell in row]
+            if str(year) in header:
+                current_column = header.index(str(year))
+                break
         for row in table:
             cells = [str(cell).strip() for cell in row if cell is not None and str(cell).strip()]
             if len(cells) < 2:
@@ -111,11 +117,14 @@ def rows_to_facts(
                 continue
             if any(cell.strip() in {str(year), str(year - 1)} for cell in cells):
                 continue
-            value: Decimal | None = None
-            for cell in cells[1:]:
-                value = _number(cell)
-                if value is not None:
-                    break
+            if current_column is not None:
+                value = _number(cells[current_column]) if current_column < len(cells) else None
+            else:
+                value = None
+                for cell in cells[1:]:
+                    value = _number(cell)
+                    if value is not None:
+                        break
             if value is None:
                 continue
             facts.append(

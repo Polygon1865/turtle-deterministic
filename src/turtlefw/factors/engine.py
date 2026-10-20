@@ -64,6 +64,7 @@ class FactorContext:
     pdf_cash_bridge: Mapping[int, Mapping[str, str | None]] | None = None
     pdf_source_ids: Mapping[str, str] = field(default_factory=dict)
     pdf_values: Mapping[str, str] = field(default_factory=dict)
+    pdf_units: Mapping[str, str] = field(default_factory=dict)
     pdf_fact_rows: Sequence[Mapping[str, Any]] = ()
     decisions: Mapping[str, str] = field(default_factory=dict)
 

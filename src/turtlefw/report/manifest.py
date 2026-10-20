@@ -14,6 +14,7 @@ from ..facts import (
     statement_payload,
     template_hash,
 )
+from .pdf_facts import apply_document_facts
 
 
 def build_manifest(
@@ -34,6 +35,9 @@ def build_manifest(
     snapshot_root = Path(root)
     research_file = snapshot_root / "research.json"
     rows = getattr(inputs, "rows")
+    rows = apply_document_facts(
+        list(rows), list(getattr(inputs, "document_facts", []))
+    )
     return ReportManifest(
         code=str(getattr(inputs, "code")),
         as_of=str(getattr(inputs, "as_of")),
@@ -41,6 +45,7 @@ def build_manifest(
         facts_hash=content_hash(statement_payload(rows)),
         config_hash=content_hash(config_payload(settings)),
         pdf_fact_hash=pdf_fact_hash,
+        pdf_fact_hash_version=1,
         research_hash=file_hash(research_file) if research_file.is_file() else "",
         research_audit_hash=research_audit_hash,
         template_hash=template_hash(

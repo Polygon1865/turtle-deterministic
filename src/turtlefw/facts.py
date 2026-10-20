@@ -280,6 +280,7 @@ class ReportManifest:
     facts_hash: str
     config_hash: str
     pdf_fact_hash: str = ""
+    pdf_fact_hash_version: int = 0
     research_hash: str = ""
     research_audit_hash: str = ""
     template_hash: str = ""
@@ -306,6 +307,7 @@ class ReportManifest:
             "facts_hash": self.facts_hash,
             "config_hash": self.config_hash,
             "pdf_fact_hash": self.pdf_fact_hash,
+            "pdf_fact_hash_version": self.pdf_fact_hash_version,
             "research_hash": self.research_hash,
             "template_hash": self.template_hash,
             "engine_version": self.engine_version,
@@ -346,6 +348,7 @@ class ReportManifest:
             facts_hash=str(payload["facts_hash"]),
             config_hash=str(payload["config_hash"]),
             pdf_fact_hash=str(payload.get("pdf_fact_hash", "")),
+            pdf_fact_hash_version=int(payload.get("pdf_fact_hash_version", 0)),
             research_hash=str(payload.get("research_hash", "")),
             research_audit_hash=str(payload.get("research_audit_hash", "")),
             template_hash=str(payload.get("template_hash", "")),

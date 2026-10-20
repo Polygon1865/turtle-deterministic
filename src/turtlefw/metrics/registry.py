@@ -448,7 +448,7 @@ def build(
                         id="dps.pdf",
                         name="PDF 每股派息",
                         value=dps_value,
-                        unit="CNY/股",
+                        unit=ctx.pdf_units.get("dps", "CNY/股"),
                         period=period,
                         formula_id="dividends.pdf",
                         source_fact_ids=(ctx.pdf_source_ids.get("dps", "pdf:dps"),),

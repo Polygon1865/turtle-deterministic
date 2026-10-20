@@ -18,6 +18,8 @@ from turtlefw.facts import (
 )
 from turtlefw.report.snapshot import ReportInputs, freeze, load, render, verify_manifest
 from turtlefw.report.finalize import FinalizeError, finalize_research
+from turtlefw.report.manifest import build_manifest
+from turtlefw.report.pdf_facts import apply_document_facts
 from turtlefw.pdf.fact_hash import pdf_facts_hash
 
 
@@ -244,6 +246,49 @@ def test_report_contains_industry_template():
     markdown, _ = render(_inputs(), load_settings())
     assert "## 行业模板：食品饮料" in markdown
     assert "Peer 组" in markdown
+
+
+def test_manifest_facts_hash_uses_effective_pdf_rows():
+    rows = [
+        replace(row, item="accounts_receiv")
+        if row.statement == "balance" and row.item == "total_assets"
+        else row
+        for row in demo.demo_rows()
+    ]
+    fact = {
+        "id": "pdf:accounts_receiv:132",
+        "label": "accounts_receiv",
+        "value": "123456789.00",
+        "page": "132",
+    }
+    inputs = replace(_inputs(), rows=rows, document_facts=[fact])
+    manifest = build_manifest(inputs, load_settings(), _root())
+    effective = apply_document_facts(list(rows), [fact])
+    assert manifest.facts_hash == content_hash(statement_payload(effective))
+    assert manifest.pdf_fact_hash_version == 1
+
+
+def test_old_pdf_fact_hash_uses_file_fallback():
+    root = _root()
+    try:
+        settings = load_settings()
+        freeze(_inputs(), settings, root)
+        reported = root / "reported_numbers.json"
+        reported.write_text("{}", encoding="utf-8")
+        inputs, _ = load(root)
+        markdown, _ = render(inputs, settings, snapshot_dir=root)
+        manifest = build_manifest(
+            inputs,
+            settings,
+            root,
+            report_hash=hashlib.sha256(markdown.encode("utf-8")).hexdigest(),
+            pdf_fact_hash=file_hash(reported),
+        )
+        manifest = replace(manifest, pdf_fact_hash_version=0)
+        errors = verify_manifest(inputs, settings, markdown, manifest, root)
+        assert "pdf_fact_hash mismatch" not in errors
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
 
 
 def test_snapshot_roundtrip_and_byte_identity():

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Sequence
 
-from ..types import DividendEvent
+from ..types import Currency, DividendEvent
 
 
 @dataclass(frozen=True)
@@ -21,11 +21,20 @@ def crosscheck_dps(
     pdf_dps: Decimal,
     events: Sequence[DividendEvent],
     *,
+    fiscal_year: int | None = None,
+    currency: Currency | None = None,
     tolerance_pct: Decimal = Decimal("1.0"),
 ) -> DpsCheck:
     if not events:
         return DpsCheck("unavailable", pdf_dps, None, None)
-    candidates = [event.dps for event in events if event.dps_reliable and event.dps > 0]
+    candidates = [
+        event.dps
+        for event in events
+        if event.dps_reliable
+        and event.dps > 0
+        and (fiscal_year is None or event.fiscal_year == fiscal_year)
+        and (currency is None or event.currency == currency)
+    ]
     if not candidates:
         return DpsCheck("unavailable", pdf_dps, None, None)
     closest = min(candidates, key=lambda value: abs(value - pdf_dps))
