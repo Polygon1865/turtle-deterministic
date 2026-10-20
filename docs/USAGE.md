@@ -613,6 +613,12 @@ $env:TURTLE_LLM_MODEL = "your-model"
 .\.venv\Scripts\python.exe -m turtlefw.cli qa 600887.SH --write
 ```
 
+确定性/研究-only 流程没有 `qualitative.json` 时：
+
+```powershell
+.\.venv\Scripts\python.exe -m turtlefw.cli qa 600887.SH --allow-missing-qualitative
+```
+
 QA 检查：
 
 - run_state / report / data coverage

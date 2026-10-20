@@ -81,6 +81,14 @@ def finalize_research(
     out_report.write_bytes(markdown.encode("utf-8"))
     if html:
         convert_file(out_report, out_report.with_suffix(".html"), title=inputs.code)
+    artifact_base = output_root() / str(inputs.code)
+    artifact_base.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(target / "research.json", artifact_base / "research.json")
+    if (target / "research_provenance.json").is_file():
+        shutil.copyfile(
+            target / "research_provenance.json",
+            artifact_base / "research_provenance.json",
+        )
 
     (target / "metrics.json").write_bytes(
         (

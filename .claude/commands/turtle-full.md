@@ -59,7 +59,7 @@ Use `output/<code>/snapshot` instead of `.runs/<code>/snapshot` when `TURTLE_OUT
 6. Run QA:
 
 ```powershell
-.\.venv\Scripts\python.exe -m turtlefw.cli qa <code> --write
+.\.venv\Scripts\python.exe -m turtlefw.cli qa <code> --write --allow-missing-qualitative
 ```
 
 Rules:

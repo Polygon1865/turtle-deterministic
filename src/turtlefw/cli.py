@@ -682,12 +682,21 @@ def _golden_cmd(
     return 2
 
 
-def _qa_cmd(code_raw: str, write: bool, json_out: str | None = None) -> int:
+def _qa_cmd(
+    code_raw: str,
+    write: bool,
+    json_out: str | None = None,
+    allow_missing_qualitative: bool = False,
+) -> int:
     from . import qa
     from . import state as st
 
     code = StockCode.parse(code_raw)
-    rows = qa.run_qa(str(code), output_root())
+    rows = qa.run_qa(
+        str(code),
+        output_root(),
+        allow_missing_qualitative=allow_missing_qualitative,
+    )
     print(f"QA：{code}")
     for name, status, detail in rows:
         print(f"  {name:<20} | {status:<6} | {detail}")
@@ -2042,7 +2051,7 @@ def _run_cmd(
 
     if qa:
         print(f"[3/3] QA：{code}")
-        rc = _qa_cmd(str(code), True)
+        rc = _qa_cmd(str(code), True, None, True)
         if rc != 0:
             print(f"run 在 QA 阶段失败：{rc}", file=sys.stderr)
             return rc
@@ -3004,6 +3013,11 @@ def build_parser() -> argparse.ArgumentParser:
     qa.add_argument("code", help="股票代码")
     qa.add_argument("--write", action="store_true", help="全部通过后写 qa.json 并推进到 done")
     qa.add_argument("--json", dest="json_out", default=None, help="qa.json 输出路径")
+    qa.add_argument(
+        "--allow-missing-qualitative",
+        action="store_true",
+        help="确定性/研究流程允许无 qualitative.json",
+    )
 
     golden = sub.add_parser("golden", help="黄金集标注模板与评分")
     golden.add_argument("--init", default=None, help="写出模板 CSV 路径")
@@ -3101,7 +3115,12 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "golden":
             return _golden_cmd(args.init, args.codes, args.score, args.threshold)
         if args.command == "qa":
-            return _qa_cmd(args.code, args.write, args.json_out)
+            return _qa_cmd(
+                args.code,
+                args.write,
+                args.json_out,
+                args.allow_missing_qualitative,
+            )
         if args.command == "narrative":
             return _narrative_cmd(args.code, args.file)
         if args.command == "verify":

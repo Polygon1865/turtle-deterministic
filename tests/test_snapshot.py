@@ -119,7 +119,8 @@ def test_manifest_verification():
         shutil.rmtree(root, ignore_errors=True)
 
 
-def test_finalize_attaches_research_without_mutating_old_snapshot(tmp_path):
+def test_finalize_attaches_research_without_mutating_old_snapshot(tmp_path, monkeypatch):
+    monkeypatch.setenv("TURTLE_OUTPUT_DIR", str(tmp_path / "out"))
     settings = load_settings()
     old = tmp_path / "snapshot"
     freeze(_inputs(), settings, old)

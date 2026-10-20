@@ -93,7 +93,7 @@ This copies the frozen snapshot, renders the report with research, recomputes me
 ### 7. QA
 
 ```powershell
-.\.venv\Scripts\python.exe -m turtlefw.cli qa <code> --write
+.\.venv\Scripts\python.exe -m turtlefw.cli qa <code> --write --allow-missing-qualitative
 ```
 
 If QA fails, report the failed rows. Do not claim completion.

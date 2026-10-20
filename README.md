@@ -396,6 +396,12 @@ turtle qa 600887.SH
 turtle qa 600887.SH --write
 ```
 
+确定性/研究-only 流程无 `qualitative.json` 时使用：
+
+```powershell
+turtle qa 600887.SH --allow-missing-qualitative
+```
+
 QA 包含：
 
 ```text

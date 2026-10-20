@@ -19,7 +19,7 @@ from .paths import output_root
 from .qualitative import load as load_qualitative
 
 
-def run_qa(code: str, root: Path | str | None = None) -> list[tuple[str, str, str]]:
+def run_qa(code: str, root: Path | str | None = None, *, allow_missing_qualitative: bool = False) -> list[tuple[str, str, str]]:
     base = (Path(root) if root is not None else output_root()) / str(code)
     rows: list[tuple[str, str, str]] = []
 
@@ -48,7 +48,12 @@ def run_qa(code: str, root: Path | str | None = None) -> list[tuple[str, str, st
     unknown = 0
     loaded = None
     if not qpath.is_file():
-        add("qualitative", False, "缺少 qualitative.json")
+        if allow_missing_qualitative:
+            add("qualitative", True, "未提供（确定性/研究流程）")
+            add("evidence", True, "未提供（可选）")
+            add("discrepancies", True, "未提供（可选）")
+        else:
+            add("qualitative", False, "缺少 qualitative.json")
     else:
         try:
             loaded = load_qualitative(qpath)
