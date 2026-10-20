@@ -673,18 +673,26 @@ def _attach_table_pages(
     statement, not the summary.
     """
     cashflow_pages = [page for page, text in pages_text if _is_cashflow_page(text)]
-    if not cashflow_pages:
-        return items
+    balance_pages = [
+        page
+        for page, text in pages_text
+        if "资产总计" in text or "total assets" in text.lower()
+    ]
+    page_text = dict(pages_text)
     for item in items:
-        if item.get("item") != "ocf":
+        name = item.get("item")
+        if name not in {"ocf", "total_assets"}:
             continue
         try:
             page = int(item.get("page", "0"))
         except ValueError:
             continue
-        page_text = dict(pages_text).get(page, "")
-        if not _is_cashflow_page(page_text):
+        if name == "ocf" and cashflow_pages and not _is_cashflow_page(page_text.get(page, "")):
             item["page"] = str(min(cashflow_pages))
+        if name == "total_assets" and balance_pages:
+            current = page_text.get(page, "")
+            if "资产总计" not in current and "total assets" not in current.lower():
+                item["page"] = str(min(balance_pages))
     return items
 
 
@@ -710,7 +718,7 @@ def extract_pdf(
     merged = {item["item"]: item for item in text_items}
     for item in table_items:
         merged.setdefault(item["item"], item)
-    return list(merged.values())
+    return _attach_table_pages(list(merged.values()), pages)
 
 
 def extract_pdf_bundle(
@@ -730,7 +738,7 @@ def extract_pdf_bundle(
     for item in table_items:
         merged.setdefault(item["item"], item)
     return (
-        list(merged.values()),
+        _attach_table_pages(list(merged.values()), pages),
         extract_cash_bridge_from_pages(pages),
         extract_sbc_from_pages(pages),
     )
