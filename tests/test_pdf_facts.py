@@ -8,6 +8,7 @@ from turtlefw.pdf.dps import extract_dps_from_pages
 from turtlefw.pdf.extract import write_reported_numbers
 from turtlefw.pdf.multiline import FactRow, make_fact_id, rows_to_facts
 from turtlefw.metrics.dps_check import crosscheck_dps
+from turtlefw.report.facts_coverage import CoverageGate
 from turtlefw.report.pdf_facts import apply_document_facts, main_business_rows, merge_main_business
 from turtlefw.demo import demo_rows
 
@@ -145,6 +146,36 @@ def test_dps_crosscheck_matches_closest_event():
     check = crosscheck_dps(Decimal("1.20"), events)
     assert check.status == "match"
     assert check.provider_dps == Decimal("1.20")
+
+
+def test_phase2_gate_allows_documented_not_applicable():
+    gate = CoverageGate(
+        {
+            "accounts_receiv": "complete",
+            "inventory": "complete",
+            "contract_liab": "complete",
+            "dps": "complete",
+            "main_business": "complete",
+            "capex_detail": "not_applicable",
+        }
+    )
+    assert gate.phase2_ready()
+    assert gate.missing() == ()
+
+
+def test_phase2_gate_blocks_missing_field():
+    gate = CoverageGate(
+        {
+            "accounts_receiv": "complete",
+            "inventory": "complete",
+            "contract_liab": "complete",
+            "dps": "complete",
+            "main_business": "complete",
+            "capex_detail": "missing",
+        }
+    )
+    assert not gate.phase2_ready()
+    assert gate.missing() == ("capex_detail",)
 
 
 def test_multiline_fact_hash_stable():

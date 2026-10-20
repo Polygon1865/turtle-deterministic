@@ -9,7 +9,7 @@
 | contract_liab | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 完成 |
 | dps | ✅ | ✅ | ✅ | ✅ | 证据表 | ✅ | 完成；未覆盖 Tushare 分红指标 |
 | main_business | ✅ | ✅ | ✅ | ✅ | 合并行 | ✅ | 完成 |
-| capex_detail | 部分 | 部分 | ✅ | ✅ | 证据表 | 证据表 | 未完成；解析器只在明确“资本开支”表生效，当前测试 PDF 0 行 |
+| capex_detail | not_applicable | not_applicable | not_applicable | not_applicable | not_applicable | not_applicable | 源 PDF 无可解析多行 capex 表；只记录总 Capex，不伪造 |
 
 说明：
 
