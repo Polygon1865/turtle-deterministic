@@ -4,7 +4,7 @@
 top_n = 20
 llm_top_n = 0
 fast_limit = 100
-deep_limit = 20
+deep_limit = 30
 
 # Leave rf empty to let the provider decide. Set a decimal string for a fixed
 # risk-free rate, e.g. rf = "2.0".

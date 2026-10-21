@@ -34,7 +34,7 @@ def test_default_config_screens_100_and_reports_20():
     config = DailyConfig()
     assert (config.fast_limit, config.deep_limit, config.top_n, config.llm_top_n) == (
         100,
-        20,
+        30,
         20,
         0,
     )

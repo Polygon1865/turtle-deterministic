@@ -100,7 +100,7 @@ logs/
 top_n = 20
 llm_top_n = 0
 fast_limit = 100
-deep_limit = 20
+deep_limit = 30
 rf = ""
 research_max_input_tokens = 60000
 research_retries = 1
@@ -111,7 +111,7 @@ publish_partial = true
 ```
 
 - `fast_limit`：快速筛选后保留的候选数（默认 100，写入 `ranking.csv`）；
-- `deep_limit`：进入深度分析的候选数（默认 20，写入 `ranking_deep.csv`）；
+- `deep_limit`：进入深度分析的候选数（默认 30，写入 `ranking_deep.csv`；比 `top_n` 多留失败缓冲）；
 - `top_n`：从深度排名中取前 N 只逐票生成报告（默认 20）；
 - `llm_top_n`：前 N 只调用 `--with-research`；默认 0，全部确定性；
 - `research_retries`：LLM 输出校验失败时的重试次数（默认 1）；仍失败则回退确定性；
