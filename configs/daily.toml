@@ -1,0 +1,26 @@
+# Daily production defaults for one Windows host.
+# Paths are supplied by scripts/run_daily.ps1; keep this file policy-only.
+
+top_n = 10
+llm_top_n = 3
+fast_limit = 80
+deep_limit = 30
+
+# Leave rf empty to let the provider decide. Set a decimal string for a fixed
+# risk-free rate, e.g. rf = "2.0".
+rf = ""
+rf_source = ""
+research_max_input_tokens = 60000
+
+screen_attempts = 3
+retry_seconds = 1800
+workers = 1
+api_interval = 0.35
+stock_timeout_seconds = 1800
+screen_timeout_seconds = 1800
+
+refresh_market = true
+allow_stale = false
+# Publish successful stocks even when another stock failed. Set false to keep
+# the previous site whenever any selected stock fails.
+publish_partial = true

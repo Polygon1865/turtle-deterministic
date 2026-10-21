@@ -296,6 +296,25 @@ turtle sec-audit --snapshot .runs\AAPL.US\snapshot --ticker AAPL
 - SEC 不提供股价，行情走 yfinance / `us_daily`；
 - 10-K 分部、13F 股东是 `external`。
 
+### 每日生产（Windows 本机）
+
+`scripts/daily_pipeline.py` 把 `screen`、逐票 `run`、QA、静态站点和发布串成一条
+可定时执行的流水线；默认 Top 10，前 3 只启用 LLM 研究，其余确定性。LLM 失败
+会自动回退，不阻塞当天报告。
+
+```powershell
+# Top 10：screen + 逐票分析 + 站点
+.\.venv\Scripts\python.exe scripts\daily_pipeline.py
+
+# 不跑 screen，用 3 只股票验收
+.\.venv\Scripts\python.exe scripts\daily_pipeline.py `
+  --codes 600887.SH,000858.SZ,600519.SH --top 3 --llm-top 0 `
+  --runs-root .runs\daily-dry --site-root .runs\site-dry
+```
+
+Task Scheduler、Caddy、Cloudflare Tunnel/Access、3 天验收和回滚步骤见
+[docs/daily-server.md](docs/daily-server.md)。
+
 ---
 
 ## PDF-first 证据
@@ -526,7 +545,7 @@ src/turtlefw/
 当前基线：
 
 ```text
-498 tests passed
+516 tests passed
 ```
 
 CI：pytest + selected ruff + selected mypy，见
@@ -546,6 +565,7 @@ Nightly live smoke 见 [.github/workflows/nightly.yml](.github/workflows/nightly
 - [PDF 提取验证](docs/pdf-extraction-validation.md)
 - [PDF-first 深度链路](docs/pdf-first-deep-context.md)
 - [Live smoke 与 golden set](docs/live-smoke.md)
+- [每日生产与 Cloudflare Tunnel](docs/daily-server.md)
 - [美股实验边界](docs/us-experimental.md)
 - [Tushare 字段](docs/tushare-fields.md)
 - [v2 差距](docs/v2-gap-after-upgrades.md)

@@ -16,6 +16,9 @@ venv/
 # Runtime output
 output/
 .runs/
+site/
+logs/
+data/pdfs/
 .acl-recovery/
 .tmp_write_probe/
 tmp/
