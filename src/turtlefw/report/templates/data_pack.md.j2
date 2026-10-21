@@ -16,6 +16,9 @@
 ## 2. 五年财务趋势（百万元，EPS 除外）
 
 {{ trend_table }}
+{% if payout_note %}
+> 支付率交叉核对：{{ payout_note }}
+{% endif %}
 {% if interim_table %}
 
 ### 2.1 最新中报/季报（年化参考）

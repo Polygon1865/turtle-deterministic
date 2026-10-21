@@ -716,6 +716,7 @@ def render_data_pack(
             ["l", "r", "r", "r", "r"],
         ),
         "dividend_note": dividend_note,
+        "payout_note": payout_check.note,
         "interim_table": _table(["项目", "原始值（百万元）", "年化值（百万元）"], interim_rows, ["l", "r", "r"])
         if interim_rows
         else "",

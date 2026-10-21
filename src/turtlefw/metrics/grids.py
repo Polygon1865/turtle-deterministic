@@ -195,7 +195,7 @@ def payout_crosscheck(
             if m1_candidate.value is not None and m3_candidate.value is not None
             else "可用口径"
         )
-        note = f"{label} 相对差 {core_spread * 100:.1f}% > 15%"
+        note = f"{label} 相对差 {core_spread * 100:.2f}% > 15%"
     elif spread is not None and spread > Decimal("0.15"):
         note = "法2 含利息/少数股东股利，属上界；法1/法3 一致"
     if repeated_dps:

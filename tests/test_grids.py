@@ -60,6 +60,7 @@ class TestPayoutCrosscheck:
         assert check.recommended == Decimal("60")
         assert check.reliable is False
         assert "15%" in check.note
+        assert "50.00%" in check.note
 
     def test_cashflow_upper_bound_does_not_invalidate_event_totals(self):
         dividends = [event(2024, "0.5", "500")]
