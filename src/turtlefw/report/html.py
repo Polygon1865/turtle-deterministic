@@ -33,7 +33,12 @@ def _is_separator(line: str) -> bool:
     return bool(cells) and all(set(cell) <= set(":- ") for cell in cells)
 
 
-def markdown_to_html(markdown_text: str, *, title: str = "Turtle Report") -> str:
+def markdown_to_html(
+    markdown_text: str,
+    *,
+    title: str = "Turtle Report",
+    chart_html: str = "",
+) -> str:
     lines = markdown_text.splitlines()
     out: list[str] = [
         "<!DOCTYPE html>",
@@ -50,8 +55,11 @@ def markdown_to_html(markdown_text: str, *, title: str = "Turtle Report") -> str
         "blockquote{border-left:4px solid #d0d7de;margin:1rem 0;padding:.2rem 1rem;color:#57606a}",
         "code{background:#f6f8fa;padding:.1rem .3rem;border-radius:4px}",
         "a{color:#0969da} .footer{margin-top:3rem;color:#8c959f;font-size:.85rem}",
+        ".chart{margin:1rem 0 1.5rem} .chart svg{width:100%;height:auto;border:1px solid #d0d7de;border-radius:6px}",
         "</style></head><body>",
     ]
+    if chart_html:
+        out.append(chart_html)
     paragraph: list[str] = []
     in_list = False
     in_table = False
@@ -128,9 +136,26 @@ def markdown_to_html(markdown_text: str, *, title: str = "Turtle Report") -> str
     return "\n".join(out)
 
 
-def convert_file(input_path: Path | str, output_path: Path | str, *, title: str = "Turtle Report") -> Path:
+def convert_file(
+    input_path: Path | str,
+    output_path: Path | str,
+    *,
+    title: str = "Turtle Report",
+    chart_html: str | None = None,
+) -> Path:
     source = Path(input_path)
     target = Path(output_path)
+    if chart_html is None:
+        from .charts import chart_for
+
+        chart_html = chart_for(source)
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(markdown_to_html(source.read_text(encoding="utf-8"), title=title), encoding="utf-8")
+    target.write_text(
+        markdown_to_html(
+            source.read_text(encoding="utf-8"),
+            title=title,
+            chart_html=chart_html,
+        ),
+        encoding="utf-8",
+    )
     return target

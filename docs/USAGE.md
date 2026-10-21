@@ -1,6 +1,6 @@
 # Turtle Framework 使用说明
 
-> 当前审查基线：`486 passed`。本文按当前 CLI 实测编写，命令使用
+> 当前审查基线：`491 passed`。本文按当前 CLI 实测编写，命令使用
 > `.\.venv\Scripts\python.exe -m turtlefw.cli`，避免依赖 PATH 里的 `turtle`。
 
 ## 1. 这个项目做什么
@@ -305,7 +305,8 @@ available / partial / pdf_optional / not_applicable / external / missing
 输出：
 
 - `analysis_report.md`
-- `analysis_report.html`（`--html`）
+- `analysis_report.html`（`--html`；若同目录有 `inputs.json`/`metrics.json`，会内嵌
+  收盘价与综合底价的 SVG 图，图表不参与估值）
 
 ### 5.3 定性输入
 
@@ -868,7 +869,7 @@ research-audit --metrics ... --facts ...
 当前基线：
 
 ```text
-486 tests passed
+491 tests passed
 ```
 
 CI：

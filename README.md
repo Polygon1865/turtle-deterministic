@@ -164,6 +164,9 @@ turtle report 600887.SH --rf 1.6516 --rf-source "ICBC 2026-10-15" --html
 turtle report 600887.SH --save-snapshot .runs\600887.SH\snapshot
 ```
 
+HTML 报告若同目录存在 `inputs.json`/`metrics.json`，会自动内嵌“收盘价 + 综合底价”
+SVG 图；没有这两个文件时仍输出纯文本 HTML。图表只做展示，不参与估值或报告数字。
+
 `run` 的产物：
 
 ```text
@@ -519,7 +522,7 @@ src/turtlefw/
 当前基线：
 
 ```text
-486 tests passed
+491 tests passed
 ```
 
 CI：pytest + selected ruff + selected mypy，见
