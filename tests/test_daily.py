@@ -159,12 +159,20 @@ def test_run_stock_deterministic_writes_status(tmp_path: Path) -> None:
 def test_run_stock_falls_back_when_research_fails(tmp_path: Path) -> None:
     paths = _paths(tmp_path)
     commands: list[list[str]] = []
+    code_dir = paths.day_dir / "600887.SH"
 
     def fake(command: list[str], cwd: Path, timeout: int) -> CommandResult:
         commands.append(list(command))
         if len(commands) == 1:
+            code_dir.mkdir(parents=True, exist_ok=True)
+            (code_dir / "research.json").write_text("{}", encoding="utf-8")
+            (code_dir / "research_provenance.json").write_text("{}", encoding="utf-8")
+            (code_dir / "snapshot").mkdir(parents=True, exist_ok=True)
+            (code_dir / "snapshot" / "research.json").write_text(
+                "{}", encoding="utf-8"
+            )
             return CommandResult(tuple(command), 3, "", "LLM unavailable")
-        _write_success(paths.day_dir / "600887.SH", research=True)
+        _write_success(code_dir, research=False)
         return CommandResult(tuple(command), 0, "ok")
 
     record = run_stock(
@@ -176,8 +184,13 @@ def test_run_stock_falls_back_when_research_fails(tmp_path: Path) -> None:
     )
     assert record["status"] == "ok"
     assert record["research"] == "fallback"
+    assert record["research_error"] == "LLM unavailable"
+    assert not (code_dir / "research.json").exists()
+    assert not (code_dir / "research_provenance.json").exists()
+    assert not (code_dir / "snapshot" / "research.json").exists()
     assert len(commands) == 2
     assert "--with-research" in commands[0]
+    assert "--research-retries" in commands[0]
     assert "--with-research" not in commands[1]
 
 

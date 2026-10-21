@@ -81,7 +81,9 @@ logs/
 ```
 
 `run --with-research` 需要 LLM key；没有 key 时只跑确定性报告。`--llm-top 0`
-可以在验收阶段完全关闭 LLM。
+可以在验收阶段完全关闭 LLM。LLM 输出校验失败会按 `research_retries`（默认 1）
+重试；仍失败则删除该股票残留的 research 产物，回退确定性报告，并在
+`status.json` 的 `research_error` 记录原因。
 
 `screen` 输出会带 `交易日: YYYYMMDD`。pipeline 要求它等于当天，否则每 30 分钟
 重试，最多 3 次；仍不匹配则失败并保留旧站点。节假日可加 `--allow-stale` 手工验收，
@@ -101,6 +103,7 @@ fast_limit = 100
 deep_limit = 20
 rf = ""
 research_max_input_tokens = 60000
+research_retries = 1
 screen_attempts = 3
 retry_seconds = 1800
 refresh_market = true
@@ -111,6 +114,7 @@ publish_partial = true
 - `deep_limit`：进入深度分析的候选数（默认 20，写入 `ranking_deep.csv`）；
 - `top_n`：从深度排名中取前 N 只逐票生成报告（默认 20）；
 - `llm_top_n`：前 N 只调用 `--with-research`；默认 0，全部确定性；
+- `research_retries`：LLM 输出校验失败时的重试次数（默认 1）；仍失败则回退确定性；
 - `rf`：留空使用 provider；固定值用字符串，例如 `"2.0"`；
 - `refresh_market`：每日绕过 7 天行情缓存；
 - `screen_attempts/retry_seconds`：交易日未更新时的重试策略。
@@ -120,9 +124,10 @@ publish_partial = true
 创建每天 19:00 的任务（或收盘后你的固定时间）：
 
 - 程序：`powershell.exe`
-- 参数：`-NoProfile -ExecutionPolicy Bypass -File "C:\PyProject\turtle-framework\scripts\run_daily.ps1"`
+- 参数：`-NoProfile -ExecutionPolicy Bypass -File "C:\PyProject\turtle-framework\scripts\run_daily.ps1" --llm-top 10`
 - 起始于：`C:\PyProject\turtle-framework`
-- 勾选“不管用户是否登录都运行”（需要保存凭据）；
+- 勾选“只在用户登录时运行”；脚本会回退读取该用户的 LLM 环境变量。
+  若必须无人值守，需把变量放到系统环境或改用凭据存储；
 - 电源：允许唤醒计算机执行任务，任务结束后可睡眠；
 - 失败告警：在“操作”里追加一个发送邮件/HTTP 的步骤，或使用
   `TURTLE_NOTIFY_WEBHOOK`（pipeline 会 POST 精简 JSON）。
@@ -143,14 +148,31 @@ Task Scheduler 会显示失败。
 }
 ```
 
-启动：
+启动（仓库内脚本，幂等：8080 已在监听时直接退出）：
 
 ```powershell
-C:\Tools\caddy\caddy.exe run --config C:\Tools\caddy\Caddyfile
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\PyProject\turtle-framework\scripts\run_caddy.ps1
 ```
 
-建议用 `nssm` 或 Windows 服务包装 Caddy，让它开机自启；不要把它绑定到
-`0.0.0.0`。
+Caddy 的 stderr 追加到 `logs/caddy.log`。Caddy 是隧道的**唯一原点**：它没起来时
+cloudflared 服务仍然是 Running、隧道也有 connector，但
+
+- 浏览器看到 502 / Error 1033；
+- `logs/cloudflared.log` 反复出现
+  `dial tcp 127.0.0.1:8080: connectex: No connection could be made because the
+  target machine actively refused it`；
+- `http://127.0.0.1:20242/metrics` 的 `cloudflared_tunnel_request_errors`
+  持续增长。
+
+排查顺序固定为：`netstat -ano | findstr :8080` 有没有 LISTENING →
+`curl http://127.0.0.1:8080/health.txt` 是否 200 → 再怀疑隧道/Access。
+
+Caddy 必须自启，否则重启或注销后站点只剩 502。现成做法：把
+`scripts/startup/turtle-caddy.vbs` 复制进
+`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\`（删除即停用，无需
+管理员）；或管理员用 `nssm`/Windows 服务包装。不要把它绑定到 `0.0.0.0`。
+隧道是 Windows 服务而 Caddy 是登录项时，**开机不登录 = 站点 502**，两者的
+启动方式要保持一致。
 
 ## Cloudflare Tunnel
 

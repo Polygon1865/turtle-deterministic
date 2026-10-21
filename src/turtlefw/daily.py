@@ -50,6 +50,7 @@ class DailyConfig:
     rf: str | None = None
     rf_source: str = ""
     research_max_input_tokens: int = 60_000
+    research_retries: int = 1
     screen_attempts: int = 3
     retry_seconds: int = 1_800
     workers: int = 1
@@ -104,6 +105,12 @@ def _command_text(command: Sequence[str]) -> str:
 def _tail(text: str, limit: int = 2_000) -> str:
     text = text.strip()
     return text[-limit:] if len(text) > limit else text
+
+
+def _clear_research_outputs(code_dir: Path) -> None:
+    for base in (code_dir, code_dir / "snapshot"):
+        for path in base.glob("research*.json"):
+            path.unlink(missing_ok=True)
 
 
 def _append_log(path: Path, title: str, result: CommandResult) -> None:
@@ -413,6 +420,7 @@ def run_stock(
         "status": "failed",
         "qa": "UNKNOWN",
         "research": "off",
+        "research_error": "",
         "pdf": "none",
         "pdf_error": "",
         "snapshot_id": "",
@@ -460,6 +468,8 @@ def run_stock(
                     "--with-research",
                     "--research-max-input-tokens",
                     str(config.research_max_input_tokens),
+                    "--research-retries",
+                    str(config.research_retries),
                 ]
             )
         return args
@@ -470,6 +480,8 @@ def run_stock(
     _append_log(log_path, "run", result)
     if wants_research and not result.ok:
         record["research"] = "fallback"
+        record["research_error"] = _tail(result.stderr or result.stdout)
+        _clear_research_outputs(code_dir)
         result = run_command(
             command(False), Path(config.project_root), config.stock_timeout_seconds
         )
