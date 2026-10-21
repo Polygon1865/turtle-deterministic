@@ -1,6 +1,6 @@
 # Turtle Framework 使用说明
 
-> 当前审查基线：`481 passed`。本文按当前 CLI 实测编写，命令使用
+> 当前审查基线：`484 passed`。本文按当前 CLI 实测编写，命令使用
 > `.\.venv\Scripts\python.exe -m turtlefw.cli`，避免依赖 PATH 里的 `turtle`。
 
 ## 1. 这个项目做什么
@@ -345,6 +345,8 @@ SOTP 参考用 `--sotp sotp.json` 显式输入：
 SOTP 仅作参考，不进入综合加权。
 `--as-of 2025-06-30 --pit` 会先按公告日/PIT 快照过滤财务，再按 `--ttm` 构造
 滚动年度行；行情/市值仍用最新，报告会明示这一边界。
+全局参数 `--refresh-market`（放在子命令前）会让本次运行绕过默认 7 天的
+行情/财务 TTL 缓存，用于盘后或校验最新数据。
 
 ---
 
@@ -866,7 +868,7 @@ research-audit --metrics ... --facts ...
 当前基线：
 
 ```text
-481 tests passed
+484 tests passed
 ```
 
 CI：

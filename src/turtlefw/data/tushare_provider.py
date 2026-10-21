@@ -160,6 +160,16 @@ ANNS_FIELDS = "ann_date,ts_code,name,title,url"
 NEWS_FIELDS = "datetime,content,title,channels"
 
 
+_REFRESH_MARKET = False
+
+
+def set_refresh_market(enabled: bool) -> None:
+    """Bypass the TTL cache for this process (CLI ``--refresh-market``)."""
+
+    global _REFRESH_MARKET
+    _REFRESH_MARKET = enabled
+
+
 class TushareProvider:
     name = "tushare"
     SCHEMA_VERSION = "turtle-9"
@@ -169,12 +179,14 @@ class TushareProvider:
         token: str,
         *,
         cache_dir: Path | None = None,
-        ttl_seconds: int = 7 * 86400,
+        ttl_seconds: int | None = None,
         min_interval: float = 0.35,
         max_retries: int = 3,
     ) -> None:
         if not token:
             raise ProviderError("TUSHARE_TOKEN is empty")
+        if ttl_seconds is None:
+            ttl_seconds = 0 if _REFRESH_MARKET else 7 * 86400
         import tushare as ts  # imported lazily so unit tests need no token
 
         self._ts = ts

@@ -3378,6 +3378,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="运行产物根目录（默认 .runs；也可设 TURTLE_OUTPUT_DIR）",
     )
+    parser.add_argument(
+        "--refresh-market",
+        action="store_true",
+        help="本次运行绕过行情/财务 TTL 缓存（默认 7 天）",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     analyze = sub.add_parser("analyze", help="分析单只股票")
@@ -3800,6 +3805,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.output_dir:
         os.environ["TURTLE_OUTPUT_DIR"] = args.output_dir
+    if args.refresh_market:
+        from .data.tushare_provider import set_refresh_market
+
+        set_refresh_market(True)
 
     try:
         if args.command == "version":
