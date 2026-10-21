@@ -281,7 +281,7 @@ Agent 只能调用白名单工具：
 - **DSH 输出根**：`TURTLE_OUTPUT_DIR` / `--output-dir`，受限沙箱可写 `.runs/`；
 - **本地 smoke**：`turtle smoke --codes 600887,00700.HK,AAPL`，检查取数/report/snapshot/manifest；
 - **manifest 校验**：`report --snapshot` 校验 facts/config/research/template/report hash；
-- **测试**：`tests/conftest.py` 提供沙箱可写临时目录，470 收集 / 470 通过 / 0 setup error；
+- **测试**：`tests/conftest.py` 提供沙箱可写临时目录，480 收集 / 480 通过 / 0 setup error；
 - **00700 已知差异**：收入 1.09% 解释为 Others 8,077，分区 4/7 是报告结构差异，见 `docs/00700-known-differences.md`。
 
 尚未完成：
@@ -290,9 +290,9 @@ Agent 只能调用白名单工具：
 - **vendor context 来源契约**：Tushare/Yahoo 补充基本面、市场、治理是第三类来源，必须同时出现在 data pack，不进入 StatementRow/估值；numeric audit 仍是文本 token 匹配，未按 source class 校验；
 - **附注与叙述**：数据包附注文本/表格摘要仍只做证据展示，不进数字 ledger；少数叙述（质押/价值陷阱）未走 registry；
 - **PDF-first 深读**：已落地 `pdf-index` + `research-context --pdf-index` 的页级 `pdf_deep`（默认 160,000 字符/60 页，`pdf://` 引用）；仍不是 v2 的整本 1M context + 38 参数，扫描件/OCR、跨页表格和全量附注结构化未完成；
-- **数据覆盖**：US/HK 股东、分部、母公司报表与 vendor PIT；US PIT 缺失；
-- **估值扩展**：peer comps、SOTP、公司特定 WACC/β/ERP；
-- **Agent 自动化**：研究-only 自动链已落地；live CI、golden set、成本/费用预算仍缺；
+- **数据覆盖**：US/HK 股东、分部、母公司报表与 vendor PIT；US PIT 缺失；A 股中报/季报进入 TTM 口径，默认估值仍用年报；
+- **估值扩展**：peer comps（申万一级前 8、PE/PB 中位数）、显式 SOTP 输入、`--beta/--erp` WACC 覆盖已落地；公司特定假设默认值、分部数据自动提取仍缺；
+- **Agent 自动化**：`run --with-research` 自动研究链、live smoke 已落地；golden set 标注仍为空、成本/费用预算与失败重跑策略仍缺；
 - **报告/运维**：图表/PDF 导出、TTL `--refresh-market`、全量附注结构化。
 
 已落地但曾被本文误列为“尚未完成”的项：ResearchDocument v2、report 自动 numeric guard、Agent phase runner；对应实现见上文 268–282 行。

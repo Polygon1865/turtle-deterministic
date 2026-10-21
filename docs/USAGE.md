@@ -1,6 +1,6 @@
 # Turtle Framework 使用说明
 
-> 当前审查基线：`470 passed`。本文按当前 CLI 实测编写，命令使用
+> 当前审查基线：`480 passed`。本文按当前 CLI 实测编写，命令使用
 > `.\.venv\Scripts\python.exe -m turtlefw.cli`，避免依赖 PATH 里的 `turtle`。
 
 ## 1. 这个项目做什么
@@ -171,6 +171,22 @@ state init
 --min-claims / --min-dimensions
 ```
 
+### 中报/季度（TTM）
+
+`--ttm` 用最新中报/季报构造滚动年度行，再交给同一套因子/估值公式：
+
+```text
+TTM 流量 = 最近年报 + 本期累计 - 上年同期累计
+TTM 资产负债表科目 = 最新中报/季报余额
+```
+
+`run/report/analyze/valuation` 均支持。应用后报告头部显示
+`数据口径：TTM（最新中报/季报滚动，仅流量科目年化）`，data pack 增加 TTM 表，
+`manifest.as_of` 仍记录报告生成日而不是会计期间；snapshot 的 `facts_hash` 会随
+TTM 行变化。若没有可配对的“最近年报 + 上年同期”，不强行年化，只在 issues 中
+说明原因。默认仍为年报口径；中报/季度数据不会静默替换年报。
+
+
 ### 4.2 完整确定性 + D1–D6
 
 Claude Code：
@@ -314,6 +330,19 @@ available / partial / pdf_optional / not_applicable / external / missing
 ```
 
 包含 DCF/DDM/PE Band/PEG/PS、方法权重、5×5 DCF 敏感性、反推增长。
+A 股还会输出 Peer comps 参考：申万一级、总市值前 8 的 PE/PB 中位数，
+至少 3 家才计算；只作交叉参考，不进入综合加权。可用
+`--beta 1.0 --erp 5.5` 覆盖公司 β 与股权风险溢价，`--ttm` 用滚动年度行估值。
+SOTP 参考用 `--sotp sotp.json` 显式输入：
+
+```json
+{"segments":[{"name":"分部A","metric":"EBITDA","base":10000000000,"multiple":8}],
+ "cash":20000000000,"debt":30000000000,"shares":1000000000}
+```
+
+`base` 是报表币种**基本单位**（不是百万元），`cash/debt` 同单位，`shares`
+可省略（默认用行情股本）。缺失或非正的分部会列入“跳过”，不加总、不伪造；
+SOTP 仅作参考，不进入综合加权。
 
 ---
 
@@ -835,7 +864,7 @@ research-audit --metrics ... --facts ...
 当前基线：
 
 ```text
-470 tests passed
+480 tests passed
 ```
 
 CI：

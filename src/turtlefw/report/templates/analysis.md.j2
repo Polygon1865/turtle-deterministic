@@ -1,6 +1,6 @@
 # 龟龟策略分析报告 — {{ code }}
 
-> 数据截至：{{ as_of or generated_at }} ｜ 报表币种：{{ currency }} ｜ 数据快照：`{{ snapshot_id }}`
+> 数据截至：{{ as_of or generated_at }} ｜ 报表币种：{{ currency }} ｜ 数据快照：`{{ snapshot_id }}`{% if data_basis %} ｜ 数据口径：{{ data_basis }}{% endif %}
 > 无风险利率：{{ rf }}（来源：{{ rf_source }}）｜ 当前价：{{ price }} ｜ 总市值（百万元）：{{ market_cap }}
 
 ## 一、结论

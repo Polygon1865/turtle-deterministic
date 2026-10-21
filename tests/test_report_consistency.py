@@ -1,12 +1,13 @@
-from decimal import Decimal
 import hashlib
+from dataclasses import replace
+from decimal import Decimal
 
 from turtlefw import demo
 from turtlefw.cli import kpi_summary
 from turtlefw.config import load_settings
 from turtlefw.factors.engine import FactorContext, final_verdict, run
-from turtlefw.metrics.valuation import build_valuation
 from turtlefw.metrics import registry as metric_registry
+from turtlefw.metrics.valuation import build_valuation
 from turtlefw.report.analysis import render_analysis
 from turtlefw.types import Currency, Money
 
@@ -140,3 +141,18 @@ class TestMetricRegistry:
     def test_no_stale_disclaimer(self):
         text, _ = render()
         assert "未包含 LLM 定性判断" not in text
+
+    def test_ttm_data_basis_is_visible(self):
+        ctx, results = make_context()
+        ttm_ctx = replace(
+            ctx,
+            rows=tuple(replace(row, source="ttm") for row in ctx.rows),
+        )
+        text = render_analysis(
+            ttm_ctx,
+            results,
+            settings=load_settings(),
+            snapshot_id="ttm-test",
+            rf_source="test",
+        )
+        assert "数据口径：TTM" in text

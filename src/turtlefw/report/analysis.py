@@ -392,6 +392,11 @@ def render_analysis(
         if verdict == "买入"
         else "暂不建仓；观察半年至一年，等待数据或价格改善"
     )
+    data_basis = (
+        "TTM（最新中报/季报滚动，仅流量科目年化）"
+        if any(row.source == "ttm" for row in ctx.rows)
+        else ""
+    )
 
     context = {
         "code": str(ctx.code),
@@ -418,6 +423,7 @@ def render_analysis(
         "fundamental_section": fundamental_section,
         "market_section": market_section,
         "disclaimer_heading": disclaimer_heading,
+        "data_basis": data_basis,
         "pdf_fact_rows": [
             [
                 str(fact.get("label", "")),

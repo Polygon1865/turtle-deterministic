@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import time
@@ -1048,11 +1049,14 @@ def _valuation(
     rf: float | None = None,
     rf_source: str | None = None,
     ttm: bool = False,
+    beta: float | None = None,
+    erp: float | None = None,
+    sotp_path: str | None = None,
 ) -> int:
     """Deterministic DCF/DDM/PE-band/PEG/PS valuation snapshot."""
     from .data.tushare_provider import TushareProvider
     from .metrics import dividends as div_metrics
-    from .metrics import statements, valuation_models
+    from .metrics import peer_valuation, sotp, statements, valuation_models
     from .metrics.dividends import average_dps
 
     settings = load_settings()
@@ -1106,7 +1110,7 @@ def _valuation(
         else Decimal("21") if code.market is Market.US
         else Decimal("25")
     )
-    erp_pct = (
+    erp_default = (
         Decimal("5.5") if code.market is Market.HK
         else Decimal("5.0") if code.market is Market.US
         else Decimal("6.0")
@@ -1114,11 +1118,13 @@ def _valuation(
     terminal_pct = (
         Decimal("2.5") if code.market in (Market.HK, Market.US) else Decimal("3.0")
     )
-    beta = (
+    beta_default = (
         Decimal("0.8") if market_cap > Decimal("100000000000")
         else Decimal("1.0") if market_cap > Decimal("10000000000")
         else Decimal("1.2")
     )
+    beta_value = Decimal(str(beta)) if beta is not None else beta_default
+    erp_pct = Decimal(str(erp)) if erp is not None else erp_default
     finance_exp = income("finance_exp").get(latest) if latest else None
     debt_latest = debt.get(latest) if latest else None
     cost_of_debt = (
@@ -1129,7 +1135,7 @@ def _valuation(
     cost_of_debt = min(max(cost_of_debt, Decimal("2")), Decimal("8"))
     wacc_pct = valuation_models.wacc(
         rf_pct=rf_value,
-        beta=beta,
+        beta=beta_value,
         erp_pct=erp_pct,
         cost_of_debt_pct=cost_of_debt,
         tax_pct=tax_pct,
@@ -1164,7 +1170,7 @@ def _valuation(
         debt=debt_latest,
         shares=value_shares,
     )
-    ke_pct = rf_value + beta * erp_pct
+    ke_pct = rf_value + beta_value * erp_pct
     ddm = valuation_models.ddm(
         dps=average_dps(dividends),
         ke_pct=ke_pct,
@@ -1199,6 +1205,47 @@ def _valuation(
         if equity_series[year] and equity_series[year] > 0
     ]
     roe_5y = sum(roe_values, Decimal("0")) / Decimal(len(roe_values)) if roe_values else None
+    book_value = equity_series.get(latest) if latest else None
+    bvps = (
+        book_value / value_shares
+        if book_value is not None and value_shares > 0
+        else None
+    )
+    peer_rows: list[dict[str, object]] = []
+    peer_candidates = getattr(provider, "peer_candidates", None)
+    if callable(peer_candidates):
+        try:
+            peer_rows = list(peer_candidates(code))
+        except Exception:  # noqa: BLE001 - peer comparison is optional
+            peer_rows = []
+    peer_comps = peer_valuation.compute(eps=eps_value, bvps=bvps, peers=peer_rows)
+    sotp_result: sotp.SOTPResult | None = None
+    if sotp_path:
+        try:
+            sotp_payload = json.loads(Path(sotp_path).read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError) as exc:
+            print(f"无法读取 --sotp 文件：{exc}", file=sys.stderr)
+            return 2
+        if not isinstance(sotp_payload, dict) or not isinstance(
+            sotp_payload.get("segments"), list
+        ):
+            print("--sotp 文件必须是含 segments 数组的 JSON 对象", file=sys.stderr)
+            return 2
+
+        def optional_decimal(value: object) -> Decimal | None:
+            if value is None:
+                return None
+            try:
+                return Decimal(str(value))
+            except (ArithmeticError, ValueError):
+                return None
+
+        sotp_result = sotp.compute(
+            sotp.parse_segments(sotp_payload["segments"]),
+            cash=optional_decimal(sotp_payload.get("cash")),
+            debt=optional_decimal(sotp_payload.get("debt")),
+            shares=optional_decimal(sotp_payload.get("shares")) or value_shares,
+        )
     payout_map = div_metrics.payout_by_year(dividends, net_income, shares=shares)
     payout_values = [
         value for year, value in sorted(payout_map.items())[-3:] if value is not None
@@ -1241,7 +1288,7 @@ def _valuation(
 
     print(f"=== 估值快照：{code} ===")
     print(f"报表币种 {unit.value} ｜ 当前价 {price:,.2f} ｜ 总市值 {market_cap / Decimal('1000000'):,.2f} 百万元")
-    print(f"Rf {rf_value:.2f}%（{rf_src}）｜ WACC {wacc_pct:.2f}% ｜ β {beta} ｜ ERP {erp_pct}% ｜ 税率 {tax_pct}%")
+    print(f"Rf {rf_value:.2f}%（{rf_src}）｜ WACC {wacc_pct:.2f}% ｜ β {beta_value} ｜ ERP {erp_pct}% ｜ 税率 {tax_pct}%")
     print(f"公司类型 {profile} ｜ ROE5y {show(roe_5y)}% ｜ 支付率3y {show(payout_3y)}% ｜ 营收CAGR {show(rev_growth * 100 if rev_growth is not None else None)}%")
     print(f"FCF 基数 {show(fcf_base / Decimal('1000000') if fcf_base is not None else None)} 百万元 ｜ 5 年 FCF CAGR {show(fcf_growth * 100 if fcf_growth is not None else None)}% ｜ 采用增长 {growth_pct:.2f}%")
     print(f"方法权重：{' / '.join(f'{name} {weight:g}%' for name, weight in weights.items())}")
@@ -1256,6 +1303,32 @@ def _valuation(
             "PS": "PS=2.0x",
         }[name]
         print(f"{name:<10}{show(value):>14}  {note}")
+    if peer_comps.peer_count:
+        print(
+            f"Peer comps（参考）：{peer_comps.peer_count} 家 ｜ "
+            f"PE 中值 {show(peer_comps.pe_median)}x → {show(peer_comps.pe_value)} ｜ "
+            f"PB 中值 {show(peer_comps.pb_median)}x → {show(peer_comps.pb_value)}"
+        )
+        print("  说明：申万一级、总市值前 8；中位数，至少 3 家；仅作交叉参考，不进入综合加权。")
+    if sotp_result is not None:
+        print("")
+        print("SOTP（外部输入，参考）：")
+        for segment in sotp_result.segments:
+            print(
+                f"  {segment.name:<16} {segment.metric:<10} "
+                f"{show(segment.base)} × {show(segment.multiple)}x"
+            )
+        if sotp_result.per_share is not None:
+            print(
+                f"  EV {show(sotp_result.ev / Decimal('1000000'))} 百万元 ｜ "
+                f"净债务 {show(sotp_result.net_debt / Decimal('1000000'))} 百万元 ｜ "
+                f"每股 {show(sotp_result.per_share)}"
+            )
+        else:
+            print("  无有效分部，SOTP 未计算。")
+        if sotp_result.skipped:
+            print(f"  跳过：{', '.join(sotp_result.skipped)}（缺少 base/multiple 或非正）")
+        print("  说明：base 为报表币种基本单位；仅按输入倍数加总，不进入综合加权。")
     print(f"{'综合':<10}{show(fair):>14}  （可用方法加权）")
     print(f"当前价 {price:,.2f} ｜ 综合公平价 {show(fair)} ｜ 空间 {show(upside)}%")
     print("")
@@ -3434,6 +3507,9 @@ def build_parser() -> argparse.ArgumentParser:
     val.add_argument("--rf", type=float, default=None, help="覆盖无风险利率（%%）")
     val.add_argument("--rf-source", default=None, help="Rf 来源说明或 URL")
     val.add_argument("--ttm", action="store_true", help="用最新 interim 构造 TTM 年度行")
+    val.add_argument("--beta", type=float, default=None, help="覆盖公司 β（默认按市值档）")
+    val.add_argument("--erp", type=float, default=None, help="覆盖股权风险溢价 ERP（%%）")
+    val.add_argument("--sotp", default=None, help="SOTP 分部估值 JSON 文件（外部输入，参考）")
 
     qual = sub.add_parser("qualitative", help="生成/校验定性输入模板")
     qual.add_argument("code", help="股票代码")
@@ -3831,7 +3907,16 @@ def main(argv: list[str] | None = None) -> int:
                 args.allow_research_decisions,
             )
         if args.command == "valuation":
-            return _valuation(args.code, args.currency, args.rf, args.rf_source, args.ttm)
+            return _valuation(
+                args.code,
+                args.currency,
+                args.rf,
+                args.rf_source,
+                args.ttm,
+                args.beta,
+                args.erp,
+                args.sotp,
+            )
         if args.command == "qualitative":
             return _qualitative_cmd(args.code, args.init, args.check, args.out)
         if args.command == "research":

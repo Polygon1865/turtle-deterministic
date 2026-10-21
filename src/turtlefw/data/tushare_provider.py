@@ -91,6 +91,16 @@ US_INDICATOR_FIELDS = (
     "ts_code,end_date,roe_avg,gross_profit_ratio,net_profit_ratio,"
     "debt_asset_ratio,basic_eps"
 )
+
+
+def _decimal_or_none(value: Any) -> Decimal | None:
+    if value is None:
+        return None
+    try:
+        return Decimal(str(value))
+    except (ArithmeticError, ValueError):
+        return None
+
 FORECAST_FIELDS = (
     "ts_code,ann_date,end_date,type,p_change_min,p_change_max,net_profit_min,"
     "net_profit_max,summary,change_reason"
@@ -1203,12 +1213,18 @@ class TushareProvider:
         if not daily:
             return []
         market_values: dict[str, Decimal] = {}
+        quote_values: dict[str, dict[str, Decimal | None]] = {}
         for row in daily:
             raw = row.get("total_mv")
+            code_key = str(row.get("ts_code", ""))
             try:
-                market_values[str(row.get("ts_code", ""))] = Decimal(str(raw))
+                market_values[code_key] = Decimal(str(raw))
             except Exception:  # noqa: BLE001, S112 - optional ranking input
                 continue
+            quote_values[code_key] = {
+                "pe_ttm": _decimal_or_none(row.get("pe_ttm")),
+                "pb": _decimal_or_none(row.get("pb")),
+            }
         if not market_values:
             return []
 
@@ -1228,6 +1244,8 @@ class TushareProvider:
                     "name": str(row.get("name", "")).strip() or peer_code,
                     "market": "A",
                     "total_mv": market_values.get(peer_code),
+                    "pe_ttm": (quote_values.get(peer_code) or {}).get("pe_ttm"),
+                    "pb": (quote_values.get(peer_code) or {}).get("pb"),
                 }
             )
         candidates.sort(
