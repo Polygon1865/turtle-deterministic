@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from .deep_index import pdf_citation
@@ -195,6 +195,40 @@ def _signal(group: str, title: str, headers: Sequence[str]) -> bool:
     return any(term in text for term in _GROUP_SIGNALS[group])
 
 
+def _same_note_title(left: str, right: str) -> bool:
+    def normalise(value: str) -> str:
+        return value.replace("（续）", "").replace("(续)", "").replace("续", "").strip()
+
+    return normalise(left) == normalise(right)
+
+
+def _merge_continuations(notes: list[NoteTable], *, max_rows: int) -> list[NoteTable]:
+    """Merge a table that continues on the next page with the same group/header.
+
+    Only merge when the previous page is full or nearly full; this avoids
+    joining two unrelated tables that happen to share a header.  The first
+    page's citation is retained, and the merged rows still obey ``max_rows``.
+    """
+    merged: list[NoteTable] = []
+    for note in notes:
+        if merged:
+            previous = merged[-1]
+            if (
+                note.group == previous.group
+                and note.headers == previous.headers
+                and note.page == previous.page + 1
+                and _same_note_title(previous.title, note.title)
+                and len(previous.rows) >= max(6, max_rows - 4)
+            ):
+                merged[-1] = replace(
+                    previous,
+                    rows=(previous.rows + note.rows)[:max_rows],
+                )
+                continue
+        merged.append(note)
+    return merged
+
+
 def extract_note_tables(
     pages: Iterable[tuple[int, str]],
     *,
@@ -250,9 +284,9 @@ def extract_note_tables(
                 )
                 counts[group] += 1
                 if len(notes) >= max_tables:
-                    return notes
+                    return _merge_continuations(notes, max_rows=max_rows)
             prefix = trailing or prefix
-    return notes
+    return _merge_continuations(notes, max_rows=max_rows)
 
 
 def notes_payload(

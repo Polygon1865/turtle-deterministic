@@ -119,6 +119,9 @@ turtle research-context `
 - 应收账款/账龄/坏账准备。
 
 每张表保留 `page`、`citation`、`headers`、`rows`，最多 12 行、每组最多 2–4 张。
+同组、同表头、标题相同（忽略“续”）、下一页且前表接近满行时，会合并为一张
+跨页续表；citation 保留首页，合并后仍只保留前 12 行。这是启发式规则，不保证
+所有复杂跨页表都能正确合并；600887/600519 当前各 12/10 张，未强行合并短表。
 `research-context` 自动读取 `pdf_index.json` 旁边的 `pdf_notes.json` 并写入
 `context["pdf_notes"]`；没有该文件时字段不出现。
 
