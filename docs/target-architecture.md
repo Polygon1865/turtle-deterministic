@@ -275,12 +275,13 @@ Agent 只能调用白名单工具：
 - **source_id**：report snapshot 保存 provider rows/PDF 指纹或 PIT snapshot ID；
 - **独立 clean-room**：`cleanroom` 通过独立子进程 `turtlefw.cleanroom_worker` 读取 snapshot+PDF，六项源审计 + 独立复刻 owner earnings/cash bridge/R/GG + document hash/rank；`--pdf-file` 可复核 PDF hash；
 - **Agent fake-LLM 契约**：`ResearchAgent` + `FakeLLM`，输出必须过 research schema/evidence/numeric guard；
+- **自动研究链**：`run --with-research` 串起确定性预跑快照 → `research-context` → `research-agent` → provenance → `finalize` → QA；支持 `--research-response` 离线回放；
 - **PIT 快照库**：`pit freeze/list/show/export/prune`，支持 restatement、as-of 选择、backfill 公告日累计快照；store lock + 原子 index；`pack/report --pit` 读取；
 - **近似 PIT**：`pack/report --as-of` 按公告日过滤财务，市值用当日价×最新股本近似；报告标注 `[pit]` 提示；
 - **DSH 输出根**：`TURTLE_OUTPUT_DIR` / `--output-dir`，受限沙箱可写 `.runs/`；
 - **本地 smoke**：`turtle smoke --codes 600887,00700.HK,AAPL`，检查取数/report/snapshot/manifest；
 - **manifest 校验**：`report --snapshot` 校验 facts/config/research/template/report hash；
-- **测试**：`tests/conftest.py` 提供沙箱可写临时目录，456 收集 / 456 通过 / 0 setup error；
+- **测试**：`tests/conftest.py` 提供沙箱可写临时目录，461 收集 / 461 通过 / 0 setup error；
 - **00700 已知差异**：收入 1.09% 解释为 Others 8,077，分区 4/7 是报告结构差异，见 `docs/00700-known-differences.md`。
 
 尚未完成：
@@ -291,7 +292,7 @@ Agent 只能调用白名单工具：
 - **PDF-first 深读**：已落地 `pdf-index` + `research-context --pdf-index` 的页级 `pdf_deep`（默认 160,000 字符/60 页，`pdf://` 引用）；仍不是 v2 的整本 1M context + 38 参数，扫描件/OCR、跨页表格和全量附注结构化未完成；
 - **数据覆盖**：US/HK 股东、分部、母公司报表与 vendor PIT；US PIT 缺失；
 - **估值扩展**：peer comps、SOTP、公司特定 WACC/β/ERP；
-- **Agent 自动化**：真实 LLM 编排、live CI、golden set；fake-LLM 契约已有；
+- **Agent 自动化**：研究-only 自动链已落地；live CI、golden set、成本/费用预算仍缺；
 - **报告/运维**：图表/PDF 导出、TTL `--refresh-market`、全量附注结构化。
 
 已落地但曾被本文误列为“尚未完成”的项：ResearchDocument v2、report 自动 numeric guard、Agent phase runner；对应实现见上文 268–282 行。

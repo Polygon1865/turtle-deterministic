@@ -1702,6 +1702,10 @@ def _research_provenance_cmd(
     model: str,
     out: str,
     generated_at: str | None,
+    *,
+    elapsed_seconds: float | None = None,
+    mode: str = "",
+    retries: int = 0,
 ) -> int:
     import hashlib
     import json
@@ -1722,7 +1726,11 @@ def _research_provenance_cmd(
         or datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "research_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
         "context_sha256": context_hash,
+        "mode": mode or provider,
+        "retries": int(retries),
     }
+    if elapsed_seconds is not None:
+        payload["elapsed_seconds"] = round(float(elapsed_seconds), 3)
     target = Path(out)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(
@@ -2187,8 +2195,19 @@ def _run_cmd(
     min_claims: int = 0,
     min_dimensions: int = 0,
     allow_research_decisions: bool = False,
+    with_research: bool = False,
+    research_response: str | None = None,
+    research_retries: int = 0,
+    research_model: str | None = None,
+    research_base_url: str | None = None,
+    research_api_key: str | None = None,
+    pdf_index: str | None = None,
 ) -> int:
-    """One-command deterministic workflow: fetch once -> pack/report/snapshot -> QA."""
+    """One command: fetch once -> optional research -> pack/report -> QA."""
+    import os
+    import shutil
+    import time
+
     from .paths import ensure_output_root
 
     code = StockCode.parse(code_raw)
@@ -2196,22 +2215,45 @@ def _run_cmd(
     base = output_root() / str(code)
     snapshot = base / "snapshot"
 
+    research_file = Path(research) if research else None
+    has_research_file = research_file is not None and research_file.is_file()
+    if with_research and research_file is not None and not has_research_file:
+        print(f"--research 文件不存在：{research_file}", file=sys.stderr)
+        return 2
+    auto_research = with_research and not has_research_file
+    if auto_research and research_response and not Path(research_response).is_file():
+        print(f"--research-response 文件不存在：{research_response}", file=sys.stderr)
+        return 2
+    if auto_research and not research_response:
+        key = research_api_key or os.environ.get("TURTLE_LLM_API_KEY", "")
+        model_name = research_model or os.environ.get("TURTLE_LLM_MODEL", "")
+        if not key or not model_name:
+            print(
+                "自动 research 缺少 LLM 配置：设置 TURTLE_LLM_API_KEY / "
+                "TURTLE_LLM_MODEL，或使用 --research-response 离线回放",
+                file=sys.stderr,
+            )
+            return 2
+
     print(f"[1/3] state：{code}")
     if _state_cmd(str(code), True, None, None, []) != 0:
         return 2
 
     print(f"[2/3] data pack + report + snapshot：{code}")
     if (min_claims or min_dimensions) and not (
-        research and Path(research).is_file()
+        has_research_file or auto_research
     ):
-        print("设置了 research 质量阈值，但未提供有效 --research", file=sys.stderr)
+        print(
+            "设置了 research 质量阈值，但未提供有效 --research 或 --with-research",
+            file=sys.stderr,
+        )
         return 2
-    if research and Path(research).is_file():
+    if has_research_file and research_file is not None:
         from .research import load as load_research
         from .research import quality as research_quality
 
         try:
-            _document = load_research(research)
+            _document = load_research(research_file)
         except (ValueError, OSError) as exc:
             print(f"research 校验失败：{exc}", file=sys.stderr)
             return 2
@@ -2229,41 +2271,193 @@ def _run_cmd(
                 file=sys.stderr,
             )
             return 2
-    rc = _report(
-        str(code),
-        None,
-        currency,
-        rf,
-        rf_source,
-        None,
-        pdf_numbers,
-        str(snapshot),
-        None,
-        research,
-        as_of,
-        ttm,
-        pit,
-        "record-only",
-        strict,
-        evidence,
-        html,
-        str(base / "data_pack.md"),
-        footnotes,
-        pdf_sections,
-        allow_research_decisions,
-    )
-    if rc != 0:
-        print(f"run 在 report 阶段失败：{rc}", file=sys.stderr)
-        return rc
+
+    if auto_research:
+        import json
+
+        staging = base / ".research-snapshot-base"
+        final_tmp = base / ".research-snapshot-final"
+
+        def _cleanup() -> None:
+            shutil.rmtree(staging, ignore_errors=True)
+            shutil.rmtree(final_tmp, ignore_errors=True)
+
+        _cleanup()
+        # First pass creates the frozen snapshot and data pack the research
+        # context needs. The final pass is rendered by finalize_research so the
+        # research hash and report hash belong to the same snapshot identity.
+        rc = _report(
+            str(code),
+            None,
+            currency,
+            rf,
+            rf_source,
+            None,
+            pdf_numbers,
+            str(staging),
+            None,
+            None,
+            as_of,
+            ttm,
+            pit,
+            "record-only",
+            False,
+            evidence,
+            False,
+            str(staging / "data_pack.md"),
+            footnotes,
+            pdf_sections,
+            False,
+        )
+        if rc != 0:
+            _cleanup()
+            print(f"run 在确定性预跑阶段失败：{rc}", file=sys.stderr)
+            return rc
+        if not (staging / "data_pack.md").is_file():
+            _cleanup()
+            print("run 预跑未生成 data_pack.md", file=sys.stderr)
+            return 2
+        shutil.copyfile(staging / "data_pack.md", base / "data_pack.md")
+        if pdf_index:
+            source_index = Path(pdf_index)
+            if not source_index.is_file():
+                _cleanup()
+                print(f"PDF 索引不存在：{source_index}", file=sys.stderr)
+                return 2
+            shutil.copyfile(source_index, staging / "pdf_index.json")
+
+        try:
+            context = _research_context(
+                str(staging), data_pack=str(staging / "data_pack.md")
+            )
+        except (OSError, TypeError, ValueError, KeyError) as exc:
+            _cleanup()
+            print(f"research context 失败：{exc}", file=sys.stderr)
+            return 2
+        (staging / "research_context.json").write_bytes(
+            (json.dumps(context, ensure_ascii=False, indent=2) + "\n").encode(
+                "utf-8"
+            )
+        )
+
+        started = time.monotonic()
+        rc = _research_agent_cmd(
+            str(staging),
+            str(base / "research.json"),
+            research_base_url,
+            research_model,
+            research_api_key,
+            data_pack=str(staging / "data_pack.md"),
+            retries=research_retries,
+            min_claims=min_claims,
+            min_dimensions=min_dimensions,
+            response=research_response,
+        )
+        elapsed = time.monotonic() - started
+        if rc != 0:
+            _cleanup()
+            print(f"run 在 research-agent 阶段失败：{rc}", file=sys.stderr)
+            return rc
+
+        model_name = research_model or os.environ.get("TURTLE_LLM_MODEL", "")
+        prov_rc = _research_provenance_cmd(
+            str(base / "research.json"),
+            str(staging),
+            "turtle-research-agent",
+            model_name or ("replay" if research_response else ""),
+            str(base / "research_provenance.json"),
+            None,
+            elapsed_seconds=elapsed,
+            mode="agent" if not research_response else "replay",
+            retries=research_retries,
+        )
+        if prov_rc != 0:
+            _cleanup()
+            print(f"run 在 research provenance 阶段失败：{prov_rc}", file=sys.stderr)
+            return prov_rc
+
+        from .report.finalize import FinalizeError, finalize_research
+
+        try:
+            finalize_research(
+                staging,
+                base / "research.json",
+                final_tmp,
+                report_path=base / "analysis_report.md",
+                strict=strict,
+                min_claims=min_claims,
+                min_dimensions=min_dimensions,
+                html=html,
+                allow_research_decisions=allow_research_decisions,
+            )
+        except (FinalizeError, ValueError, OSError) as exc:
+            _cleanup()
+            print(f"run 在 finalize 阶段失败：{exc}", file=sys.stderr)
+            return 2
+        if snapshot.exists():
+            shutil.rmtree(snapshot)
+        final_tmp.rename(snapshot)
+        pack_source = snapshot / "data_pack.md"
+        if pack_source.is_file():
+            shutil.copyfile(pack_source, base / "data_pack.md")
+        _cleanup()
+        # finalize wrote run_state against the temporary snapshot directory;
+        # point it at the renamed snapshot before _run_cmd finalizes artifacts.
+        from . import state as st
+
+        state_path = base / "run_state.json"
+        if state_path.is_file():
+            run_state = st.load(state_path)
+            for key, path in (
+                ("snapshot", snapshot),
+                ("data_pack", base / "data_pack.md"),
+                ("analysis_report", base / "analysis_report.md"),
+                ("research", base / "research.json"),
+                ("research_audit", base / "research_audit.json"),
+                ("research_provenance", base / "research_provenance.json"),
+            ):
+                st.add_artifact(run_state, key, str(path.resolve()))
+            st.save(run_state, state_path)
+        research = str(base / "research.json")
+        rc = 0
+    else:
+        rc = _report(
+            str(code),
+            None,
+            currency,
+            rf,
+            rf_source,
+            None,
+            pdf_numbers,
+            str(snapshot),
+            None,
+            research,
+            as_of,
+            ttm,
+            pit,
+            "record-only",
+            strict,
+            evidence,
+            html,
+            str(base / "data_pack.md"),
+            footnotes,
+            pdf_sections,
+            allow_research_decisions,
+        )
+        if rc != 0:
+            print(f"run 在 report 阶段失败：{rc}", file=sys.stderr)
+            return rc
 
     if research and Path(research).is_file():
-        import shutil
-
         base.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(research, base / "research.json")
-        provenance = Path(research).with_name("research_provenance.json")
-        if provenance.is_file():
-            shutil.copyfile(provenance, base / "research_provenance.json")
+        source_research = Path(research)
+        target_research = base / "research.json"
+        if source_research.resolve() != target_research.resolve():
+            shutil.copyfile(source_research, target_research)
+        provenance = source_research.with_name("research_provenance.json")
+        target_provenance = base / "research_provenance.json"
+        if provenance.is_file() and provenance.resolve() != target_provenance.resolve():
+            shutil.copyfile(provenance, target_provenance)
 
     from . import state as st
     from .facts import ReportManifest
@@ -2295,6 +2489,8 @@ def _run_cmd(
         if rc != 0:
             print(f"run 在 QA 阶段失败：{rc}", file=sys.stderr)
             return rc
+    if run.snapshot_id:
+        print(f"final snapshot_id: {run.snapshot_id}")
     print(f"run 完成：{snapshot.resolve()}")
     return 0
 
@@ -3145,6 +3341,25 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--footnotes", default=None, help="footnotes.json")
     run.add_argument("--pdf-sections", default=None, help="pdf_sections.json")
     run.add_argument("--research", default=None, help="research.json（可选）")
+    run.add_argument(
+        "--with-research",
+        action="store_true",
+        help="自动生成 research.json；有 --research 时读取文件，否则调用 research-agent",
+    )
+    run.add_argument(
+        "--research-response",
+        default=None,
+        help="离线回放 LLM JSON（配合 --with-research，不发网络请求）",
+    )
+    run.add_argument("--research-retries", type=int, default=0)
+    run.add_argument("--research-model", default=None)
+    run.add_argument("--research-base-url", default=None)
+    run.add_argument("--research-api-key", default=None)
+    run.add_argument(
+        "--pdf-index",
+        default=None,
+        help="pdf_index.json；自动研究时复制到预跑 snapshot 供 pdf_deep 使用",
+    )
     run.add_argument("--as-of", default=None, help="近似 PIT 日期（YYYY-MM-DD）")
     run.add_argument("--ttm", action="store_true", help="用最新 interim 构造 TTM 年度行")
     run.add_argument("--pit", action="store_true", help="从本地 PIT 库读取 as-of 财务")
@@ -3471,6 +3686,13 @@ def main(argv: list[str] | None = None) -> int:
                 args.min_claims,
                 args.min_dimensions,
                 args.allow_research_decisions,
+                args.with_research,
+                args.research_response,
+                args.research_retries,
+                args.research_model,
+                args.research_base_url,
+                args.research_api_key,
+                args.pdf_index,
             )
         if args.command == "analyze":
             return _demo_analyze() if args.demo else _live_analyze(

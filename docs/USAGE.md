@@ -1,6 +1,6 @@
 # Turtle Framework 使用说明
 
-> 当前审查基线：`456 passed`。本文按当前 CLI 实测编写，命令使用
+> 当前审查基线：`461 passed`。本文按当前 CLI 实测编写，命令使用
 > `.\.venv\Scripts\python.exe -m turtlefw.cli`，避免依赖 PATH 里的 `turtle`。
 
 ## 1. 这个项目做什么
@@ -134,6 +134,8 @@ turtle --output-dir .runs report 600887
 ```powershell
 $env:TURTLE_OUTPUT_DIR = ".runs"
 turtle run 600887.SH --rf 1.6516 --rf-source "ICBC 2026-10-15"
+# 自动研究（LLM 生成 research.json 后再 finalize）
+turtle run 600887.SH --rf 1.6516 --rf-source "ICBC 2026-10-15" --with-research
 ```
 
 `run` 依次执行：
@@ -145,6 +147,11 @@ state init
 → QA
 ```
 
+`--with-research` 走两段式：确定性预跑快照 → `research-context` →
+`research-agent` → `research-provenance` → `finalize` → QA。可用
+`--research-response` 做离线回放，或用 `--research-model` /
+`--research-base-url` / `--research-api-key` 覆盖 LLM 配置。
+
 > `run` 不再先 pack 再 report 取两次数；data_pack 与 report 使用同一份
 > `ReportInputs`。
 
@@ -153,6 +160,10 @@ state init
 ```text
 --html / --no-html
 --research <path>
+--with-research
+--research-response / --research-model / --research-base-url / --research-api-key
+--research-retries
+--pdf-index
 --pdf-numbers / --evidence / --footnotes / --pdf-sections
 --as-of / --pit / --ttm
 --strict
@@ -184,6 +195,12 @@ run --no-qa
 → research-provenance
 → finalize（不重新取数）
 → QA
+```
+
+需要一条命令完成上述 research-only 链路时：
+
+```powershell
+turtle run 600887.SH --with-research --no-html
 ```
 
 只想要确定性部分：
@@ -818,7 +835,7 @@ research-audit --metrics ... --facts ...
 当前基线：
 
 ```text
-456 tests passed
+461 tests passed
 ```
 
 CI：

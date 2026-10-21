@@ -145,7 +145,16 @@ $env:TURTLE_OUTPUT_DIR = ".runs"
 
 # 一键确定性流程：单次取数 → data_pack/report/snapshot → QA
 turtle run 600887.SH --rf 1.6516 --rf-source "ICBC 2026-10-15"
+
+# 一键自动研究：确定性预跑 → research-context → research-agent
+# → provenance → finalize → report → QA
+turtle run 600887.SH --rf 1.6516 --rf-source "ICBC 2026-10-15" --with-research
 ```
+
+`--with-research` 默认调用 OpenAI-compatible LLM；需要
+`TURTLE_LLM_API_KEY` / `TURTLE_LLM_MODEL`（或对应的 `--research-api-key` /
+`--research-model`）。离线回放可加 `--research-response <research.json>`。
+自动模式会把 `pdf_deep`（若提供了 `--pdf-index`）一并放进研究上下文。
 
 也可以拆开执行：
 
@@ -207,19 +216,18 @@ DSH：
 流程：
 
 ```text
-run → snapshot
-→ research-context
-→ DSH/Claude 写 research.json
-→ research-audit
+run --with-research → 确定性预跑快照
+→ research-context（含 pdf_deep）
+→ research-agent（LLM 或 --research-response）
 → research-provenance
 → finalize（不重新取数）
 → report/HTML
 → QA
 ```
 
-> `/turtle-full` 是 **research-only**：不运行 PDF/定性 Agent。
-> 没有 `qualitative.json` 时 1A/1B 保持“未验证”；需要完整定性请用
-> `/turtle-analysis`。
+也可以手动拆分执行下面的各步。`/turtle-full` 仍是 research-only：不运行 PDF/定性 Agent；
+没有 `qualitative.json` 时 1A/1B 保持“未验证”；需要完整定性请用
+`/turtle-analysis`。
 
 ### 完整 Agent 流程
 
@@ -501,7 +509,7 @@ src/turtlefw/
 当前基线：
 
 ```text
-446 tests passed
+461 tests passed
 ```
 
 CI：pytest + selected ruff + selected mypy，见

@@ -55,7 +55,8 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
 - 新增 `research-agent --snapshot --out`：用 LLM 生成 `research.json`，再由 `load_payload` 校验。
 - snapshot 有 `pdf_sections.json` / `data_pack.md` / `evidence.json` 时自动注入上下文。
 - `agent` phase runner 可执行 `research=research-agent ...`。
-- 仍待补：真实 LLM 输出回归、重试/成本预算。
+- 仍待补：真实 LLM 输出回归（当前以 `--research-response` 回放回归为主）、
+  token/费用预算与硬上限。
 
 ## Phase 6（部分完成）：claim-level audit
 
@@ -71,6 +72,11 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
 - DSH 研究样本回归：`tests/fixtures/dsh_research_sample.json` 验证 D1–D6 / evidence ratio / gate。
 - `research-agent --response`：离线回放 LLM JSON，用于 eval/回归，不发网络请求。
 - `research-agent --min-claims/--min-dimensions`：不足时把反馈加入 prompt 重试。
+- `run --with-research`：确定性预跑快照 → `research-context` → `research-agent`
+  → `research-provenance` → `finalize` → QA；支持 `--research-response` 离线回放，
+  默认不重新取数，final snapshot 的 research/report/numeric hash 一致。
+- `research-provenance` 记录 provider/model/research_sha256/context_sha256，
+  自动模式额外记录 `mode`、`retries`、`elapsed_seconds`。
 - `qa` 增加 `research_quality` 和 `data_coverage`：显示研究覆盖和缺失数据能力。
 - `hkex-news`：HKEXnews 回购公告 evidence；`pdf:parent_company` 可选。
 - A 股 `buyback` / `pledge` 指标；港股 `hk_cashflow` 回购股份、美股 SEC 回购 tag 进入 partial coverage。
