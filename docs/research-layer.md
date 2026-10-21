@@ -76,7 +76,10 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
   → `research-provenance` → `finalize` → QA；支持 `--research-response` 离线回放，
   默认不重新取数，final snapshot 的 research/report/numeric hash 一致。
 - `research-provenance` 记录 provider/model/research_sha256/context_sha256，
-  自动模式额外记录 `mode`、`retries`、`elapsed_seconds`。
+  自动模式额外记录 `mode`、`retries`、`elapsed_seconds`、`input_chars`、
+  `estimated_input_tokens`（按字符数 / 4 的保守估算）。
+- `research-agent --max-input-tokens` / `run --research-max-input-tokens` 在调用前
+  拦截超预算 context；实际估算写入 research 同目录的 `research.usage.json`。
 - `qa` 增加 `research_quality` 和 `data_coverage`：显示研究覆盖和缺失数据能力。
 - `hkex-news`：HKEXnews 回购公告 evidence；`pdf:parent_company` 可选。
 - A 股 `buyback` / `pledge` 指标；港股 `hk_cashflow` 回购股份、美股 SEC 回购 tag 进入 partial coverage。

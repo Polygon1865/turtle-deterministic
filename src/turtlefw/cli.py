@@ -1830,6 +1830,7 @@ def _research_provenance_cmd(
     elapsed_seconds: float | None = None,
     mode: str = "",
     retries: int = 0,
+    usage_path: str | None = None,
 ) -> int:
     import hashlib
     import json
@@ -1855,6 +1856,19 @@ def _research_provenance_cmd(
     }
     if elapsed_seconds is not None:
         payload["elapsed_seconds"] = round(float(elapsed_seconds), 3)
+    if usage_path and Path(usage_path).is_file():
+        try:
+            usage = json.loads(Path(usage_path).read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError):
+            usage = {}
+        if isinstance(usage, dict):
+            for key in (
+                "input_chars",
+                "estimated_input_tokens",
+                "max_input_tokens",
+            ):
+                if key in usage:
+                    payload[key] = usage[key]
     target = Path(out)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(
@@ -1877,6 +1891,7 @@ def _research_agent_cmd(
     min_claims: int = 0,
     min_dimensions: int = 0,
     response: str | None = None,
+    max_input_tokens: int | None = None,
 ) -> int:
     import json
     import os
@@ -1888,6 +1903,15 @@ def _research_agent_cmd(
         context = _research_context(snapshot, data_pack)
     except (OSError, ValueError, KeyError) as exc:
         print(f"找不到 snapshot context：{exc}", file=sys.stderr)
+        return 2
+    context_text = json.dumps(context, ensure_ascii=False)
+    estimated_input_tokens = max(1, len(context_text) // 4)
+    if max_input_tokens is not None and estimated_input_tokens > max_input_tokens:
+        print(
+            "research context 超出预算："
+            f"估算 {estimated_input_tokens:,} tokens > 上限 {max_input_tokens:,}",
+            file=sys.stderr,
+        )
         return 2
 
     key = api_key or os.environ.get("TURTLE_LLM_API_KEY", "")
@@ -1924,10 +1948,23 @@ def _research_agent_cmd(
             json.dumps(to_payload(document), ensure_ascii=False, indent=2) + "\n"
         ).encode("utf-8")
     )
+    usage = {
+        "input_chars": len(context_text),
+        "estimated_input_tokens": estimated_input_tokens,
+        "max_input_tokens": max_input_tokens,
+        "mode": "replay" if response else "llm",
+        "model": "replay" if response else model_name,
+    }
+    target.with_suffix(".usage.json").write_bytes(
+        (json.dumps(usage, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode(
+            "utf-8"
+        )
+    )
     print(
         f"research.json 已写入 {target.resolve()}："
         f"{len(document.claims)} claims，{len(document.params)} params，"
-        f"{len(document.decisions)} decisions"
+        f"{len(document.decisions)} decisions；"
+        f"估算输入 {estimated_input_tokens:,} tokens"
     )
     return 0
 
@@ -2333,6 +2370,7 @@ def _run_cmd(
     research_base_url: str | None = None,
     research_api_key: str | None = None,
     pdf_index: str | None = None,
+    research_max_input_tokens: int | None = None,
 ) -> int:
     """One command: fetch once -> optional research -> pack/report -> QA."""
     import os
@@ -2486,6 +2524,7 @@ def _run_cmd(
             min_claims=min_claims,
             min_dimensions=min_dimensions,
             response=research_response,
+            max_input_tokens=research_max_input_tokens,
         )
         elapsed = time.monotonic() - started
         if rc != 0:
@@ -2504,6 +2543,7 @@ def _run_cmd(
             elapsed_seconds=elapsed,
             mode="agent" if not research_response else "replay",
             retries=research_retries,
+            usage_path=str(base / "research.usage.json"),
         )
         if prov_rc != 0:
             _cleanup()
@@ -3491,6 +3531,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="离线回放 LLM JSON（配合 --with-research，不发网络请求）",
     )
     run.add_argument("--research-retries", type=int, default=0)
+    run.add_argument(
+        "--research-max-input-tokens",
+        type=int,
+        default=None,
+        help="自动研究 context 估算 token 上限（按字符数 / 4），超限直接失败",
+    )
     run.add_argument("--research-model", default=None)
     run.add_argument("--research-base-url", default=None)
     run.add_argument("--research-api-key", default=None)
@@ -3632,6 +3678,12 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent.add_argument("--retries", type=int, default=0, help="schema/质量失败重试次数")
     research_agent.add_argument("--min-claims", type=int, default=0, help="最少 claim 数")
     research_agent.add_argument("--min-dimensions", type=int, default=0, help="最少覆盖维度")
+    research_agent.add_argument(
+        "--max-input-tokens",
+        type=int,
+        default=None,
+        help="context 估算 token 上限（按字符数 / 4），超限不调用 LLM",
+    )
     research_agent.add_argument(
         "--response", default=None, help="离线回放 LLM JSON（不发网络请求）"
     )
@@ -3841,6 +3893,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.research_base_url,
                 args.research_api_key,
                 args.pdf_index,
+                args.research_max_input_tokens,
             )
         if args.command == "analyze":
             return _demo_analyze() if args.demo else _live_analyze(
@@ -4019,6 +4072,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.min_claims,
                 args.min_dimensions,
                 args.response,
+                args.max_input_tokens,
             )
         if args.command == "snapshot":
             return _snapshot_cmd(

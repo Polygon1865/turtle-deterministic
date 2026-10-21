@@ -1,6 +1,6 @@
 # Turtle Framework 使用说明
 
-> 当前审查基线：`491 passed`。本文按当前 CLI 实测编写，命令使用
+> 当前审查基线：`494 passed`。本文按当前 CLI 实测编写，命令使用
 > `.\.venv\Scripts\python.exe -m turtlefw.cli`，避免依赖 PATH 里的 `turtle`。
 
 ## 1. 这个项目做什么
@@ -151,6 +151,9 @@ state init
 `research-agent` → `research-provenance` → `finalize` → QA。可用
 `--research-response` 做离线回放，或用 `--research-model` /
 `--research-base-url` / `--research-api-key` 覆盖 LLM 配置。
+`--research-max-input-tokens N` 按 context 字符数 / 4 估算输入 token，超限
+直接失败，不发起 LLM 请求；`research-agent` 另行写 `research.usage.json`，
+自动模式会把它并入 provenance（`input_chars` / `estimated_input_tokens`）。
 
 > `run` 不再先 pack 再 report 取两次数；data_pack 与 report 使用同一份
 > `ReportInputs`。
@@ -163,6 +166,7 @@ state init
 --with-research
 --research-response / --research-model / --research-base-url / --research-api-key
 --research-retries
+--research-max-input-tokens
 --pdf-index
 --pdf-numbers / --evidence / --footnotes / --pdf-sections
 --as-of / --pit / --ttm
@@ -869,7 +873,7 @@ research-audit --metrics ... --facts ...
 当前基线：
 
 ```text
-491 tests passed
+494 tests passed
 ```
 
 CI：

@@ -168,6 +168,46 @@ def test_run_auto_research_chains_snapshot_agent_and_finalize(
     assert state["artifacts"]["data_pack"] == str((base / "data_pack.md").resolve())
 
 
+def test_research_agent_rejects_over_budget_context(tmp_path: Path, monkeypatch):
+    replay = tmp_path / "replay.json"
+    replay.write_text(json.dumps(_valid_research()), encoding="utf-8")
+    monkeypatch.setattr(cli, "_research_context", lambda *args, **kwargs: {"x": "a" * 1000})
+    out = tmp_path / "research.json"
+    rc = cli._research_agent_cmd(
+        str(tmp_path),
+        str(out),
+        None,
+        None,
+        None,
+        response=str(replay),
+        max_input_tokens=10,
+    )
+    assert rc == 2
+    assert not out.exists()
+
+
+def test_research_agent_writes_usage_sidecar(tmp_path: Path, monkeypatch):
+    replay = tmp_path / "replay.json"
+    replay.write_text(json.dumps(_valid_research()), encoding="utf-8")
+    monkeypatch.setattr(cli, "_research_context", lambda *args, **kwargs: {"x": "a" * 40})
+    out = tmp_path / "research.json"
+    rc = cli._research_agent_cmd(
+        str(tmp_path),
+        str(out),
+        None,
+        None,
+        None,
+        response=str(replay),
+        max_input_tokens=100,
+    )
+    assert rc == 0
+    usage = json.loads((tmp_path / "research.usage.json").read_text(encoding="utf-8"))
+    assert usage["mode"] == "replay"
+    assert usage["input_chars"] > 0
+    assert usage["estimated_input_tokens"] > 0
+    assert usage["max_input_tokens"] == 100
+
+
 def test_run_auto_research_failure_cleans_staging(tmp_path: Path, monkeypatch):
     root = tmp_path / "runs"
     replay = tmp_path / "replay.json"

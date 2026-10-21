@@ -51,3 +51,37 @@ def test_research_provenance_records_replay_telemetry(tmp_path):
     assert payload["mode"] == "replay"
     assert payload["retries"] == 2
     assert payload["elapsed_seconds"] == 12.5
+
+
+def test_research_provenance_merges_usage_sidecar(tmp_path):
+    research = tmp_path / "research.json"
+    research.write_text('{"claims": []}', encoding="utf-8")
+    (tmp_path / "research_context.json").write_text('{"code": "600887"}', encoding="utf-8")
+    usage = tmp_path / "research.usage.json"
+    usage.write_text(
+        json.dumps(
+            {
+                "input_chars": 4000,
+                "estimated_input_tokens": 1000,
+                "max_input_tokens": 2000,
+            }
+        ),
+        encoding="utf-8",
+    )
+    out = tmp_path / "provenance.json"
+    assert (
+        _research_provenance_cmd(
+            str(research),
+            str(tmp_path),
+            "turtle-research-agent",
+            "model",
+            str(out),
+            None,
+            usage_path=str(usage),
+        )
+        == 0
+    )
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["input_chars"] == 4000
+    assert payload["estimated_input_tokens"] == 1000
+    assert payload["max_input_tokens"] == 2000
