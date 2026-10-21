@@ -366,23 +366,52 @@ def _load_fundamental_extras(
     return (dict(payload) if isinstance(payload, dict) else {}), ""
 
 
+def _load_market_extras(
+    provider: Any, code: StockCode
+) -> tuple[dict[str, Any], str]:
+    method = getattr(provider, "market_extras", None)
+    if not callable(method):
+        return {}, ""
+    try:
+        payload = method(code)
+    except Exception as exc:  # noqa: BLE001 - optional market source
+        return {}, str(exc)
+    return (dict(payload) if isinstance(payload, dict) else {}), ""
+
+
 def _peer_metrics_for_inputs(provider: Any, inputs: Any) -> list[dict[str, object]]:
     from .metrics import statements
     from .report.industry import template_for
 
     template = template_for(str(inputs.code), str(getattr(inputs, "industry_name", "")))
-    if template is None:
+    candidates: list[tuple[str, str]] = []
+    peer_method = getattr(provider, "peer_candidates", None)
+    if str(getattr(inputs, "industry_name", "")).strip() and callable(peer_method):
+        try:
+            dynamic = peer_method(StockCode.parse(str(inputs.code)))
+        except Exception:  # noqa: BLE001 - optional peer source
+            dynamic = []
+        for row in dynamic:
+            code = str(row.get("code", ""))
+            if code:
+                candidates.append((code, str(row.get("name", "")).strip() or code))
+    if candidates:
+        candidates.insert(0, (str(inputs.code), str(inputs.code)))
+    elif template is not None:
+        candidates = [(peer.code, peer.name) for peer in template.peers]
+    else:
         return []
+
     rows: list[dict[str, object]] = []
-    for peer in template.peers:
-        if not (peer.code.endswith(".SH") or peer.code.endswith(".SZ")):
+    for peer_code, peer_name in candidates:
+        if peer_code != str(inputs.code) and not peer_code.endswith((".SH", ".SZ")):
             continue
         try:
-            if peer.code == str(inputs.code):
+            if peer_code == str(inputs.code):
                 peer_rows = list(inputs.rows)
             else:
-                peer_rows = provider.statements(StockCode.parse(peer.code))
-        except Exception:  # noqa: BLE001 - optional peer comparison
+                peer_rows = provider.statements(StockCode.parse(peer_code))
+        except Exception:  # noqa: BLE001, S112 - optional peer comparison
             continue
         if not peer_rows:
             continue
@@ -393,14 +422,18 @@ def _peer_metrics_for_inputs(provider: Any, inputs: Any) -> list[dict[str, objec
         cagr = statements.revenue_cagr(peer_rows)
         net_margin = (
             income[latest] / revenue[latest] * 100
-            if latest in income and revenue[latest]
+            if latest is not None and latest in income and revenue.get(latest)
             else None
         )
-        roe = income[latest] / equity[latest] * 100 if latest in equity and equity[latest] else None
+        roe = (
+            income[latest] / equity[latest] * 100
+            if latest is not None and latest in income and equity.get(latest)
+            else None
+        )
         rows.append(
             {
-                "name": peer.name,
-                "code": peer.code,
+                "name": peer_name,
+                "code": peer_code,
                 "revenue_cagr": f"{cagr * 100:.2f}%" if cagr is not None else "—",
                 "net_margin": f"{net_margin:.2f}%" if net_margin is not None else "—",
                 "roe": f"{roe:.2f}%" if roe is not None else "—",
@@ -646,6 +679,7 @@ def _pack(
         provider.main_business(code) if hasattr(provider, "main_business") else []
     )
     fundamental_extras, _extras_error = _load_fundamental_extras(provider, code)
+    market_extras, _market_error = _load_market_extras(provider, code)
     pack_issues = list(provider.issues)
     if _extras_error:
         pack_issues.append(
@@ -653,6 +687,14 @@ def _pack(
                 endpoint="fundamental-extras",
                 code=str(code),
                 message=_extras_error,
+            )
+        )
+    if _market_error:
+        pack_issues.append(
+            FetchIssue(
+                endpoint="market-extras",
+                code=str(code),
+                message=_market_error,
             )
         )
     footnotes = None
@@ -709,6 +751,7 @@ def _pack(
         pit_note=pit_note,
         document_facts=document_facts,
         fundamental_extras=fundamental_extras,
+        market_extras=market_extras,
     )
 
     path = Path(out) if out else output_root() / str(code) / "data_pack.md"
@@ -2519,6 +2562,16 @@ def _report(
                     message=extras_error,
                 )
             )
+        market, market_error = _load_market_extras(provider, code)
+        inputs.market_extras = market
+        if market_error:
+            issues.append(
+                FetchIssue(
+                    endpoint="market-extras",
+                    code=str(code),
+                    message=market_error,
+                )
+            )
         try:
             holders = provider.holders(code) if hasattr(provider, "holders") else []
         except Exception as exc:  # noqa: BLE001 - optional pack section
@@ -2561,10 +2614,10 @@ def _report(
         inputs.footnotes = footnotes
         inputs.pdf_sections = pdf_sections
         inputs.pit_note = pit_note
+        inputs.industry_peers = _peer_metrics_for_inputs(provider, inputs)
         inputs.issues = list(provider.issues) + [
             issue for issue in issues if issue not in provider.issues
         ]
-        inputs.industry_peers = _peer_metrics_for_inputs(provider, inputs)
         if save_snapshot:
             snap.freeze(
                 inputs,
@@ -2631,6 +2684,7 @@ def _report(
                 ),
                 document_facts=inputs.document_facts,
                 fundamental_extras=inputs.fundamental_extras,
+                market_extras=inputs.market_extras,
             )
             pack_path = Path(data_pack_out)
             pack_path.parent.mkdir(parents=True, exist_ok=True)

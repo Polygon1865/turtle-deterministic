@@ -498,22 +498,35 @@ def test_snapshot_carries_extras_and_manifest_hash(tmp_path):
         "industry": {"level1": "食品饮料"},
         "sources": ["tushare:fina_indicator", "tushare:index_member_all"],
     }
+    market = {
+        "market": "A",
+        "research": [{"report_date": "2026-08-20", "org": "示例证券"}],
+        "sources": ["tushare:report_rc"],
+        "missing": ["news"],
+    }
     inputs = replace(
         _inputs(),
         fundamental_extras=extras,
         industry_name="食品饮料",
+        market_extras=market,
     )
     freeze(inputs, settings, tmp_path)
     loaded, _ = load(tmp_path)
     assert loaded.fundamental_extras == extras
     assert loaded.industry_name == "食品饮料"
+    assert loaded.market_extras == market
 
     manifest = build_manifest(inputs, settings, tmp_path)
     assert manifest.extras_hash == content_hash(extras)
+    assert manifest.market_hash == content_hash(market)
     assert verify_manifest(inputs, settings, "", manifest, tmp_path) == []
     bad = replace(manifest, extras_hash="bad")
     assert "extras_hash mismatch" in verify_manifest(
         inputs, settings, "", bad, tmp_path
+    )
+    bad_market = replace(manifest, market_hash="bad")
+    assert "market_hash mismatch" in verify_manifest(
+        inputs, settings, "", bad_market, tmp_path
     )
 
 

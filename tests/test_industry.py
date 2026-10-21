@@ -46,6 +46,40 @@ def test_peer_metrics_fetch_for_a_share_template():
     assert all("revenue_cagr" in row for row in rows)
 
 
+def test_dynamic_peers_replace_static_template_members():
+    class FakeProvider:
+        def peer_candidates(self, code):
+            return [
+                {"code": "600519.SH", "name": "贵州茅台"},
+                {"code": "000858.SZ", "name": "五粮液"},
+            ]
+
+        def statements(self, code, report_type=None):
+            return demo.demo_rows()
+
+    inputs = SimpleNamespace(
+        code="600887.SH",
+        rows=demo.demo_rows(),
+        industry_name="食品饮料",
+    )
+    rows = _peer_metrics_for_inputs(FakeProvider(), inputs)
+    names = [row["name"] for row in rows]
+    assert names[:3] == ["600887.SH", "贵州茅台", "五粮液"]
+
+
+def test_unknown_industry_renders_dynamic_peer_table():
+    text = render_section(
+        "600887.SH",
+        MetricRegistry(),
+        [{"name": "招商银行", "code": "600036.SH", "revenue_cagr": "3.00%"}],
+        industry_name="银行",
+    )
+    assert "## 行业分类" in text
+    assert "Peer 财务对比" in text
+    assert "招商银行" in text
+    assert "3.00%" in text
+
+
 def test_render_section_with_peer_financials():
     text = render_section(
         "600887.SH",

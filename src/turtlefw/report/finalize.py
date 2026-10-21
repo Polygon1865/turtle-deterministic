@@ -119,6 +119,7 @@ def finalize_research(
                 snapshot_id=final_snapshot_id,
                 document_facts=inputs.document_facts,
                 fundamental_extras=inputs.fundamental_extras,
+                market_extras=inputs.market_extras,
             ),
             encoding="utf-8",
         )

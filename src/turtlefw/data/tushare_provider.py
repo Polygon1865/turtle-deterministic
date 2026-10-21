@@ -38,6 +38,18 @@ from .extras import (
     normalize_rewards,
     normalize_share_float,
 )
+from .market_extras import (
+    normalize_announcements,
+    normalize_governance,
+    normalize_index_valuation,
+    normalize_index_weights,
+    normalize_limits,
+    normalize_macro,
+    normalize_margin,
+    normalize_moneyflow,
+    normalize_news,
+    normalize_research,
+)
 from .normalize import (
     dividend_events,
     hk_dividend_events,
@@ -111,11 +123,36 @@ HOLDER_TRADE_FIELDS = (
 SHARE_FLOAT_FIELDS = (
     "ts_code,ann_date,float_date,holder_name,float_share,float_ratio,share_type"
 )
+RESEARCH_FIELDS = (
+    "ts_code,name,report_date,report_title,report_type,classify,org_name,"
+    "author_name,quarter,op_rt,op_pr,tp,np,eps,pe,rd,roe,ev_ebitda,rating,"
+    "max_price,min_price"
+)
+MONEYFLOW_FIELDS = (
+    "ts_code,trade_date,buy_sm_amount,sell_sm_amount,buy_md_amount,"
+    "sell_md_amount,buy_lg_amount,sell_lg_amount,buy_elg_amount,"
+    "sell_elg_amount,net_mf_amount"
+)
+MARGIN_FIELDS = "trade_date,ts_code,rzye,rqye,rzmre,rqyl,rzche,rqchl,rqmcl,rzrqye"
+LIMIT_FIELDS = "trade_date,ts_code,up_limit,down_limit"
+INDEX_BASIC_FIELDS = (
+    "ts_code,trade_date,total_mv,float_mv,total_share,float_share,free_share,"
+    "turnover_rate,turnover_rate_f,pe,pe_ttm,pb"
+)
+INDEX_WEIGHT_FIELDS = "index_code,con_code,trade_date,weight"
+CPI_FIELDS = "month,nt_val,nt_yoy,nt_mom"
+PPI_FIELDS = "month,ppi_yoy,ppi_mom"
+GDP_FIELDS = "quarter,gdp,gdp_yoy,pi,pi_yoy,si,si_yoy,ti,ti_yoy"
+PMI_FIELDS = "month,pmi010000,pmi020100,pmi030000"
+SHIBOR_FIELDS = "date,on,1w,2w,1m,3m,6m,9m,1y"
+LPR_FIELDS = "date,1y,5y"
+ANNS_FIELDS = "ann_date,ts_code,name,title,url"
+NEWS_FIELDS = "datetime,content,title,channels"
 
 
 class TushareProvider:
     name = "tushare"
-    SCHEMA_VERSION = "turtle-8"
+    SCHEMA_VERSION = "turtle-9"
 
     def __init__(
         self,
@@ -188,7 +225,7 @@ class TushareProvider:
                     frame = pd.DataFrame()
                 self._cache.put(key, frame.to_dict("records"))
                 return frame
-            except Exception as exc:  # noqa: BLE001 - provider raises vendor exceptions
+            except Exception as exc:
                 last_error = exc
                 message = str(exc)
                 if "没有接口" in message or "权限" in message:
@@ -880,6 +917,328 @@ class TushareProvider:
             return payload
 
         return payload
+
+    # -- market / macro / governance ---------------------------------------
+    def market_extras(self, code: StockCode) -> dict[str, Any]:
+        """Fetch market, macro and governance context for one listing.
+
+        These values are background only: they never enter ``StatementRow`` or
+        the deterministic valuation.  A permission error is left in
+        ``provider.issues`` and the corresponding key is marked missing.
+        """
+        payload: dict[str, Any] = {
+            "code": str(code),
+            "market": code.market.value,
+            "sources": [],
+            "missing": [],
+        }
+        today = date.today()
+        start_1y = (today - timedelta(days=365)).strftime("%Y%m%d")
+        start_3y = (today - timedelta(days=365 * 3)).strftime("%Y%m%d")
+
+        def records(endpoint: str, fields: str, **params: Any) -> list[dict[str, Any]]:
+            frame = self._safe(endpoint, fields=fields, **params)
+            return [] if frame.empty else frame.to_dict("records")
+
+        def add(key: str, endpoint: str, value: Any) -> None:
+            if value:
+                payload[key] = value
+                source = f"tushare:{endpoint}"
+                if source not in payload["sources"]:
+                    payload["sources"].append(source)
+            else:
+                payload["missing"].append(key)
+
+        if code.is_a_share:
+            add(
+                "research",
+                "report_rc",
+                normalize_research(
+                    records(
+                        "report_rc",
+                        RESEARCH_FIELDS,
+                        ts_code=str(code),
+                        start_date=start_1y,
+                        limit=200,
+                    )
+                ),
+            )
+            add(
+                "moneyflow",
+                "moneyflow",
+                normalize_moneyflow(
+                    records(
+                        "moneyflow",
+                        MONEYFLOW_FIELDS,
+                        ts_code=str(code),
+                        start_date=(today - timedelta(days=45)).strftime("%Y%m%d"),
+                        limit=20,
+                    )
+                ),
+            )
+            add(
+                "margin",
+                "margin_detail",
+                normalize_margin(
+                    records(
+                        "margin_detail",
+                        MARGIN_FIELDS,
+                        ts_code=str(code),
+                        start_date=(today - timedelta(days=45)).strftime("%Y%m%d"),
+                        limit=20,
+                    )
+                ),
+            )
+            add(
+                "limits",
+                "stk_limit",
+                normalize_limits(
+                    records(
+                        "stk_limit",
+                        LIMIT_FIELDS,
+                        ts_code=str(code),
+                        start_date=(today - timedelta(days=15)).strftime("%Y%m%d"),
+                        limit=10,
+                    )
+                ),
+            )
+            add(
+                "index_valuation",
+                "index_dailybasic",
+                normalize_index_valuation(
+                    records(
+                        "index_dailybasic",
+                        INDEX_BASIC_FIELDS,
+                        ts_code="000300.SH",
+                        start_date=start_3y,
+                        end_date=today.strftime("%Y%m%d"),
+                    )
+                ),
+            )
+            weight_rows = records(
+                "index_weight",
+                INDEX_WEIGHT_FIELDS,
+                index_code="000300.SH",
+                start_date=(today - timedelta(days=60)).strftime("%Y%m%d"),
+                end_date=today.strftime("%Y%m%d"),
+            )
+            if weight_rows:
+                latest_weight_date = max(str(row.get("trade_date", "")) for row in weight_rows)
+                weight_rows = [
+                    row
+                    for row in weight_rows
+                    if str(row.get("trade_date", "")) == latest_weight_date
+                ]
+            index_weights = normalize_index_weights(weight_rows)
+            has_names = False
+            if index_weights:
+                name_map = {
+                    str(row.get("ts_code", "")): str(row.get("name", "")).strip()
+                    for row in self.stock_basic()
+                }
+                for item in index_weights:
+                    if not item["name"]:
+                        item["name"] = name_map.get(str(item["code"]), "")
+                has_names = any(item["name"] for item in index_weights)
+            add("index_weights", "index_weight", index_weights)
+            if has_names and "tushare:stock_basic" not in payload["sources"]:
+                payload["sources"].append("tushare:stock_basic")
+            add(
+                "announcements",
+                "anns_d",
+                normalize_announcements(
+                    records(
+                        "anns_d",
+                        ANNS_FIELDS,
+                        ts_code=str(code),
+                        start_date=(today - timedelta(days=180)).strftime("%Y%m%d"),
+                        end_date=today.strftime("%Y%m%d"),
+                        limit=20,
+                    )
+                ),
+            )
+            add(
+                "news",
+                "news",
+                normalize_news(
+                    records(
+                        "news",
+                        NEWS_FIELDS,
+                        start_date=(today - timedelta(days=30)).strftime("%Y%m%d"),
+                        end_date=today.strftime("%Y%m%d"),
+                        limit=20,
+                    )
+                ),
+            )
+
+        macro: list[dict[str, Any]] = []
+        if code.is_a_share:
+            macro = normalize_macro(
+                cpi=records(
+                    "cn_cpi",
+                    CPI_FIELDS,
+                    start_m=(today - timedelta(days=365 * 2)).strftime("%Y%m"),
+                    end_m=today.strftime("%Y%m"),
+                ),
+                ppi=records(
+                    "cn_ppi",
+                    PPI_FIELDS,
+                    start_m=(today - timedelta(days=365 * 2)).strftime("%Y%m"),
+                    end_m=today.strftime("%Y%m"),
+                ),
+                gdp=records(
+                    "cn_gdp",
+                    GDP_FIELDS,
+                    start_q=(today - timedelta(days=365 * 2)).strftime("%YQ1"),
+                    end_q=f"{today.year}Q{today.month // 3 + 1 if today.month % 3 else today.month // 3}",
+                ),
+                pmi=records(
+                    "cn_pmi",
+                    PMI_FIELDS,
+                    start_m=(today - timedelta(days=365 * 2)).strftime("%Y%m"),
+                    end_m=today.strftime("%Y%m"),
+                ),
+                shibor=records(
+                    "shibor",
+                    SHIBOR_FIELDS,
+                    start_date=(today - timedelta(days=90)).strftime("%Y%m%d"),
+                    end_date=today.strftime("%Y%m%d"),
+                ),
+                lpr=records(
+                    "shibor_lpr",
+                    LPR_FIELDS,
+                    start_date=(today - timedelta(days=365)).strftime("%Y%m%d"),
+                    end_date=today.strftime("%Y%m%d"),
+                ),
+            )
+        if macro:
+            payload["macro"] = macro
+            for source in sorted({str(row.get("source", "")) for row in macro}):
+                if source and source not in payload["sources"]:
+                    payload["sources"].append(source)
+        elif code.is_a_share:
+            payload["missing"].append("macro")
+
+        if code.market in (Market.HK, Market.US):
+            governance = normalize_governance(self._yf_governance(code))
+            if governance:
+                payload["governance"] = governance
+                payload["sources"].append("yfinance:institutional_holders")
+            else:
+                payload["missing"].append("governance")
+
+        return payload
+
+    def _yf_governance(self, code: StockCode) -> list[dict[str, Any]]:
+        """Institutional holders for HK/US; Tushare has no equivalent."""
+        key = f"governance:{code}"
+        cached = self._us_yf.get(key)
+        if isinstance(cached, list):
+            return cached
+        try:
+            import yfinance as yf
+        except ImportError:
+            self._issues.append(FetchIssue("yfinance", str(code), "yfinance not installed"))
+            self._us_yf[key] = []
+            return []
+
+        try:
+            cache_dir = Path(tempfile.gettempdir()) / "turtle-yf-cache"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            yf.set_tz_cache_location(str(cache_dir))
+            symbol = (
+                f"{int(code.numeric):04d}.HK"
+                if code.market is Market.HK
+                else code.numeric
+            )
+            frame = yf.Ticker(symbol).institutional_holders
+            rows = [] if frame is None or frame.empty else frame.to_dict("records")
+        except Exception as exc:  # noqa: BLE001 - optional vendor source
+            self._issues.append(FetchIssue("yfinance", str(code), str(exc)))
+            rows = []
+        self._us_yf[key] = rows
+        return rows
+
+    def peer_candidates(self, code: StockCode, limit: int = 8) -> list[dict[str, Any]]:
+        """Largest A-share peers in the same Shenwan level-1 industry."""
+        if not code.is_a_share:
+            return []
+        memberships = self._safe(
+            "index_member_all",
+            ts_code=str(code),
+            fields=MEMBER_FIELDS,
+        )
+        if memberships.empty:
+            return []
+        l1_code = str(memberships.iloc[0].get("l1_code", "")).strip()
+        if not l1_code:
+            return []
+        members = self._safe(
+            "index_member_all",
+            l1_code=l1_code,
+            fields=MEMBER_FIELDS,
+        )
+        if members.empty:
+            return []
+        latest = self.latest_trade_date()
+        daily = self.daily_basic(trade_date=latest)
+        if not daily:
+            # Before the vendor publishes today's snapshot, rank on the last
+            # completed session instead of falling back to code order.
+            calendar = self._safe(
+                "trade_cal",
+                exchange="SSE",
+                start_date=(date.today() - timedelta(days=10)).strftime("%Y%m%d"),
+                end_date=latest,
+                fields="cal_date,is_open",
+            )
+            if not calendar.empty:
+                open_days = calendar[calendar["is_open"] == 1].sort_values(
+                    "cal_date", ascending=False
+                )
+                for raw_day in open_days["cal_date"].tolist()[1:5]:
+                    daily = self.daily_basic(trade_date=str(raw_day))
+                    if daily:
+                        break
+        if not daily:
+            return []
+        market_values: dict[str, Decimal] = {}
+        for row in daily:
+            raw = row.get("total_mv")
+            try:
+                market_values[str(row.get("ts_code", ""))] = Decimal(str(raw))
+            except Exception:  # noqa: BLE001, S112 - optional ranking input
+                continue
+        if not market_values:
+            return []
+
+        candidates: list[dict[str, Any]] = []
+        for row in members.to_dict("records"):
+            peer_code = str(row.get("ts_code", ""))
+            if not peer_code or peer_code == str(code):
+                continue
+            if str(row.get("is_new", "")).strip() not in {"Y", "1"}:
+                continue
+            out_date = row.get("out_date")
+            if out_date is not None and str(out_date).strip() not in {"", "None", "nan"}:
+                continue
+            candidates.append(
+                {
+                    "code": peer_code,
+                    "name": str(row.get("name", "")).strip() or peer_code,
+                    "market": "A",
+                    "total_mv": market_values.get(peer_code),
+                }
+            )
+        candidates.sort(
+            key=lambda row: (
+                row["total_mv"] is not None,
+                row["total_mv"] or Decimal(0),
+                row["code"],
+            ),
+            reverse=True,
+        )
+        return candidates[:limit]
 
     # -- governance / capital actions -------------------------------------
     def pledge(self, code: StockCode, *, years: int = 5) -> list[dict]:

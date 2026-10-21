@@ -94,6 +94,7 @@ class ReportInputs:
     industry_peers: list[dict[str, Any]] = field(default_factory=list)
     fundamental_extras: dict[str, Any] = field(default_factory=dict)
     industry_name: str = ""
+    market_extras: dict[str, Any] = field(default_factory=dict)
 
 
 def inputs_to_dict(inputs: ReportInputs) -> dict[str, Any]:
@@ -165,6 +166,7 @@ def inputs_to_dict(inputs: ReportInputs) -> dict[str, Any]:
         "industry_peers": inputs.industry_peers,
         "fundamental_extras": inputs.fundamental_extras,
         "industry_name": inputs.industry_name,
+        "market_extras": inputs.market_extras,
     }
 
 
@@ -246,6 +248,7 @@ def inputs_from_dict(payload: dict[str, Any]) -> ReportInputs:
         industry_peers=list(payload.get("industry_peers", [])),
         fundamental_extras=dict(payload.get("fundamental_extras") or {}),
         industry_name=str(payload.get("industry_name", "")),
+        market_extras=dict(payload.get("market_extras") or {}),
     )
 
 
@@ -319,6 +322,11 @@ def verify_manifest(
         manifest.extras_hash or inputs.fundamental_extras
     ) and actual_extras != manifest.extras_hash:
         errors.append("extras_hash mismatch")
+    actual_market = content_hash(inputs.market_extras or {})
+    if (
+        manifest.market_hash or inputs.market_extras
+    ) and actual_market != manifest.market_hash:
+        errors.append("market_hash mismatch")
     research_file = root / "research.json"
     actual_research = file_hash(research_file) if research_file.is_file() else ""
     if actual_research != manifest.research_hash:
@@ -589,6 +597,7 @@ def render(
             industry_peers=inputs.industry_peers,
             fundamental_extras=inputs.fundamental_extras,
             industry_name=inputs.industry_name,
+            market_extras=inputs.market_extras,
         )
         metric_map.update(
             {
@@ -629,6 +638,7 @@ def render(
         industry_peers=inputs.industry_peers,
         fundamental_extras=inputs.fundamental_extras,
         industry_name=inputs.industry_name,
+        market_extras=inputs.market_extras,
     )
     if decisions and research_document is not None:
         selected = "、".join(

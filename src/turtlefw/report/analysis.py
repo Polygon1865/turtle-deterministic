@@ -20,6 +20,7 @@ from ..types import Currency, DividendEvent, FetchIssue
 from . import industry
 from .extras import render_extras
 from .format import TEMPLATE_DIR, _m, _num, _pct, _table
+from .market import render_market
 
 STATUS = {"pass": "通过", "veto": "否决", "unknown": "未验证", "info": "观察"}
 
@@ -84,6 +85,7 @@ def render_analysis(
     industry_peers: Sequence[dict[str, Any]] = (),
     fundamental_extras: Mapping[str, Any] | None = None,
     industry_name: str = "",
+    market_extras: Mapping[str, Any] | None = None,
 ) -> str:
     verdict, reason = final_verdict(results)
     rows = ctx.rows
@@ -142,7 +144,19 @@ def render_analysis(
         if fundamental_md
         else ""
     )
-    disclaimer_heading = "十三" if fundamental_md else "十二"
+    market_md = render_market(market_extras)
+    market_number = "十三" if fundamental_md else "十二"
+    market_section = (
+        f"## {market_number}、市场与宏观（Tushare）\n\n{market_md}\n\n"
+        if market_md
+        else ""
+    )
+    if fundamental_md and market_md:
+        disclaimer_heading = "十四"
+    elif fundamental_md or market_md:
+        disclaimer_heading = "十三"
+    else:
+        disclaimer_heading = "十二"
     status_label = {"stable": "口径一致", "divergent": "口径分歧", "unavailable": "不可用"}[
         stats.status
     ]
@@ -402,6 +416,7 @@ def render_analysis(
         "metric_registry": metric_ledger,
         "industry_md": industry_md,
         "fundamental_section": fundamental_section,
+        "market_section": market_section,
         "disclaimer_heading": disclaimer_heading,
         "pdf_fact_rows": [
             [

@@ -20,6 +20,7 @@ from ..pdf.hk_facts import extract as extract_hk_facts
 from ..types import Currency, DividendEvent, FetchIssue, Money, StockCode
 from .extras import render_extras
 from .format import TEMPLATE_DIR, _m, _num, _pct, _ratio_pct, _table, _x
+from .market import render_market
 from .pdf_facts import apply_document_facts
 from .snapshot_id import source_snapshot_id
 
@@ -75,6 +76,7 @@ def render_data_pack(
     snapshot_id: str | None = None,
     document_facts: list[dict[str, object]] | None = None,
     fundamental_extras: Mapping[str, Any] | None = None,
+    market_extras: Mapping[str, Any] | None = None,
 ) -> str:
     rows = apply_document_facts(list(rows), document_facts)
     decisions = decisions or {}
@@ -746,6 +748,11 @@ def render_data_pack(
             ["项目", "数值", "单位", "页码"], fact_rows
         )
     extras_md = render_extras(fundamental_extras)
+    next_section = 17
     if extras_md:
-        text += "\n\n## 17. 补充基本面（Tushare）\n\n" + extras_md
+        text += f"\n\n## {next_section}. 补充基本面（Tushare）\n\n" + extras_md
+        next_section += 1
+    market_md = render_market(market_extras)
+    if market_md:
+        text += f"\n\n## {next_section}. 市场与宏观（Tushare）\n\n" + market_md
     return text

@@ -282,6 +282,7 @@ class ReportManifest:
     pdf_fact_hash: str = ""
     pdf_fact_hash_version: int = 0
     extras_hash: str = ""
+    market_hash: str = ""
     research_hash: str = ""
     research_audit_hash: str = ""
     template_hash: str = ""
@@ -310,6 +311,7 @@ class ReportManifest:
             "pdf_fact_hash": self.pdf_fact_hash,
             "pdf_fact_hash_version": self.pdf_fact_hash_version,
             "extras_hash": self.extras_hash,
+            "market_hash": self.market_hash,
             "research_hash": self.research_hash,
             "template_hash": self.template_hash,
             "engine_version": self.engine_version,
@@ -328,7 +330,8 @@ class ReportManifest:
             {
                 "snapshot_id": self.snapshot_id,
                 "source_id": self.source_id,
-                "research_audit_hash": self.research_audit_hash,                "report_hash": self.report_hash,
+                "research_audit_hash": self.research_audit_hash,
+                "report_hash": self.report_hash,
                 "metrics_hash": self.metrics_hash,
                 "resolved_hash": self.resolved_hash,
                 "numeric_coverage": self.numeric_coverage,
@@ -352,6 +355,7 @@ class ReportManifest:
             pdf_fact_hash=str(payload.get("pdf_fact_hash", "")),
             pdf_fact_hash_version=int(payload.get("pdf_fact_hash_version", 0)),
             extras_hash=str(payload.get("extras_hash", "")),
+            market_hash=str(payload.get("market_hash", "")),
             research_hash=str(payload.get("research_hash", "")),
             research_audit_hash=str(payload.get("research_audit_hash", "")),
             template_hash=str(payload.get("template_hash", "")),

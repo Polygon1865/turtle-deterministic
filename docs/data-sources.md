@@ -106,8 +106,35 @@ Tushare endpoint
 - 只做交叉核对与前瞻提示，**不进入 `StatementRow`，不改变确定性财务指标**；
 - 预告/快报未经审计，不覆盖正式报表；
 - 空响应进 `missing`，权限/网络失败进 `FetchIssue`，不做零填充；
-- 申万分类用于选择行业模板；peer 表仍是模板内固定 peer，动态全市场同行筛选尚未接入；
-- `report_rc`、宏观、公告/新闻/研报、资金流仍属 P1，未接入。
+- 申万分类用于选择行业模板；动态 peer 已接入，按申万一级、总市值取前 8；
+- `report_rc`、宏观、公告/新闻、资金流/两融/涨跌停、指数估值/成分已接入 `market_extras`；公告/新闻需单独权限，缺失时显式标记。
+- HK/US 的机构股东优先取 Yahoo Finance `institutional_holders`；Tushare 无对应标准接口，失败时标记 missing。
+
+## 市场、宏观与治理（2026-10 接入）
+
+这些数据走 `TushareProvider.market_extras()`，只进入报告“市场与宏观”章节和
+data pack 同名附录，**不进入 `StatementRow`，不改变确定性估值**。报告与 data pack
+共用 `src/turtlefw/report/market.py`，快照通过 `ReportManifest.market_hash` 固化
+原始 payload。
+
+| 市场 | 数据 | 接口 | 单位/口径 |
+|:--|:--|:--|:--|
+| A 股 | 卖方盈利预测 | `report_rc` | `op_rt`/`np` 万元→元；试用 10 次/日 |
+| A 股 | 个股资金流 | `moneyflow` | 大单+特大单净额，万元→元 |
+| A 股 | 融资融券 | `margin_detail` | 元 |
+| A 股 | 涨跌停价格 | `stk_limit` | 元 |
+| A 股 | 指数估值 | `index_dailybasic(000300.SH)` | PE/PB 及 3 年分位 |
+| A 股 | 指数成分权重 | `index_weight(000300.SH)` | 权重为百分点 |
+| A 股 | 宏观 | `cn_cpi`、`cn_ppi`、`cn_gdp`、`cn_pmi`、`shibor`、`shibor_lpr` | 百分比为百分点；GDP 亿元 |
+| A 股 | 公告/新闻 | `anns_d`、`news` | 需单独公告/新闻权限；缺失标记 missing |
+| HK/US | 机构股东 | Yahoo Finance `institutional_holders` | 第三方数据；失败标记 missing |
+
+动态 peer：`peer_candidates()` 用 `index_member_all` 定位申万一级，再按
+`daily_basic.total_mv` 取前 8；`industry.render_section()` 优先展示动态 peer，
+静态模板 peer 只在没有分类数据时保留。
+
+已知边界：`report_rc` 为供应商预测，未经审计；`anns_d`/`news` 在本账号无权限；
+Yahoo 机构股东可能延迟或为空；这些值均不参与估值。
 
 ## 关键参考
 

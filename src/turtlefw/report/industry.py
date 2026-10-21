@@ -142,11 +142,28 @@ def render_section(
     template = template_for(code, industry_name)
     if template is None:
         if industry_name.strip():
+            dynamic = ""
+            if peer_metrics:
+                dynamic = "\n\n**Peer 财务对比**\n\n" + _table(
+                    ["公司", "代码", "营收 CAGR", "净利率", "ROE"],
+                    [
+                        [
+                            str(row.get("name", "")),
+                            str(row.get("code", "")),
+                            str(row.get("revenue_cagr", "—")),
+                            str(row.get("net_margin", "—")),
+                            str(row.get("roe", "—")),
+                        ]
+                        for row in peer_metrics
+                    ],
+                    ["l", "l", "r", "r", "r"],
+                )
             return (
                 "## 行业分类\n\n"
                 f"- 申万一级：{industry_name.strip()}\n"
                 "- 采用模板：暂无专用模板\n"
-                "- 来源：`tushare:index_member_all`\n\n"
+                "- 来源：`tushare:index_member_all`"
+                f"{dynamic}\n\n"
                 "> 财务指标仍按通用框架展示；不为该行业填充未经核实的 KPI。"
             )
         return ""
@@ -156,7 +173,14 @@ def render_section(
             rows.append([spec.label, ledger.display(spec.metric_id), "可用"])
         else:
             rows.append([spec.label, "—", spec.note or "数据未取得"])
-    peer_rows = [[peer.name, peer.code, peer.market or "—"] for peer in template.peers]
+    peer_rows = (
+        [
+            [str(row.get("name", "")), str(row.get("code", "")), "A"]
+            for row in peer_metrics
+        ]
+        if peer_metrics
+        else [[peer.name, peer.code, peer.market or "—"] for peer in template.peers]
+    )
     financial = ""
     if peer_metrics:
         financial = "\n\n**Peer 财务对比**\n\n" + _table(

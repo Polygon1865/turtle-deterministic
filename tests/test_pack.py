@@ -55,6 +55,50 @@ class TestDataPack:
         assert "### 财务指标（Tushare）" in text
         assert "不进入 StatementRow" in text
 
+    def test_market_section_follows_supplemental_section(self):
+        text = render_data_pack(
+            demo.DEMO_CODE,
+            demo.demo_rows(),
+            demo.demo_dividends(),
+            quote={"trade_date": "20261016", "close": 28.2},
+            history=[{"trade_date": "20261016", "close": 28.2}],
+            market_cap=Money(demo.DEMO_MARKET_CAP, Currency.CNY),
+            shares=demo.DEMO_SHARES,
+            rf_pct=demo.DEMO_RF,
+            settings=load_settings(),
+            fundamental_extras={
+                "financial_indicators": [{"period_end": "2024-12-31", "roe": "20.5"}],
+                "sources": ["tushare:fina_indicator"],
+            },
+            market_extras={
+                "research": [
+                    {"report_date": "2026-08-20", "org": "示例证券", "net_profit": 1}
+                ],
+                "sources": ["tushare:report_rc"],
+            },
+        )
+        assert "## 17. 补充基本面（Tushare）" in text
+        assert "## 18. 市场与宏观（Tushare）" in text
+        assert "### 卖方盈利预测" in text
+
+    def test_market_section_without_supplemental_starts_at_17(self):
+        text = render_data_pack(
+            demo.DEMO_CODE,
+            demo.demo_rows(),
+            demo.demo_dividends(),
+            quote={"trade_date": "20261016", "close": 28.2},
+            history=[{"trade_date": "20261016", "close": 28.2}],
+            market_cap=Money(demo.DEMO_MARKET_CAP, Currency.CNY),
+            shares=demo.DEMO_SHARES,
+            rf_pct=demo.DEMO_RF,
+            settings=load_settings(),
+            market_extras={
+                "research": [{"report_date": "2026-08-20", "org": "示例证券"}],
+                "sources": ["tushare:report_rc"],
+            },
+        )
+        assert "## 17. 市场与宏观（Tushare）" in text
+
     def test_sections_present(self):
         text = render()
         for heading in (

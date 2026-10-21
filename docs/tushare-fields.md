@@ -19,7 +19,8 @@
 | 港股三大报表 | 可用（line-item） | 缺毛利现金收付明细，只能做“间接现金桥” |
 | 港股/美股财务指标 | 可用（`hk_fina_indicator` / `us_fina_indicator`） | 仅作交叉核对，不覆盖三表 |
 | 补充基本面 | A 股 13 个接口已接入 | 指标、预告/快报/披露、公司、管理层、股东、申万分类 |
-| A 股申万分类 | 可用（`index_classify` + `index_member_all`） | 用于选择行业模板；同行表仍为模板内固定 peer |
+| 市场/宏观 | A 股 8 类 + 宏观 6 项已接入 | `market_extras`；卖方预期、资金流、两融、涨跌停、指数、公告/新闻 |
+| A 股申万分类 | 可用（`index_classify` + `index_member_all`） | 用于选择行业模板；动态 peer 按申万一级+总市值 |
 | 港股 D&A | 已修正为 `加:折旧及摊销` | G 网格不再因缺 D&A 回退 |
 | 港股 DPS | 可用但可能重复 | 重复时标记不可靠，股息隐含价跳过 |
 | `hk_daily` | 限频 1 次/小时 | 行情优先 yfinance，失败才回退 |
@@ -134,7 +135,7 @@
 
 实现位置：
 
-- `src/turtlefw/data/tushare_provider.py`（schema `turtle-8`）
+- `src/turtlefw/data/tushare_provider.py`（schema `turtle-9`）
 - `src/turtlefw/data/extras.py`（标准化）
 - `src/turtlefw/report/extras.py`（报告/data pack 共用渲染）
 - `src/turtlefw/report/snapshot.py`（`ReportInputs.fundamental_extras`、`industry_name`、`extras_hash` 校验）
@@ -143,8 +144,37 @@
 
 - 预告/快报未经审计，不覆盖正式报表；报告中明确标注。
 - 财务指标是供应商口径，季度/中报未年化。
-- 申万分类只决定行业模板；当前 peer 表仍是模板内固定 peer，不做全市场动态筛选。
+- 申万分类决定行业模板；动态 peer 已接入，按申万一级、总市值取前 8。
 - A 股接口多需约 2000 积分；`stock_company` 门槛较低。实际权限以账号为准。
+
+## 市场、宏观与治理（2026-10-21 接入）
+
+这些数据走 `TushareProvider.market_extras()`，只进入报告/data pack 的
+“市场与宏观”章节，**不进入 `StatementRow`，不改变估值**。数值单位在
+`data/market_extras.py` 统一：金额为元，百分比为百分点。
+
+| 数据 | 接口 | 标准化 | 单位/口径 |
+|:--|:--|:--|:--|
+| 卖方盈利预测 | `report_rc` | `normalize_research` | `op_rt`/`np` 万元→元；取最新 8 条；试用 10 次/日 |
+| 个股资金流 | `moneyflow` | `normalize_moneyflow` | 大单+特大单净额，万元→元；最新 5 日 |
+| 融资融券 | `margin_detail` | `normalize_margin` | 元；最新 5 日 |
+| 涨跌停价格 | `stk_limit` | `normalize_limits` | 元；最新 3 日 |
+| 指数估值 | `index_dailybasic` | `normalize_index_valuation` | 沪深300 PE/PB + 3 年分位 |
+| 指数成分 | `index_weight` | `normalize_index_weights` | 权重为百分点；前 10 |
+| 宏观 | `cn_cpi`/`cn_ppi`/`cn_gdp`/`cn_pmi`/`shibor`/`shibor_lpr` | `normalize_macro` | 指标各 2 期；GDP 亿元；PMI 用 `pmi010000` |
+| 公告/新闻 | `anns_d`/`news` | `normalize_announcements`/`normalize_news` | 本账号无权限时 `missing` |
+| HK/US 机构股东 | Yahoo `institutional_holders` | `normalize_governance` | 第三方数据；失败 `missing` |
+
+动态 peer：`peer_candidates()` 先按 `index_member_all` 找申万一级，再用
+`daily_basic.total_mv` 取前 8；报告优先展示动态 peers，静态模板只作无分类时回退。
+快照新增 `ReportManifest.market_hash`，`verify_manifest` 会校验原始 payload。
+
+边界：
+
+- `report_rc` 是卖方预测，不是公司指引；不覆盖正式报表。
+- `anns_d` 与 `news` 需要单独公告/新闻权限，当前账号无权限；不伪造。
+- 资金流/两融/涨跌停只作背景，不进入确定性估值。
+- 宏观数据与个股无直接映射，不能据此调整折现率。
 
 ## 港股字段（line-item）
 
@@ -222,4 +252,4 @@ for endpoint, fields in [
 - 补充基本面标准化：[extras.py](../src/turtlefw/data/extras.py)
 - 补充基本面渲染：[report/extras.py](../src/turtlefw/report/extras.py)
 - 现金桥：[cashflow.py](../src/turtlefw/metrics/cashflow.py)
-- 缓存 schema：`TushareProvider.SCHEMA_VERSION = "turtle-8"`；升级字段后需换版本避免旧缓存。
+- 缓存 schema：`TushareProvider.SCHEMA_VERSION = "turtle-9"`；升级字段后需换版本避免旧缓存。
