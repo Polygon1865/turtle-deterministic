@@ -561,6 +561,20 @@ Nightly live smoke 见 [.github/workflows/nightly.yml](.github/workflows/nightly
 
 ---
 
+## 参考与来源
+
+本项目是确定性实现，不绑定任何单一研报或卖方模型。主要参考来源：
+
+- **Tushare Pro 接口文档**：<https://tushare.pro/document/2>；字段与权限边界见 [docs/tushare-fields.md](docs/tushare-fields.md) 和 [docs/data-sources.md](docs/data-sources.md)。
+- **官方披露**：上交所、深交所、巨潮资讯、HKEXnews、SEC EDGAR 的年度报告/公告；样例 PDF 只用于本地验证，不随仓库分发。
+- **行情与股东数据**：Yahoo Finance（`yfinance`）；港股/美股治理字段的来源和缺口见 [docs/data-sources.md](docs/data-sources.md)。
+- **v2 参照**：内部 v2.1-beta 快照 `c61419c`（2026-07-04），仅用于功能对照，不是运行时依赖，也不随仓库分发；差异讨论见 [docs/upstream-v2-vs-local.md](docs/upstream-v2-vs-local.md)。
+- **项目设计约束**：[target-architecture.md](docs/target-architecture.md)、[research-layer.md](docs/research-layer.md)、[pdf-first-deep-context.md](docs/pdf-first-deep-context.md)、[snapshot-byte-identical.md](docs/snapshot-byte-identical.md)。
+
+> 参考来源用于解释口径和边界；报告中的数字仍只由本项目的确定性管线或明确标注的 vendor context 提供。
+
+---
+
 ## License
 
 [MIT](LICENSE) © 2026 Polygon1865
