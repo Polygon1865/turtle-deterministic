@@ -12,17 +12,21 @@ $env:TURTLE_LLM_BASE_URL = "https://api.deepseek.com"
 $env:TURTLE_LLM_MODEL = "deepseek-flash"
 ```
 
-API 模型名以 DeepSeek 控制台/接口返回为准。当前接口接受：
+DeepSeek 官方“模型 & 价格”页当前只列两个 API 模型名：
 
-- `deepseek-flash`
-- `deepseek-v4-pro`
+| API 模型名 | 模型版本 | 说明 |
+|---|---|---|
+| `deepseek-flash` | DeepSeek-V4.1-Flash-1017 | 默认推荐；支持 JSON Output、1M 上下文 |
+| `deepseek-v4-pro` | DeepSeek-V4-Pro-0813 | 更高价格/更强模型；支持 JSON Output、1M 上下文 |
 
 控制台里的展示名（例如 `DeepSeek-V4.1-Flash1017`）不是 API 的 `model` 值；
-传展示名会返回 `400 invalid_request_error`。`src/turtlefw/agent/llm.py` 现在会
-把该错误响应体带进 `AgentError`，不再只显示 `HTTP 400`。
+传展示名会返回 `400 invalid_request_error`。官方说明：旧名
+`deepseek-v4-flash`、`deepseek-v4-flash-vision-exp` 仍可调用，但对应模型已下线，
+请求由 `DeepSeek-V4.1-Flash-1017` 提供服务并按 Flash 计费。
 
-`deepseek-chat` / `deepseek-reasoner` 是其他部署/版本的别名，是否可用取决于
-账号；接入前先用一次最小请求验证：
+官方当前页面未把 `deepseek-chat` / `deepseek-reasoner` 列为主模型名，不要把它们
+当作当前默认值；以 [模型 & 价格](https://api-docs.deepseek.com/zh-cn/quick_start/pricing/)
+为准。接入前可先用一次最小请求验证：
 
 ```powershell
 .\.venv\Scripts\python.exe -c "from turtlefw.agent.llm import OpenAICompatibleLLM; print(OpenAICompatibleLLM(base_url='https://api.deepseek.com', model='deepseek-flash', api_key='...').complete('Return only a JSON object.', {'ping': 'pong'}))"
