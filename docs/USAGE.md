@@ -1,6 +1,6 @@
 # Turtle Framework 使用说明
 
-> 当前审查基线：`480 passed`。本文按当前 CLI 实测编写，命令使用
+> 当前审查基线：`481 passed`。本文按当前 CLI 实测编写，命令使用
 > `.\.venv\Scripts\python.exe -m turtlefw.cli`，避免依赖 PATH 里的 `turtle`。
 
 ## 1. 这个项目做什么
@@ -343,6 +343,8 @@ SOTP 参考用 `--sotp sotp.json` 显式输入：
 `base` 是报表币种**基本单位**（不是百万元），`cash/debt` 同单位，`shares`
 可省略（默认用行情股本）。缺失或非正的分部会列入“跳过”，不加总、不伪造；
 SOTP 仅作参考，不进入综合加权。
+`--as-of 2025-06-30 --pit` 会先按公告日/PIT 快照过滤财务，再按 `--ttm` 构造
+滚动年度行；行情/市值仍用最新，报告会明示这一边界。
 
 ---
 
@@ -864,7 +866,7 @@ research-audit --metrics ... --facts ...
 当前基线：
 
 ```text
-480 tests passed
+481 tests passed
 ```
 
 CI：

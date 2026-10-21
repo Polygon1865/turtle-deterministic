@@ -256,6 +256,7 @@ turtle valuation 600887.SH
 `valuation --ttm` 用中报/季报滚动年度行；A 股另给出申万一级前 8 的 PE/PB
 中位数参考（仅交叉参考，不进入综合加权）。`--beta/--erp` 可覆盖 WACC 假设，
 `--sotp sotp.json` 用显式分部倍数做参考估值（缺失分部可见、不伪造）。
+`--as-of 2025-06-30 --pit` 可按历史财务快照估值，行情仍用最新。
 
 ### 港股
 
@@ -517,7 +518,7 @@ src/turtlefw/
 当前基线：
 
 ```text
-480 tests passed
+481 tests passed
 ```
 
 CI：pytest + selected ruff + selected mypy，见

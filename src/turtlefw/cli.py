@@ -1052,6 +1052,8 @@ def _valuation(
     beta: float | None = None,
     erp: float | None = None,
     sotp_path: str | None = None,
+    as_of: str | None = None,
+    pit: bool = False,
 ) -> int:
     """Deterministic DCF/DDM/PE-band/PEG/PS valuation snapshot."""
     from .data.tushare_provider import TushareProvider
@@ -1067,6 +1069,36 @@ def _valuation(
     if not rows:
         print("未取到报表数据。", file=sys.stderr)
         return 2
+    if pit and not as_of:
+        print("--pit 必须与 --as-of 一起使用", file=sys.stderr)
+        return 2
+    pit_note = ""
+    if as_of:
+        try:
+            cutoff = date.fromisoformat(as_of)
+        except ValueError:
+            print(f"无效 --as-of：{as_of}", file=sys.stderr)
+            return 2
+        if pit:
+            from .pit import PitError, PitStore
+
+            try:
+                selection = PitStore().load(str(code), cutoff)
+                rows = list(selection.rows)
+                pit_note = (
+                    f"PIT snapshot {selection.snapshot.snapshot_id[:12]} "
+                    f"known={selection.snapshot.knowledge_date}；行情/市值仍为最新"
+                )
+            except PitError as exc:
+                print(f"{exc}；回退公告日过滤", file=sys.stderr)
+                rows = statements.as_of_rows(rows, cutoff)
+                pit_note = "无 PIT snapshot，回退公告日过滤；行情/市值仍为最新"
+        else:
+            rows = statements.as_of_rows(rows, cutoff)
+            pit_note = "财务按公告日过滤；行情/市值仍为最新，非完整 PIT"
+        if not rows:
+            print(f"截至 {as_of} 没有可用报表。", file=sys.stderr)
+            return 2
     if ttm:
         transformed = statements.apply_ttm(rows)
         rows = transformed.rows
@@ -1287,6 +1319,8 @@ def _valuation(
         return "—" if value is None else f"{value:,.2f}"
 
     print(f"=== 估值快照：{code} ===")
+    if pit_note:
+        print(f"PIT：{pit_note}")
     print(f"报表币种 {unit.value} ｜ 当前价 {price:,.2f} ｜ 总市值 {market_cap / Decimal('1000000'):,.2f} 百万元")
     print(f"Rf {rf_value:.2f}%（{rf_src}）｜ WACC {wacc_pct:.2f}% ｜ β {beta_value} ｜ ERP {erp_pct}% ｜ 税率 {tax_pct}%")
     print(f"公司类型 {profile} ｜ ROE5y {show(roe_5y)}% ｜ 支付率3y {show(payout_3y)}% ｜ 营收CAGR {show(rev_growth * 100 if rev_growth is not None else None)}%")
@@ -3510,6 +3544,8 @@ def build_parser() -> argparse.ArgumentParser:
     val.add_argument("--beta", type=float, default=None, help="覆盖公司 β（默认按市值档）")
     val.add_argument("--erp", type=float, default=None, help="覆盖股权风险溢价 ERP（%%）")
     val.add_argument("--sotp", default=None, help="SOTP 分部估值 JSON 文件（外部输入，参考）")
+    val.add_argument("--as-of", default=None, help="按公告日过滤财务（YYYY-MM-DD）")
+    val.add_argument("--pit", action="store_true", help="使用本地 PIT snapshot；需配合 --as-of")
 
     qual = sub.add_parser("qualitative", help="生成/校验定性输入模板")
     qual.add_argument("code", help="股票代码")
@@ -3916,6 +3952,8 @@ def main(argv: list[str] | None = None) -> int:
                 args.beta,
                 args.erp,
                 args.sotp,
+                args.as_of,
+                args.pit,
             )
         if args.command == "qualitative":
             return _qualitative_cmd(args.code, args.init, args.check, args.out)

@@ -59,3 +59,12 @@ def test_valuation_parser_accepts_wacc_overrides():
     assert args.beta == 1.1
     assert args.erp == 5.5
 
+
+def test_valuation_parser_accepts_pit_and_ttm():
+    args = build_parser().parse_args(
+        ["valuation", "600887", "--as-of", "2025-06-30", "--pit", "--ttm"]
+    )
+    assert args.as_of == "2025-06-30"
+    assert args.pit is True
+    assert args.ttm is True
+
