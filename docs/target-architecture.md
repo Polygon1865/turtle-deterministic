@@ -280,21 +280,21 @@ Agent 只能调用白名单工具：
 - **DSH 输出根**：`TURTLE_OUTPUT_DIR` / `--output-dir`，受限沙箱可写 `.runs/`；
 - **本地 smoke**：`turtle smoke --codes 600887,00700.HK,AAPL`，检查取数/report/snapshot/manifest；
 - **manifest 校验**：`report --snapshot` 校验 facts/config/research/template/report hash；
-- **测试**：`tests/conftest.py` 提供沙箱可写临时目录，418 收集 / 418 通过 / 0 setup error；
+- **测试**：`tests/conftest.py` 提供沙箱可写临时目录，446 收集 / 446 通过 / 0 setup error；
 - **00700 已知差异**：收入 1.09% 解释为 Others 8,077，分区 4/7 是报告结构差异，见 `docs/00700-known-differences.md`。
 
 尚未完成：
 
-- **ResearchDocument v2**：D1–D6 claims + `params`（研究参数）+ `decisions`（G/M/AA/税档候选选择）；claim 只允许 `{{metric:id}}` / `{{fact:id}}`，不写裸数字；fact 来自 PDF `document_facts`；
-- **全量 numeric guard**：`report --save-snapshot` 自动运行 numeric-audit，写入 `numeric_audit.json`、`numeric_hash`、`numeric_sources`；`qa` 校 hash 并**重算** coverage/unknown，不信任 manifest 摘要；600887/00700 达到 100%；
-- **Agent phase runner**：`agent --command phase=cmd` 按 data/document/research/compose/audit 执行命令、校验 artifact、写 `.agent/*.log` 与 `agent_state.json`；无命令阶段只校验，不伪造 research；
-- 数据包附注文本/表格摘要不进入数字 ledger（只做证据展示）；
-- 少数叙述（质押/价值陷阱）未走 registry；
-- 完整 vendor PIT/重述历史（本地 snapshot/backfill 已实现，但不是 vendor vintage）；
-- D1–D6 仍由人工/外部 Agent 产出 `research.json`；fake-LLM 契约已有，真实模型适配未接；
-- 更多港股版式的股东/分部语义回归；
-- 真实 LLM 编排器、live CI、golden set；
-- clean-room 已复刻 owner earnings/cash bridge，00700/600887 与 ledger 差异在舍入范围内；
+- **strict numeric 默认**：`report --save-snapshot` 默认 audit 仍把 `inputs.json` 列入 numeric source，但同时打印排除它的 strict view；`--strict-numeric` 才把 strict 结果作为失败门禁。peer 财务已进 data pack/metric ledger，600887 的默认与 strict view 均为 100%；evidence/治理原始值的来源分类仍待收紧；
+- **vendor context 来源契约**：Tushare/Yahoo 补充基本面、市场、治理是第三类来源，必须同时出现在 data pack，不进入 StatementRow/估值；numeric audit 仍是文本 token 匹配，未按 source class 校验；
+- **附注与叙述**：数据包附注文本/表格摘要仍只做证据展示，不进数字 ledger；少数叙述（质押/价值陷阱）未走 registry；
+- **PDF-first 深读**：当前 7 个附注节选、每节 12k 字符、quote 320 字符；不是 v2 的整本 1M context + 38 参数；
+- **数据覆盖**：US/HK 股东、分部、母公司报表与 vendor PIT；US PIT 缺失；
+- **估值扩展**：peer comps、SOTP、公司特定 WACC/β/ERP；
+- **Agent 自动化**：真实 LLM 编排、live CI、golden set；fake-LLM 契约已有；
+- **报告/运维**：图表/PDF 导出、TTL `--refresh-market`、全量附注结构化。
+
+已落地但曾被本文误列为“尚未完成”的项：ResearchDocument v2、report 自动 numeric guard、Agent phase runner；对应实现见上文 268–282 行。
 
 ### 本轮 review 修正
 

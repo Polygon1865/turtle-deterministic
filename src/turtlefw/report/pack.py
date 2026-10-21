@@ -77,6 +77,7 @@ def render_data_pack(
     document_facts: list[dict[str, object]] | None = None,
     fundamental_extras: Mapping[str, Any] | None = None,
     market_extras: Mapping[str, Any] | None = None,
+    industry_peers: Sequence[Mapping[str, object]] | None = None,
 ) -> str:
     rows = apply_document_facts(list(rows), document_facts)
     decisions = decisions or {}
@@ -625,6 +626,40 @@ def render_data_pack(
         ]
         for index, row in enumerate((main_business or [])[:12])
     ]
+    for index, row in enumerate((industry_peers or [])[:10]):
+        for key, label in (
+            ("revenue_cagr", "营收 CAGR"),
+            ("net_margin", "净利率"),
+            ("roe", "ROE"),
+        ):
+            display = str(row.get(key, "—"))
+            raw_peer = display.removesuffix("%").replace(",", "")
+            try:
+                numeric = (
+                    Decimal(raw_peer) if raw_peer not in ("", "—", "nan") else None
+                )
+            except (ArithmeticError, ValueError):
+                numeric = None
+            add_metric(
+                f"peer.{index}.{key}",
+                f"Peer {index} {label}",
+                numeric,
+                display,
+                unit="%",
+                formula=f"peer.{key}",
+            )
+    peer_rows = [
+        [
+            str(row.get("name", "")),
+            str(row.get("code", "")),
+            pack_ledger.display(f"peer.{index}.revenue_cagr"),
+            pack_ledger.display(f"peer.{index}.net_margin"),
+            pack_ledger.display(f"peer.{index}.roe"),
+            str(row.get("period", "—")) or "—",
+            str(row.get("source", "")),
+        ]
+        for index, row in enumerate((industry_peers or [])[:10])
+    ]
     footnote_rows: list[list[str]] = []
     if footnotes:
         for section_id in ("P2", "P3", "P4", "P6", "P13", "SUB"):
@@ -707,6 +742,12 @@ def render_data_pack(
             ["l", "r", "r"],
         ),
         "mainbz_available": bool(mainbz_rows),
+        "peer_table": _table(
+            ["公司", "代码", "营收 CAGR", "净利率", "ROE", "报告期", "来源"],
+            peer_rows,
+            ["l", "l", "r", "r", "r", "l", "l"],
+        ),
+        "peer_available": bool(peer_rows),
         "footnote_table": _table(
             ["章节/页", "表头", "首行"], footnote_rows, ["l", "l", "l"]
         ),

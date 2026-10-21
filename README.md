@@ -37,7 +37,7 @@ Turtle Framework 把链路拆开：
 
 ### 三条硬规则
 
-1. **报告数字只能来自 Python 指标或 PDF/SEC fact。**
+1. **报告数字只能来自 Python 指标、PDF/SEC fact，或明确标注的 vendor context。** vendor context（Tushare/Yahoo 补充基本面、市场、治理）必须同时出现在 data pack，不进入 `StatementRow` 或估值，也不伪装成 metric/fact。
 2. **LLM/DSH 只写 `research.json`，默认不改变数字；只有显式 `--allow-research-decisions` 才可从预计算 candidates 选择，且必须带 evidence。**
 3. **同一 snapshot 离线重渲染必须逐字节一致。**
 
@@ -496,7 +496,7 @@ src/turtlefw/
 当前基线：
 
 ```text
-418 tests passed
+446 tests passed
 ```
 
 CI：pytest + selected ruff + selected mypy，见

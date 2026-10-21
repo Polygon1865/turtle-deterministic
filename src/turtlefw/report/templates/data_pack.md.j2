@@ -78,7 +78,13 @@
 
 {{ mainbz_table }}
 {% endif %}
-{% if not holders_available and not mainbz_available %}未接入股东/主营数据。{% endif %}
+{% if peer_available %}**行业 peer 财务对比（申万一级，按总市值前 8）**
+
+{{ peer_table }}
+
+> Peer 数字由 Tushare 三表按确定性公式计算，仅用于可比公司背景，不进入目标公司估值。
+{% endif %}
+{% if not holders_available and not mainbz_available and not peer_available %}未接入股东/主营数据。{% endif %}
 
 {% if hk_facts_note %}> HK PDF 语义：{{ hk_facts_note }}{% endif %}
 

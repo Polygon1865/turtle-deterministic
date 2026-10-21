@@ -120,6 +120,7 @@ def finalize_research(
                 document_facts=inputs.document_facts,
                 fundamental_extras=inputs.fundamental_extras,
                 market_extras=inputs.market_extras,
+                industry_peers=inputs.industry_peers,
             ),
             encoding="utf-8",
         )

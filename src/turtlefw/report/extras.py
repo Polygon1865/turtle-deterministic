@@ -383,7 +383,7 @@ def render_extras(extras: Mapping[str, Any] | None) -> str:
     if missing:
         footer.append("未取得：" + "、".join(f"`{item}`" for item in missing))
     footer.append(
-        "> 以上为 Tushare 补充基本面，仅用于交叉核对与前瞻提示；"
+        "> 以上为 Tushare 补充基本面（vendor context），仅用于交叉核对与前瞻提示；"
         "不进入 StatementRow，不改变确定性指标。"
     )
     return "\n\n".join(sections + ["\n\n".join(footer)])

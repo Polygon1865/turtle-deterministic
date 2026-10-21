@@ -136,6 +136,16 @@ data pack 同名附录，**不进入 `StatementRow`，不改变确定性估值**
 已知边界：`report_rc` 为供应商预测，未经审计；`anns_d`/`news` 在本账号无权限；
 Yahoo 机构股东可能延迟或为空；这些值均不参与估值。
 
+## 来源分类契约
+
+报告数字只允许三类来源：
+
+1. **metric**：Python `Decimal` 指标，带 `MetricPoint`/`MetricRegistry` id；
+2. **fact**：PDF/SEC `DocumentFact`，带文档 hash、页码/标签；
+3. **vendor context**：Tushare/Yahoo 补充基本面、市场、治理。必须同时出现在 data pack，带 `source`/`missing` 标注；不进入 `StatementRow`、不改变估值、不伪装成 metric/fact。
+
+`numeric-audit --strict` 排除 `inputs.json` 原始值；默认 audit 仍保留它做兼容，但同时打印 strict view，因此默认 `coverage=1.0` 不再被当作 strict 100%。peer 财务已进入 data pack 与 `peer.*` MetricPoint，600887 的默认与 strict view 均为 100%；evidence/治理原始值仍需按上述三类来源继续分类。
+
 ## 关键参考
 
 - [v2 README](https://github.com/terancejiang/Turtle_investment_framework/blob/c61419c9fb5458595c0e44458ea5798dab501d92/README.md)

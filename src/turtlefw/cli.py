@@ -434,6 +434,12 @@ def _peer_metrics_for_inputs(provider: Any, inputs: Any) -> list[dict[str, objec
             {
                 "name": peer_name,
                 "code": peer_code,
+                "period": str(latest) if latest is not None else "",
+                "source": (
+                    "snapshot:rows"
+                    if peer_code == str(inputs.code)
+                    else "tushare:income+balancesheet"
+                ),
                 "revenue_cagr": f"{cagr * 100:.2f}%" if cagr is not None else "—",
                 "net_margin": f"{net_margin:.2f}%" if net_margin is not None else "—",
                 "roe": f"{roe:.2f}%" if roe is not None else "—",
@@ -2685,6 +2691,7 @@ def _report(
                 document_facts=inputs.document_facts,
                 fundamental_extras=inputs.fundamental_extras,
                 market_extras=inputs.market_extras,
+                industry_peers=inputs.industry_peers,
             )
             pack_path = Path(data_pack_out)
             pack_path.parent.mkdir(parents=True, exist_ok=True)
@@ -2779,6 +2786,18 @@ def _report(
             strict=strict_numeric,
         )
         numeric["sources"] = list(numeric_sources)
+        if not strict_numeric:
+            strict_sources = [
+                source
+                for source in source_paths
+                if source.name != "inputs.json" and source.is_file()
+            ]
+            if strict_sources:
+                strict_view = numeric_audit(path, strict_sources, strict=True)
+                numeric["strict_coverage"] = strict_view["coverage"]
+                numeric["strict_unknown"] = strict_view["unknown"]
+                numeric["strict_status"] = strict_view["status"]
+                numeric["strict_sources"] = [source.name for source in strict_sources]
         numeric_path = snapshot_root / "numeric_audit.json"
         numeric_path.write_bytes(
             (json.dumps(numeric, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
@@ -2824,6 +2843,12 @@ def _report(
             f"numeric coverage: {numeric['coverage']:.4f} ｜ "
             f"{numeric['status']} ｜ unknown={len(numeric['unknown'])}"
         )
+        if not strict_numeric and "strict_coverage" in numeric:
+            print(
+                f"strict view (no inputs.json): {numeric['strict_coverage']:.4f} ｜ "
+                f"{numeric['strict_status']} ｜ "
+                f"unknown={len(numeric['strict_unknown'])}"
+            )
         if strict_numeric and numeric["status"] != "pass":
             gate_failed = True
             print("strict numeric gate 未通过", file=sys.stderr)
@@ -3118,7 +3143,7 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument(
         "--strict-numeric",
         action="store_true",
-        help="numeric audit 不允许 inputs.json 原始值兜底；失败返回 1",
+        help="numeric audit 排除 inputs.json 原始值并在未通过时返回 1；默认同时打印 strict view",
     )
 
     val = sub.add_parser("valuation", help="DCF/DDM/PE Band/PEG/PS 绝对估值")

@@ -111,7 +111,7 @@ def test_announcements_are_dated_and_render_has_footer() -> None:
     assert "季度报告" in text
     assert "tushare:report_rc" in text
     assert "未取得：news" in text
-    assert "不进入确定性估值" in text
+    assert "不进入 StatementRow 或确定性估值" in text
 
 
 def test_governance_percent_and_date() -> None:

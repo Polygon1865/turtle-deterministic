@@ -4,6 +4,7 @@ from decimal import Decimal
 from turtlefw import demo
 from turtlefw.config import load_settings
 from turtlefw.data.protocol import StatementRow
+from turtlefw.numeric_audit import audit
 from turtlefw.report.pack import render_data_pack
 from turtlefw.types import Currency, Money
 
@@ -26,6 +27,40 @@ def render() -> str:
 
 
 class TestDataPack:
+    def test_industry_peer_table_is_in_data_pack(self, tmp_path):
+        text = render_data_pack(
+            demo.DEMO_CODE,
+            demo.demo_rows(),
+            demo.demo_dividends(),
+            quote={"trade_date": "20261016", "close": 28.2},
+            history=[{"trade_date": "20261016", "close": 28.2}],
+            market_cap=Money(demo.DEMO_MARKET_CAP, Currency.CNY),
+            shares=demo.DEMO_SHARES,
+            rf_pct=demo.DEMO_RF,
+            settings=load_settings(),
+            industry_peers=[
+                {
+                    "name": "示例同行",
+                    "code": "600519.SH",
+                    "period": "2025-12-31",
+                    "source": "tushare:income+balancesheet",
+                    "revenue_cagr": "8.00%",
+                    "net_margin": "9.00%",
+                    "roe": "12.00%",
+                }
+            ],
+        )
+        assert "行业 peer 财务对比" in text
+        assert "示例同行" in text
+        assert "8.00%" in text
+        assert "tushare:income+balancesheet" in text
+
+        report = tmp_path / "report.md"
+        source = tmp_path / "data_pack.md"
+        report.write_text("| 示例同行 | 8.00% | 9.00% | 12.00% |", encoding="utf-8")
+        source.write_text(text, encoding="utf-8")
+        assert audit(report, [source], strict=True)["status"] == "pass"
+
     def test_supplemental_extras_section_is_appended(self):
         text = render_data_pack(
             demo.DEMO_CODE,

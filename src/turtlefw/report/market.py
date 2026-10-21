@@ -302,7 +302,7 @@ def render_market(extras: Mapping[str, Any] | None) -> str:
         footer.append("来源：" + "、".join(f"`{source}`" for source in sources))
     if missing:
         footer.append("未取得：" + "、".join(missing))
-    footer.append("市场数据仅作背景，不进入确定性估值。")
+    footer.append("市场数据仅作 vendor context 背景，不进入 StatementRow 或确定性估值。")
     return body + "\n\n" + "\n".join(f"> {line}" for line in footer)
 
 

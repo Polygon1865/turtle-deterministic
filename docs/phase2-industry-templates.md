@@ -13,7 +13,7 @@
 - 模板只声明 KPI 与 peer 范围，不写死数字；
 - 指标存在则用 `MetricRegistry.display` 渲染；
 - 指标缺失显示 `—` 并写原因；
-- Peer 表当前只定义范围，**不填 peer 财务数字**；
+- Peer 表在 A 股动态分类下填入经确定性公式计算的财务数字；静态模板或抓取失败时显示 `—`；
 - 不抓取/猜测未验证的行业数据。
 
 ## 已接入
@@ -26,9 +26,9 @@
 ## 未完成
 
 - 行业专属数据源（ARPU、MAU/DAU、渠道库存）；
-- 模板选择不靠硬编码代码列表，需接入 Tushare 行业分类；
+- 模板选择已接入 Tushare 申万分类（`index_classify` + `index_member_all`），静态模板保留 fallback；
 - 行业 KPI 的期间/币种统一；
-- HK peer 暂无结构化数据源。
+- HK/US peer 暂无结构化数据源。
 
 ## Peer 财务对比
 

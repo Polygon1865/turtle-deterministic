@@ -129,7 +129,7 @@
 .\.venv\Scripts\python.exe -m turtlefw.cli html --input "$env:TEMP\turtle-smoke\analysis_report.md"
 ```
 
-- 全量测试：**418 项收集，418 通过，0 失败，0 setup error**（`tests/conftest.py` 提供沙箱可写临时目录 fixture）。
+- 全量测试：**2026-10-19 基线为 418 项收集/418 通过；2026-10-21 当前基线为 446 项收集/446 通过，0 失败**（`tests/conftest.py` 提供沙箱可写临时目录 fixture）。
 - 600887 live smoke：数据包/报告均生成；R 4.52%、GG 5.13%、现金桥 7/7 年、质押率 6.29%、回购 O 588.95 百万元；报告结论"观察"，因子 4 与 Thesis Card 一致。
 - 00700.HK live smoke（`yfinance 1.7.0`）：当前价 418.38 CNY、52 周高 610.88、10 年低 152.40；底价 152.40、溢价 152.21%；港股指间接现金桥 6/7 年（2021 缺上年余额），AA 仍为 OCF−Capex。
 - **真实年报验证**：600887（259 页，cninfo）7/7 章节、6/6 数字、audit 无冲突；00700（282 页，HKEX）4/7 章节、6/6 数字，audit 仅营业收入差 1.09%（PDF 751,766 vs Tushare 743,689，差额为 Others 分部 8,077）。详见 [pdf-extraction-validation.md](pdf-extraction-validation.md)。
@@ -143,7 +143,7 @@
 - **PDF 附注全量抽取**：6 项审计数字 + 港股间接现金桥已自动抽取；附注表格/科目级（应收账款账龄、关联方、或有负债）仍是章节上下文，不做结构化抽取。
 - **港股现金桥**：港股没有毛利收现/付现明细；已接入 PDF 间接桥（净利润→D&A→营运资本→经营产生现金→税→OCF→Capex），但本质上不是直接法。
 - **Tushare 字段**：逐字段状态见 [tushare-fields.md](tushare-fields.md)；`c_paid_goods_srv`、`c_pay_oth_act` 本账号不返回，换账号需复测。
-- **美股**：按当前要求搁置，仍为 `NotImplementedError`；股东/主营/分部/母公司报表仅 A 股部分支持。
+- **美股**：yfinance/SEC 实验路径已接入（非 A 股主路径），但 US PIT、完整股东/分部/母公司语义仍缺；不再声称 `NotImplementedError`。
 - **clean-room/语义审计**：已实现独立子进程 runner，见 [cleanroom-ci-plan.md](cleanroom-ci-plan.md)；数值源审计、document hash 与独立 owner earnings/cash bridge 复刻已接入。
 - **估值假设**：DCF/DDM 的 ERP/β/终值增长仍是规则默认值，不是公司特定假设；输出中已明示。
 - **CI/黄金集**：`.github/workflows/ci.yml` 已加（离线 pytest + 核心 mypy），但未推送/启用；live smoke 与 `golden_set.csv` 评分未接。
