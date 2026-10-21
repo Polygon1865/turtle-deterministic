@@ -48,6 +48,7 @@ def build_manifest(
         pdf_fact_hash_version=1,
         extras_hash=content_hash(getattr(inputs, "fundamental_extras", {}) or {}),
         market_hash=content_hash(getattr(inputs, "market_extras", {}) or {}),
+        peers_hash=content_hash(getattr(inputs, "industry_peers", []) or []),
         research_hash=file_hash(research_file) if research_file.is_file() else "",
         research_audit_hash=research_audit_hash,
         template_hash=template_hash(

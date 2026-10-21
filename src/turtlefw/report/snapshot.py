@@ -327,6 +327,11 @@ def verify_manifest(
         manifest.market_hash or inputs.market_extras
     ) and actual_market != manifest.market_hash:
         errors.append("market_hash mismatch")
+    actual_peers = content_hash(inputs.industry_peers or [])
+    if (
+        manifest.peers_hash or inputs.industry_peers
+    ) and actual_peers != manifest.peers_hash:
+        errors.append("peers_hash mismatch")
     research_file = root / "research.json"
     actual_research = file_hash(research_file) if research_file.is_file() else ""
     if actual_research != manifest.research_hash:

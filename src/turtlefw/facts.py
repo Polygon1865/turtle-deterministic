@@ -283,6 +283,7 @@ class ReportManifest:
     pdf_fact_hash_version: int = 0
     extras_hash: str = ""
     market_hash: str = ""
+    peers_hash: str = ""
     research_hash: str = ""
     research_audit_hash: str = ""
     template_hash: str = ""
@@ -312,6 +313,7 @@ class ReportManifest:
             "pdf_fact_hash_version": self.pdf_fact_hash_version,
             "extras_hash": self.extras_hash,
             "market_hash": self.market_hash,
+            "peers_hash": self.peers_hash,
             "research_hash": self.research_hash,
             "template_hash": self.template_hash,
             "engine_version": self.engine_version,
@@ -356,6 +358,7 @@ class ReportManifest:
             pdf_fact_hash_version=int(payload.get("pdf_fact_hash_version", 0)),
             extras_hash=str(payload.get("extras_hash", "")),
             market_hash=str(payload.get("market_hash", "")),
+            peers_hash=str(payload.get("peers_hash", "")),
             research_hash=str(payload.get("research_hash", "")),
             research_audit_hash=str(payload.get("research_audit_hash", "")),
             template_hash=str(payload.get("template_hash", "")),

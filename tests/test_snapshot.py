@@ -509,16 +509,27 @@ def test_snapshot_carries_extras_and_manifest_hash(tmp_path):
         fundamental_extras=extras,
         industry_name="食品饮料",
         market_extras=market,
+        industry_peers=[
+            {
+                "code": "600519.SH",
+                "name": "贵州茅台",
+                "revenue_cagr_pct": "12.29",
+            }
+        ],
     )
     freeze(inputs, settings, tmp_path)
     loaded, _ = load(tmp_path)
     assert loaded.fundamental_extras == extras
     assert loaded.industry_name == "食品饮料"
     assert loaded.market_extras == market
+    assert loaded.industry_peers == inputs.industry_peers
 
     manifest = build_manifest(inputs, settings, tmp_path)
     assert manifest.extras_hash == content_hash(extras)
     assert manifest.market_hash == content_hash(market)
+    assert manifest.peers_hash == content_hash(inputs.industry_peers)
+    no_peers = build_manifest(replace(inputs, industry_peers=[]), settings, tmp_path)
+    assert no_peers.snapshot_id != manifest.snapshot_id
     assert verify_manifest(inputs, settings, "", manifest, tmp_path) == []
     bad = replace(manifest, extras_hash="bad")
     assert "extras_hash mismatch" in verify_manifest(
@@ -527,6 +538,10 @@ def test_snapshot_carries_extras_and_manifest_hash(tmp_path):
     bad_market = replace(manifest, market_hash="bad")
     assert "market_hash mismatch" in verify_manifest(
         inputs, settings, "", bad_market, tmp_path
+    )
+    bad_peers = replace(manifest, peers_hash="bad")
+    assert "peers_hash mismatch" in verify_manifest(
+        inputs, settings, "", bad_peers, tmp_path
     )
 
 

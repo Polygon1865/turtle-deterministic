@@ -106,7 +106,7 @@ Tushare endpoint
 - 只做交叉核对与前瞻提示，**不进入 `StatementRow`，不改变确定性财务指标**；
 - 预告/快报未经审计，不覆盖正式报表；
 - 空响应进 `missing`，权限/网络失败进 `FetchIssue`，不做零填充；
-- 申万分类用于选择行业模板；动态 peer 已接入，按申万一级、总市值取前 8；
+- 申万分类用于选择行业模板；动态 peer 已接入，按申万一级、总市值取前 8；peer 财务表进入 data pack 第 8 节，快照通过 `ReportManifest.peers_hash` 固化 `inputs.industry_peers`；
 - `report_rc`、宏观、公告/新闻、资金流/两融/涨跌停、指数估值/成分已接入 `market_extras`；公告/新闻需单独权限，缺失时显式标记。
 - HK/US 的机构股东优先取 Yahoo Finance `institutional_holders`；Tushare 无对应标准接口，失败时标记 missing。
 
