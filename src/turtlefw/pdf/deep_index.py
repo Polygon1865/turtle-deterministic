@@ -115,6 +115,11 @@ def _citation(document_hash: str, page: int) -> str:
     return f"pdf://{_short_hash(document_hash)}/p{page}"
 
 
+def pdf_citation(document_hash: str, page: int) -> str:
+    """Public citation helper shared with structured-note extraction."""
+    return _citation(document_hash, page)
+
+
 def _kind_for(title: str) -> str:
     lowered = title.lower()
     for kind, terms in _KNOWN_HEADINGS:

@@ -56,4 +56,5 @@ jobs:
             src/turtlefw/data/coverage.py \
             src/turtlefw/data/hkexnews.py \
             src/turtlefw/agent/research_prompt.py \
-            src/turtlefw/agent/llm.py
+            src/turtlefw/agent/llm.py \
+            src/turtlefw/live_smoke.py

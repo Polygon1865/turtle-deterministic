@@ -1,0 +1,52 @@
+name: Nightly live smoke
+
+on:
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+jobs:
+  live-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,pdf]"
+      - name: Detect Tushare secret
+        id: token
+        env:
+          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+        run: |
+          if [ -n "$TUSHARE_TOKEN" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "TUSHARE_TOKEN is not configured; live smoke will be skipped."
+          fi
+      - name: Live smoke
+        if: steps.token.outputs.ready == 'true'
+        env:
+          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+        run: |
+          python scripts/live_smoke.py \
+            --codes 600887.SH,000858.SZ,600519.SH \
+            --output-dir .runs/nightly \
+            --json-out .runs/nightly/summary.json
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-smoke
+          path: |
+            .runs/nightly/summary.json
+            .runs/nightly/*/qa.json
+            .runs/nightly/*/snapshot/manifest.json
+          if-no-files-found: ignore
+          retention-days: 14

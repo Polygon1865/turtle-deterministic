@@ -26,6 +26,7 @@ def test_research_prompt_covers_d1_to_d6():
     for dimension in ("D1", "D2", "D3", "D4", "D5", "D6"):
         assert dimension in ResearchAgent.SYSTEM
     assert "pdf_deep" in ResearchAgent.SYSTEM
+    assert "pdf_notes" in ResearchAgent.SYSTEM
     assert "pdf://" in ResearchAgent.SYSTEM
     assert "Never write a raw number" in ResearchAgent.SYSTEM
     assert "final report" not in ResearchAgent.SYSTEM.lower()

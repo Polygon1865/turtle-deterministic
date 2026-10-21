@@ -317,7 +317,11 @@ pdf:parent_company
 
 `pdf:parent_company` 只提供公司层面资产负债表的证据入口，不解析金额。
 
-`pdf-index` 还会生成页级 citation：`pdf://<sha16>/p<N>`。`research-context --pdf-index` 会把预算内的整本页面放进 `pdf_deep`，供研究层引用；规则与限制见 [PDF-first 深度链路](docs/pdf-first-deep-context.md)。
+`pdf-index` 还会生成页级 citation：`pdf://<sha16>/p<N>`，并写 companion
+`*.pdf_notes.json`（营收构成、研发、客户/供应商、受限资产、债务、关联交易、存货、
+应收账款等结构化表）。`research-context --pdf-index` 会把预算内的整本页面放进
+`pdf_deep`，把附注表放进 `pdf_notes`，供研究层引用；规则与限制见
+[PDF-first 深度链路](docs/pdf-first-deep-context.md)。
 
 ---
 
@@ -509,11 +513,13 @@ src/turtlefw/
 当前基线：
 
 ```text
-461 tests passed
+470 tests passed
 ```
 
 CI：pytest + selected ruff + selected mypy，见
 [.github/workflows/ci.yml](.github/workflows/ci.yml)。
+Nightly live smoke 见 [.github/workflows/nightly.yml](.github/workflows/nightly.yml)
+与 [Live smoke](docs/live-smoke.md)。
 
 ---
 
@@ -526,6 +532,7 @@ CI：pytest + selected ruff + selected mypy，见
 - [PIT 本地快照](docs/pit.md)
 - [PDF 提取验证](docs/pdf-extraction-validation.md)
 - [PDF-first 深度链路](docs/pdf-first-deep-context.md)
+- [Live smoke 与 golden set](docs/live-smoke.md)
 - [美股实验边界](docs/us-experimental.md)
 - [Tushare 字段](docs/tushare-fields.md)
 - [v2 差距](docs/v2-gap-after-upgrades.md)

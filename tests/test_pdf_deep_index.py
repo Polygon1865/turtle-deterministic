@@ -108,3 +108,4 @@ def test_pdf_index_command_writes_index(tmp_path, monkeypatch):
     assert _pdf_index(str(source), str(target), 2) == 0
     loaded = load_index(target)
     assert loaded["document"]["sha256"] == "abc123"
+    assert (tmp_path / "pdf_notes.json").is_file()

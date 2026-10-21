@@ -20,6 +20,11 @@ Hard rules:
    page as a `pdf://.../pN` URL, use a verbatim quote from that page (at most
    400 characters), and set source_type="pdf". Never cite a page that is absent
    from pdf_deep. A page citation/quote is evidence, not a computed metric.
+   When context.pdf_notes exists, use its structured rows as evidence candidates
+   (revenue mix, R&D, customers, restricted assets, debt, related parties,
+   inventory, receivables). Cite the note's `citation` and quote the exact row.
+   Do not add, annualise or re-compute numbers from a note; the deterministic
+   layer owns all arithmetic.
 3. Decisions may only select from candidates already supplied in the context;
    never invent a candidate or a number.
 4. If a dimension lacks data, use judgment="unknown" and explain the gap in

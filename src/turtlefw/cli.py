@@ -1561,6 +1561,17 @@ def _snapshot_cmd(
     return 0
 
 
+def _pdf_notes_path(index_path: Path) -> Path:
+    name = index_path.name
+    if name == "pdf_index.json":
+        return index_path.with_name("pdf_notes.json")
+    if name.endswith(".pdf_index.json"):
+        return index_path.with_name(
+            name[: -len(".pdf_index.json")] + ".pdf_notes.json"
+        )
+    return index_path.with_name(index_path.stem + ".pdf_notes.json")
+
+
 def _research_context(
     snapshot: str,
     data_pack: str | None = None,
@@ -1662,6 +1673,12 @@ def _research_context(
             max_chars=pdf_max_chars,
             focus_terms=focus,
         )
+        notes_path = _pdf_notes_path(index_path)
+        if notes_path.is_file():
+            notes_payload = json.loads(notes_path.read_text(encoding="utf-8-sig"))
+            notes = notes_payload.get("notes", [])
+            if isinstance(notes, list):
+                context["pdf_notes"] = notes
     return context
 
 
@@ -2133,6 +2150,7 @@ def _pdf_numbers(
 
 def _pdf_index(pdf: str, output: str | None, max_pages: int | None) -> int:
     from .pdf.deep_index import build_from_pdf, write_index
+    from .pdf.notes import extract_note_tables, write_notes
 
     source = Path(pdf)
     if not source.is_file():
@@ -2141,11 +2159,17 @@ def _pdf_index(pdf: str, output: str | None, max_pages: int | None) -> int:
     target = Path(output) if output else source.with_suffix(".pdf_index.json")
     index = build_from_pdf(source, max_pages=max_pages)
     write_index(index, target)
+    notes_path = _pdf_notes_path(target)
+    notes = extract_note_tables(
+        ((page["page"], page["text"]) for page in index["pages"]),
+        document_hash=str(index["document"].get("sha256", "")),
+    )
+    write_notes(notes, notes_path, source=source.name)
     document = index["document"]
     print(
         f"PDF 索引已写入 {target.resolve()}："
         f"{document['page_count']} 页 / {len(index['sections'])} 节 / "
-        f"{document['chars']} 字符"
+        f"{document['chars']} 字符；结构化附注表 {len(notes)} 张 -> {notes_path.name}"
     )
     return 0
 
@@ -2325,6 +2349,9 @@ def _run_cmd(
                 print(f"PDF 索引不存在：{source_index}", file=sys.stderr)
                 return 2
             shutil.copyfile(source_index, staging / "pdf_index.json")
+            source_notes = _pdf_notes_path(source_index)
+            if source_notes.is_file():
+                shutil.copyfile(source_notes, staging / "pdf_notes.json")
 
         try:
             context = _research_context(

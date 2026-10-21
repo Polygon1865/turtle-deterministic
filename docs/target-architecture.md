@@ -281,7 +281,7 @@ Agent 只能调用白名单工具：
 - **DSH 输出根**：`TURTLE_OUTPUT_DIR` / `--output-dir`，受限沙箱可写 `.runs/`；
 - **本地 smoke**：`turtle smoke --codes 600887,00700.HK,AAPL`，检查取数/report/snapshot/manifest；
 - **manifest 校验**：`report --snapshot` 校验 facts/config/research/template/report hash；
-- **测试**：`tests/conftest.py` 提供沙箱可写临时目录，461 收集 / 461 通过 / 0 setup error；
+- **测试**：`tests/conftest.py` 提供沙箱可写临时目录，470 收集 / 470 通过 / 0 setup error；
 - **00700 已知差异**：收入 1.09% 解释为 Others 8,077，分区 4/7 是报告结构差异，见 `docs/00700-known-differences.md`。
 
 尚未完成：

@@ -58,6 +58,24 @@ def test_research_context_includes_deep_pdf_index(tmp_path):
         source_name="annual.pdf",
     )
     write_index(index, tmp_path / "pdf_index.json")
+    (tmp_path / "pdf_notes.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "notes": [
+                    {
+                        "group": "revenue",
+                        "title": "营业收入构成",
+                        "page": 2,
+                        "headers": ["产品", "收入"],
+                        "rows": [["A", "100"]],
+                        "citation": "pdf://abc123/p2",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
     context = _research_context(str(tmp_path), pdf_max_chars=2000)
     deep = context["pdf_deep"]
     assert deep["document"]["sha256"] == "abc123"
@@ -65,6 +83,7 @@ def test_research_context_includes_deep_pdf_index(tmp_path):
     citations = {page["citation"] for page in deep["pages"]}
     assert "pdf://abc123/p2" in citations
     assert set(deep["citations"]) == citations
+    assert context["pdf_notes"][0]["group"] == "revenue"
     assert "pdf_sections" not in context
 
 
