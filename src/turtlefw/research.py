@@ -30,6 +30,8 @@ CONFIDENCES = {"high", "medium", "low"}
 _NUMBER = re.compile(r"(?<!\{)\b\d+(?:\.\d+)?%?\b")
 _YEAR = re.compile(r"^(19|20)\d{2}$")
 _PLACEHOLDER = re.compile(r"\{\{(metric|fact):([^}]+)\}\}")
+_QUOTE_LIMIT = 400
+_PARTIAL_NUMBER = re.compile(r"\d[\d,.]*$")
 
 
 def render_markdown(
@@ -408,6 +410,22 @@ def coverage_markdown(document: ResearchDocument) -> str:
     return "\n".join(lines)
 
 
+def _clip_quote(text: str, limit: int = _QUOTE_LIMIT) -> str:
+    """Trim a quote without cutting a numeric token in half.
+
+    The evidence index table used to truncate at 180 characters, which could
+    turn ``10,882.00`` into ``10,88``.  That partial token is not present in
+    ``research.json`` and therefore failed the strict numeric gate.
+    """
+    normalized = " ".join(str(text).split())
+    if len(normalized) <= limit:
+        return normalized
+    cut = normalized[:limit]
+    cut = _PARTIAL_NUMBER.sub("", cut)
+    cut = cut.rstrip(" \t,，;；:：|")
+    return f"{cut}…"
+
+
 def evidence_markdown(document: ResearchDocument) -> str:
     if not document.evidence:
         return ""
@@ -422,7 +440,7 @@ def evidence_markdown(document: ResearchDocument) -> str:
         page = str(item.get("page", ""))
         if not url and str(item.get("source_type", "web")) == "data":
             url = f"internal:{evidence_id}"
-        quote = " ".join(str(item.get("quote", "")).split())[:180]
+        quote = _clip_quote(str(item.get("quote", "")))
         lines.append(f"| {evidence_id} | {url} | {page} | {quote} |")
     return "\n".join(lines)
 
