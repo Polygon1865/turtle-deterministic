@@ -189,6 +189,10 @@ def build_site(
     status = day_dir / "status.json"
     if status.is_file():
         shutil.copyfile(status, release / "status.json")
+    for ranking_name in ("ranking.csv", "ranking_deep.csv"):
+        ranking = day_dir / ranking_name
+        if ranking.is_file():
+            shutil.copyfile(ranking, release / ranking_name)
     return release
 
 

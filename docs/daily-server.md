@@ -1,8 +1,9 @@
 # 每日生产：Windows 本机 + Cloudflare Tunnel
 
 目标不是“再跑一个脚本”，而是让一台普通 Windows 电脑每天自动产出可访问的
-A 股研究报告，并且失败时按配置保留上一版站点或发布部分结果。默认策略是 **Top 10：前 3 只启用 LLM
-研究，其余 7 只走确定性报告**。
+A 股研究报告，并且失败时按配置保留上一版站点或发布部分结果。默认策略是
+**全市场筛出 100 个候选，对前 20 名逐只生成确定性报告**；LLM 研究默认关闭，
+需要时用 `--llm-top N` 只对前 N 只启用。
 
 ## 架构
 
@@ -63,7 +64,7 @@ logs/
 ## 手工跑一次
 
 ```powershell
-# 完整 screen + Top 10（会调用 Tushare，耗时取决于网络）
+# 完整 screen + 前 20 报告（会调用 Tushare，耗时取决于网络）
 .\.venv\Scripts\python.exe scripts\daily_pipeline.py
 
 # 跳过 screen，用指定代码做 Top 3 dry run
@@ -84,15 +85,18 @@ logs/
 重试，最多 3 次；仍不匹配则失败并保留旧站点。节假日可加 `--allow-stale` 手工验收，
 但定时任务不要开。
 
+`ranking.csv` 保留快速筛选的 100 只，`ranking_deep.csv` 保留进入深度分析的 20 只；
+`build_site` 会把两份 CSV 一并复制到当日 release，方便下载核对。
+
 ## 配置
 
 `configs/daily.toml` 只放策略，不放密钥：
 
 ```toml
-top_n = 10
-llm_top_n = 3
-fast_limit = 80
-deep_limit = 30
+top_n = 20
+llm_top_n = 0
+fast_limit = 100
+deep_limit = 20
 rf = ""
 research_max_input_tokens = 60000
 screen_attempts = 3
@@ -101,8 +105,10 @@ refresh_market = true
 publish_partial = true
 ```
 
-- `top_n`：进入逐票分析的排名数量；
-- `llm_top_n`：前 N 只调用 `--with-research`；其余确定性；
+- `fast_limit`：快速筛选后保留的候选数（默认 100，写入 `ranking.csv`）；
+- `deep_limit`：进入深度分析的候选数（默认 20，写入 `ranking_deep.csv`）；
+- `top_n`：从深度排名中取前 N 只逐票生成报告（默认 20）；
+- `llm_top_n`：前 N 只调用 `--with-research`；默认 0，全部确定性；
 - `rf`：留空使用 provider；固定值用字符串，例如 `"2.0"`；
 - `refresh_market`：每日绕过 7 天行情缓存；
 - `screen_attempts/retry_seconds`：交易日未更新时的重试策略。
@@ -235,7 +241,7 @@ cloudflared tunnel info turtle-daily
 
 **Day 2**
 
-- 恢复交易日检测，跑完整 Top 10；
+- 恢复交易日检测，跑完整前 20；
 - 删掉一只股票的 PDF，确认“无 PDF 不阻塞”；
 - 临时移除 LLM key，确认前 3 只回退确定性且站点仍发布；
 - 记录耗时、失败率和磁盘占用。

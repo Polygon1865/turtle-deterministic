@@ -43,10 +43,10 @@ class DailyError(RuntimeError):
 
 @dataclass(frozen=True)
 class DailyConfig:
-    top_n: int = 10
-    llm_top_n: int = 3
-    fast_limit: int = 80
-    deep_limit: int = 30
+    top_n: int = 20
+    llm_top_n: int = 0
+    fast_limit: int = 100
+    deep_limit: int = 20
     rf: str | None = None
     rf_source: str = ""
     research_max_input_tokens: int = 60_000

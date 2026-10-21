@@ -57,6 +57,18 @@ def test_build_site_copies_reports_and_writes_health(tmp_path: Path) -> None:
     assert "伊利" in index
 
 
+def test_build_site_publishes_candidate_rankings(tmp_path: Path) -> None:
+    day_dir = tmp_path / "2026-10-21"
+    _make_code(day_dir, "600887.SH", qa="pass", name="伊利")
+    (day_dir / "ranking.csv").write_text("code,name\n600887.SH,伊利\n", encoding="utf-8")
+    (day_dir / "ranking_deep.csv").write_text(
+        "code,name\n600887.SH,伊利\n", encoding="utf-8"
+    )
+    release = build_site(day_dir, tmp_path / "site")
+    assert (release / "ranking.csv").is_file()
+    assert (release / "ranking_deep.csv").is_file()
+
+
 def test_build_site_rejects_empty_day(tmp_path: Path) -> None:
     day_dir = tmp_path / "empty"
     day_dir.mkdir()

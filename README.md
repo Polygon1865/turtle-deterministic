@@ -299,11 +299,11 @@ turtle sec-audit --snapshot .runs\AAPL.US\snapshot --ticker AAPL
 ### 每日生产（Windows 本机）
 
 `scripts/daily_pipeline.py` 把 `screen`、逐票 `run`、QA、静态站点和发布串成一条
-可定时执行的流水线；默认 Top 10，前 3 只启用 LLM 研究，其余确定性。LLM 失败
-会自动回退，不阻塞当天报告。
+可定时执行的流水线；默认从全市场筛出 100 个候选，对前 20 名逐只生成确定性报告。
+LLM 研究默认关闭；需要时用 `--llm-top N` 只对前 N 只启用，失败会自动回退。
 
 ```powershell
-# Top 10：screen + 逐票分析 + 站点
+# 100 候选 → 前 20 报告：screen + 逐票分析 + 站点
 .\.venv\Scripts\python.exe scripts\daily_pipeline.py
 
 # 不跑 screen，用 3 只股票验收
@@ -313,7 +313,8 @@ turtle sec-audit --snapshot .runs\AAPL.US\snapshot --ticker AAPL
 ```
 
 Task Scheduler、Caddy、Cloudflare Tunnel/Access、3 天验收和回滚步骤见
-[docs/daily-server.md](docs/daily-server.md)。
+[docs/daily-server.md](docs/daily-server.md)；站点信息架构与后续视觉方案见
+[docs/site-design.md](docs/site-design.md)。
 
 ---
 
@@ -545,7 +546,7 @@ src/turtlefw/
 当前基线：
 
 ```text
-518 tests passed
+520 tests passed
 ```
 
 CI：pytest + selected ruff + selected mypy，见

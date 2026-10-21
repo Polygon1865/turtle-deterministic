@@ -30,6 +30,16 @@ def _paths(tmp_path: Path) -> DailyPaths:
     )
 
 
+def test_default_config_screens_100_and_reports_20():
+    config = DailyConfig()
+    assert (config.fast_limit, config.deep_limit, config.top_n, config.llm_top_n) == (
+        100,
+        20,
+        20,
+        0,
+    )
+
+
 def _write_success(code_dir: Path, *, research: bool = False) -> None:
     code_dir.mkdir(parents=True, exist_ok=True)
     (code_dir / "qa.json").write_text(
