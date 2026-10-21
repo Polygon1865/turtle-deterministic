@@ -293,7 +293,8 @@ Agent 只能调用白名单工具：
 - **数据覆盖**：US/HK 股东、分部、母公司报表与 vendor PIT；US PIT 缺失；A 股中报/季报进入 TTM 口径，默认估值仍用年报；
 - **估值扩展**：peer comps（申万一级前 8、PE/PB 中位数）、显式 SOTP 输入、`--beta/--erp` WACC 覆盖已落地；公司特定假设默认值、分部数据自动提取仍缺；
 - **Agent 自动化**：`run --with-research` 自动研究链、live smoke、context token 估算/预算已落地；golden set 标注、真实 LLM 质量回归与供应商费用预算仍缺；
-- **报告/运维**：HTML 已内嵌收盘价+综合底价 SVG、`--refresh-market` 已接入；PDF 导出、全量附注结构化仍缺。
+- **报告/运维**：HTML 已内嵌收盘价+综合底价 SVG、`--refresh-market` 已接入；
+  `html --pdf` 通过本机 Edge/Chrome 导出 PDF，未安装浏览器时显式失败；全量附注结构化仍缺。
 
 已落地但曾被本文误列为“尚未完成”的项：ResearchDocument v2、report 自动 numeric guard、Agent phase runner；对应实现见上文 268–282 行。
 

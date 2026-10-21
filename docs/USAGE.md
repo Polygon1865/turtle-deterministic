@@ -311,6 +311,8 @@ available / partial / pdf_optional / not_applicable / external / missing
 - `analysis_report.md`
 - `analysis_report.html`（`--html`；若同目录有 `inputs.json`/`metrics.json`，会内嵌
   收盘价与综合底价的 SVG 图，图表不参与估值）
+- `analysis_report.pdf`（可选）：`turtle html --input analysis_report.md --pdf analysis_report.pdf`
+  通过本机 Edge/Chrome 无头模式导出；可用 `TURTLE_BROWSER` 指定浏览器。
 
 ### 5.3 定性输入
 

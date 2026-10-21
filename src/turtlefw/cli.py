@@ -2222,8 +2222,11 @@ def _research_cmd(path: str) -> int:
     return 0
 
 
-def _html_cmd(input_path: str, output: str | None, title: str | None) -> int:
+def _html_cmd(
+    input_path: str, output: str | None, title: str | None, pdf: str | None = None
+) -> int:
     from .report.html import convert_file
+    from .report.pdf_export import html_to_pdf
 
     source = Path(input_path)
     if not source.is_file():
@@ -2232,6 +2235,13 @@ def _html_cmd(input_path: str, output: str | None, title: str | None) -> int:
     target = Path(output) if output else source.with_suffix(".html")
     convert_file(source, target, title=title or source.stem)
     print(f"HTML 已写入 {target.resolve()}")
+    if pdf:
+        try:
+            pdf_path = html_to_pdf(target, pdf)
+        except RuntimeError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        print(f"PDF 已写入 {pdf_path.resolve()}")
     return 0
 
 
@@ -3832,6 +3842,7 @@ def build_parser() -> argparse.ArgumentParser:
     html.add_argument("--input", required=True, help="Markdown 路径")
     html.add_argument("--output", default=None, help="HTML 输出路径")
     html.add_argument("--title", default=None, help="HTML 标题")
+    html.add_argument("--pdf", default=None, help="同时导出 PDF（需 Edge/Chrome）")
 
     pdf_numbers = sub.add_parser("pdf-numbers", help="从年报 PDF 抽取审计数字")
     pdf_numbers.add_argument("--pdf", required=True, help="年报 PDF 路径")
@@ -3961,7 +3972,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "pdf-index":
             return _pdf_index(args.pdf, args.output, args.max_pages)
         if args.command == "html":
-            return _html_cmd(args.input, args.output, args.title)
+            return _html_cmd(args.input, args.output, args.title, args.pdf)
         if args.command == "pdf-numbers":
             return _pdf_numbers(
                 args.pdf, args.year, args.report_type, args.output, args.max_pages

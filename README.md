@@ -168,6 +168,8 @@ turtle report 600887.SH --save-snapshot .runs\600887.SH\snapshot
 
 HTML 报告若同目录存在 `inputs.json`/`metrics.json`，会自动内嵌“收盘价 + 综合底价”
 SVG 图；没有这两个文件时仍输出纯文本 HTML。图表只做展示，不参与估值或报告数字。
+`turtle html --input report.md --pdf report.pdf` 可在本机有 Edge/Chrome 时直接导出 PDF；
+`TURTLE_BROWSER` 可指定浏览器路径，未安装时返回明确错误而不影响 HTML。
 
 `run` 的产物：
 
