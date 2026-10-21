@@ -69,6 +69,43 @@ def test_build_site_publishes_candidate_rankings(tmp_path: Path) -> None:
     assert (release / "ranking_deep.csv").is_file()
 
 
+def test_build_site_renders_candidate_pool_and_report_enrichment(
+    tmp_path: Path,
+) -> None:
+    day_dir = tmp_path / "2026-10-21"
+    _make_code(day_dir, "600887.SH", qa="pass", name="伊利")
+    snapshot = day_dir / "600887.SH" / "snapshot"
+    (snapshot / "metrics.json").write_text(
+        '{"floor":{"display":"4.34"},"price":{"display":"12.44"},'
+        '"premium":{"display":"186.85%"},"margin":{"display":"5.33%"}}',
+        encoding="utf-8",
+    )
+    (snapshot / "inputs.json").write_text(
+        '{"industry_name":"食品饮料"}', encoding="utf-8"
+    )
+    (snapshot / "research.json").write_text(
+        '{"claims":[{"statement":"底价为 {{metric:floor}}。"}]}', encoding="utf-8"
+    )
+    (day_dir / "ranking.csv").write_text(
+        "ts_code,name,channel,roe,margin\n"
+        "600887.SH,伊利,main,18.0,5.33\n"
+        "000858.SZ,五粮液,main,20.0,4.00\n",
+        encoding="utf-8",
+    )
+    (day_dir / "ranking_deep.csv").write_text(
+        "ts_code,name,verdict,margin\n600887.SH,伊利,通过,5.33\n",
+        encoding="utf-8",
+    )
+    release = build_site(day_dir, tmp_path / "site")
+    index = (release / "index.html").read_text(encoding="utf-8")
+    assert "候选池 2" in index
+    assert "食品饮料" in index
+    assert "底价为 4.34" in index
+    assert "600887.SH" in index and "000858.SZ" in index
+    assert "5.33%" in index
+    assert "只看深度" in index
+
+
 def test_build_site_rejects_empty_day(tmp_path: Path) -> None:
     day_dir = tmp_path / "empty"
     day_dir.mkdir()

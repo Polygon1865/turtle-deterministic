@@ -314,7 +314,8 @@ LLM 研究默认关闭；需要时用 `--llm-top N` 只对前 N 只启用，失�
 
 Task Scheduler、Caddy、Cloudflare Tunnel/Access、3 天验收和回滚步骤见
 [docs/daily-server.md](docs/daily-server.md)；站点信息架构与后续视觉方案见
-[docs/site-design.md](docs/site-design.md)。
+[docs/site-design.md](docs/site-design.md)。站点首页现已提供“今日概览 + 优先看 +
+20 份报告 + 100 候选池”，支持搜索、通道筛选和排序；候选 CSV 也随 release 发布。
 
 ---
 
@@ -546,7 +547,7 @@ src/turtlefw/
 当前基线：
 
 ```text
-520 tests passed
+521 tests passed
 ```
 
 CI：pytest + selected ruff + selected mypy，见

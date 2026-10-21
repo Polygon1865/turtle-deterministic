@@ -3,60 +3,371 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Turtle Daily · A 股确定性研究日报">
   <title>Turtle Daily · {{ day }}</title>
   <style>
-    :root { color-scheme: light dark; --bg: #f5f6f8; --fg: #172033; --muted: #667085; --line: #d9dee8; --card: #fff; --ok: #067647; --warn: #b54708; --bad: #b42318; }
-    @media (prefers-color-scheme: dark) { :root { --bg: #101828; --fg: #ecf0f5; --muted: #98a2b3; --line: #344054; --card: #182230; } }
+    :root {
+      color-scheme: light dark;
+      --bg: #f4f2ec;
+      --paper: #fffdf8;
+      --fg: #172033;
+      --muted: #667085;
+      --line: #ded8cc;
+      --soft: #ece7dc;
+      --accent: #1f5eff;
+      --accent-soft: #e8efff;
+      --ok: #067647;
+      --ok-soft: #e8f5ee;
+      --warn: #b54708;
+      --warn-soft: #fff4e5;
+      --bad: #b42318;
+      --bad-soft: #fef0ee;
+      --shadow: 0 1px 2px rgba(23, 32, 51, .06), 0 10px 28px rgba(23, 32, 51, .05);
+      --radius: 16px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f1420;
+        --paper: #171f2e;
+        --fg: #eef2f8;
+        --muted: #98a2b3;
+        --line: #2b3546;
+        --soft: #202a3a;
+        --accent: #8ab4ff;
+        --accent-soft: #1c2a46;
+        --ok: #6ce9a6;
+        --ok-soft: #122c22;
+        --warn: #fdb022;
+        --warn-soft: #2d2411;
+        --bad: #fda29b;
+        --bad-soft: #2d1715;
+        --shadow: none;
+      }
+    }
     * { box-sizing: border-box; }
-    body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; }
-    main { max-width: 1100px; margin: 0 auto; padding: 40px 20px 72px; }
-    h1 { margin: 0 0 6px; font-size: 30px; letter-spacing: -0.02em; }
-    .sub { color: var(--muted); margin: 0 0 28px; }
-    .stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 22px; }
-    .pill { background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: 13px; }
-    .pill b { font-variant-numeric: tabular-nums; }
-    .status-ok { color: var(--ok); } .status-warn { color: var(--warn); } .status-bad { color: var(--bad); }
-    table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-    th, td { text-align: left; padding: 13px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
-    th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
-    tr:last-child td { border-bottom: 0; }
-    a { color: #175cd3; text-decoration: none; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
-    code { font-size: 12px; color: var(--muted); }
+    code, .num { font-variant-numeric: tabular-nums; }
+    .topbar {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 22px 24px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 750; letter-spacing: -.02em; }
+    .brand-mark {
+      width: 30px; height: 30px; border-radius: 9px;
+      display: grid; place-items: center;
+      background: var(--fg); color: var(--paper); font-size: 15px;
+    }
+    .topbar nav { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+    main { max-width: 1240px; margin: 0 auto; padding: 26px 24px 72px; }
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr);
+      gap: 28px;
+      align-items: end;
+      padding: 34px 0 30px;
+      border-bottom: 1px solid var(--line);
+    }
+    .eyebrow {
+      margin: 0 0 10px; color: var(--muted); font-size: 12px;
+      letter-spacing: .12em; text-transform: uppercase;
+    }
+    h1 { margin: 0; font-size: clamp(34px, 5vw, 58px); line-height: 1.02; letter-spacing: -.045em; }
+    .lede { max-width: 58ch; margin: 16px 0 0; color: var(--muted); font-size: 16px; }
+    .stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .stat {
+      background: var(--paper); border: 1px solid var(--line); border-radius: 14px;
+      padding: 14px 16px; box-shadow: var(--shadow);
+    }
+    .stat b { display: block; font-size: 26px; line-height: 1.1; letter-spacing: -.03em; }
+    .stat span { color: var(--muted); font-size: 12px; }
+    section { margin-top: 38px; }
+    .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+    h2 { margin: 0; font-size: 20px; letter-spacing: -.02em; }
+    .section-note { color: var(--muted); font-size: 12px; }
+    .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .card {
+      display: block; background: var(--paper); border: 1px solid var(--line);
+      border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow);
+      color: inherit; min-height: 210px;
+    }
+    a.card:hover { text-decoration: none; border-color: var(--accent); transform: translateY(-1px); }
+    .card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .rank { color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .06em; }
+    .badge {
+      display: inline-flex; align-items: center; border-radius: 999px;
+      padding: 3px 9px; font-size: 11px; font-weight: 700; letter-spacing: .02em;
+      border: 1px solid transparent; white-space: nowrap;
+    }
+    .status-ok { color: var(--ok); background: var(--ok-soft); border-color: color-mix(in srgb, var(--ok) 25%, transparent); }
+    .status-warn { color: var(--warn); background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 25%, transparent); }
+    .status-bad { color: var(--bad); background: var(--bad-soft); border-color: color-mix(in srgb, var(--bad) 25%, transparent); }
+    .card h3 { margin: 14px 0 2px; font-size: 21px; letter-spacing: -.03em; }
+    .ticker { color: var(--muted); font-size: 12px; }
+    .thesis { margin: 12px 0 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .card dl { display: flex; gap: 18px; margin: 16px 0 0; }
+    .card dt { color: var(--muted); font-size: 11px; }
+    .card dd { margin: 2px 0 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .table-wrap {
+      overflow: auto; background: var(--paper); border: 1px solid var(--line);
+      border-radius: var(--radius); box-shadow: var(--shadow);
+    }
+    table { width: 100%; border-collapse: collapse; min-width: 760px; }
+    th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+    th {
+      color: var(--muted); font-size: 11px; text-transform: uppercase;
+      letter-spacing: .07em; background: var(--soft); position: sticky; top: 0; z-index: 1;
+    }
+    tbody tr:hover { background: color-mix(in srgb, var(--accent) 4%, transparent); }
+    tr:last-child td { border-bottom: 0; }
+    .report-name { font-weight: 650; }
     .muted { color: var(--muted); }
-    footer { margin-top: 22px; color: var(--muted); font-size: 12px; }
-    @media (max-width: 720px) { th:nth-child(5), td:nth-child(5) { display: none; } }
+    .empty { padding: 28px; color: var(--muted); text-align: center; }
+    .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin: 0 0 12px; }
+    .toolbar input, .toolbar select {
+      height: 36px; border: 1px solid var(--line); border-radius: 9px;
+      background: var(--paper); color: var(--fg); padding: 0 11px; font: inherit; font-size: 13px;
+    }
+    .toolbar input { width: min(280px, 100%); }
+    .toolbar label { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); font-size: 12px; }
+    .toolbar .count { margin-left: auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+    .verdict { font-size: 12px; color: var(--muted); }
+    .verdict.failed { color: var(--bad); }
+    footer {
+      margin-top: 38px; padding-top: 18px; border-top: 1px solid var(--line);
+      color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    }
+    @media (max-width: 900px) {
+      .hero { grid-template-columns: 1fr; gap: 20px; }
+      .cards { grid-template-columns: 1fr; }
+      .card { min-height: 0; }
+      .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    }
+    @media (max-width: 640px) {
+      .topbar, main { padding-left: 16px; padding-right: 16px; }
+      .topbar nav { display: none; }
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      th, td { padding: 10px 11px; }
+      .hide-mobile { display: none; }
+    }
+    @media print {
+      .toolbar, .topbar nav { display: none; }
+      body { background: #fff; }
+      .table-wrap, .card { box-shadow: none; }
+    }
   </style>
 </head>
 <body>
+<header class="topbar">
+  <div class="brand"><span class="brand-mark">T</span><span>Turtle Daily</span></div>
+  <nav>
+    <a href="ranking.csv">候选 CSV</a>
+    <a href="ranking_deep.csv">深度 CSV</a>
+    <a href="health.txt">健康检查</a>
+  </nav>
+</header>
+
 <main>
-  <h1>Turtle Daily</h1>
-  <p class="sub">A 股 deterministic-first 日报 · {{ day }}</p>
-  <div class="stats">
-    <span class="pill">报告 <b>{{ total }}</b></span>
-    <span class="pill">QA 通过 <b class="status-ok">{{ passed }}</b></span>
-    <span class="pill">QA 失败 <b class="status-bad">{{ failed }}</b></span>
-    <span class="pill">整体 <b class="{{ 'status-ok' if ok else 'status-bad' }}">{{ 'PASS' if ok else 'ATTENTION' }}</b></span>
-  </div>
-  <table>
-    <thead>
-      <tr><th>#</th><th>代码</th><th>名称</th><th>QA</th><th>研究</th><th>覆盖率</th><th>报告</th></tr>
-    </thead>
-    <tbody>
-    {% for r in reports %}
-      <tr>
-        <td>{{ r.rank or loop.index }}</td>
-        <td><code>{{ r.code }}</code></td>
-        <td>{{ r.name or '—' }}</td>
-        <td class="{{ 'status-ok' if r.qa == 'PASS' else ('status-warn' if r.qa == 'WARN' else 'status-bad') }}">{{ r.qa }}</td>
-        <td>{{ {'on': 'LLM', 'fallback': '回退确定性', 'attempted': '尝试中', 'off': '确定性'}.get(r.research, r.research) }}</td>
-        <td>{{ r.numeric_coverage or '—' }}</td>
-        <td>{% if r.report_href %}<a href="{{ r.report_href }}">打开</a>{% else %}<span class="muted">—</span>{% endif %}</td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  <footer>Generated {{ generated_at }} · <a href="health.txt">health.txt</a></footer>
+  <section class="hero">
+    <div>
+      <p class="eyebrow">{{ day }}{% if trade_date %} · 数据日 {{ trade_date }}{% endif %}</p>
+      <h1>今日研究终端</h1>
+      <p class="lede">从全市场筛出的候选池，到通过 QA 的深度报告。先看结论，再按需下钻。</p>
+    </div>
+    <div class="stats">
+      <div class="stat"><b>{{ candidate_count }}</b><span>候选池</span></div>
+      <div class="stat"><b>{{ total }}</b><span>今日报告</span></div>
+      <div class="stat"><b class="status-ok">{{ passed }}</b><span>QA 通过</span></div>
+      <div class="stat"><b class="{{ 'status-bad' if failed else 'status-ok' }}">{{ failed }}</b><span>QA 失败</span></div>
+    </div>
+  </section>
+
+  {% if top_reports %}
+  <section>
+    <div class="section-head">
+      <h2>今日优先看</h2>
+      <span class="section-note">按深度排名取前 3</span>
+    </div>
+    <div class="cards">
+      {% for r in top_reports %}
+      {% if r.report_href %}
+      <a class="card" href="{{ r.report_href }}">
+      {% else %}
+      <article class="card">
+      {% endif %}
+        <div class="card-top">
+          <span class="rank">#{{ r.rank or loop.index }}</span>
+          <span class="badge {{ 'status-ok' if r.qa == 'PASS' else ('status-warn' if r.qa == 'WARN' else 'status-bad') }}">{{ r.qa }}</span>
+        </div>
+        <h3>{{ r.name or r.code }}</h3>
+        <div class="ticker"><code>{{ r.code }}</code>{% if r.industry %} · {{ r.industry }}{% endif %}</div>
+        <p class="thesis">
+          {% if r.thesis %}{{ r.thesis }}{% elif r.research == 'on' %}LLM 研究已完成，正文见报告。{% else %}确定性报告；未启用 LLM 研究。{% endif %}
+        </p>
+        <dl>
+          <div><dt>安全边际</dt><dd>{{ r.margin or '—' }}</dd></div>
+          <div><dt>综合底价</dt><dd>{{ r.floor or '—' }}</dd></div>
+          <div><dt>当前溢价</dt><dd>{{ r.premium or '—' }}</dd></div>
+        </dl>
+      {% if r.report_href %}
+      </a>
+      {% else %}
+      </article>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <section>
+    <div class="section-head">
+      <h2>今日 {{ total }} 份报告</h2>
+      <span class="section-note">QA 逐票校验 · 数字来自确定性链路</span>
+    </div>
+    {% if reports %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>标的</th><th class="hide-mobile">行业</th><th>QA</th><th class="hide-mobile">研究</th><th>覆盖率</th><th class="hide-mobile">安全边际</th><th>报告</th></tr>
+        </thead>
+        <tbody>
+        {% for r in reports %}
+          <tr>
+            <td class="num">{{ r.rank or loop.index }}</td>
+            <td><span class="report-name">{{ r.name or '—' }}</span><br><code>{{ r.code }}</code></td>
+            <td class="hide-mobile">{{ r.industry or '—' }}</td>
+            <td><span class="badge {{ 'status-ok' if r.qa == 'PASS' else ('status-warn' if r.qa == 'WARN' else 'status-bad') }}">{{ r.qa }}</span></td>
+            <td class="hide-mobile">{{ 'LLM' if r.research == 'on' else '确定性' }}</td>
+            <td class="num">{{ r.numeric_coverage or '—' }}</td>
+            <td class="num hide-mobile">{{ r.margin or '—' }}</td>
+            <td>{% if r.report_href %}<a href="{{ r.report_href }}">打开</a>{% else %}<span class="muted">—</span>{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="table-wrap"><div class="empty">今天没有可发布的报告。</div></div>
+    {% endif %}
+  </section>
+
+  <section id="candidates">
+    <div class="section-head">
+      <h2>候选池 {{ candidate_count }}</h2>
+      <span class="section-note">快速筛选结果 · 不代表全部都会生成报告</span>
+    </div>
+    {% if candidates %}
+    <div class="toolbar">
+      <input id="candidate-search" type="search" placeholder="搜索代码或名称" aria-label="搜索候选">
+      <select id="channel-filter" aria-label="按通道筛选">
+        <option value="">全部通道</option>
+        {% for channel in candidates|map(attribute='channel')|unique %}
+        <option value="{{ channel }}">{{ channel or '未标注' }}</option>
+        {% endfor %}
+      </select>
+      <label><input id="deep-only" type="checkbox"> 只看深度</label>
+      <select id="candidate-sort" aria-label="排序">
+        <option value="rank">按排名</option>
+        <option value="margin">按安全边际</option>
+      </select>
+      <span class="count" id="candidate-count">{{ candidate_count }} / {{ candidate_count }}</span>
+    </div>
+    <div class="table-wrap">
+      <table id="candidate-table">
+        <thead>
+          <tr><th>#</th><th>标的</th><th class="hide-mobile">通道</th><th>ROE</th><th class="hide-mobile">派息率</th><th>R%</th><th>GG%</th><th class="hide-mobile">II%</th><th>安全边际</th><th>深度结论</th></tr>
+        </thead>
+        <tbody>
+        {% for c in candidates %}
+          <tr data-rank="{{ c.rank }}" data-search="{{ (c.code ~ ' ' ~ c.name)|lower }}" data-channel="{{ c.channel }}" data-deep="{{ '1' if c.deep else '0' }}" data-margin="{{ c.margin }}">
+            <td class="num">{{ c.rank }}</td>
+            <td><span class="report-name">{{ c.name or '—' }}</span><br><code>{{ c.code }}</code></td>
+            <td class="hide-mobile">{{ c.channel or '—' }}</td>
+            <td class="num">{{ c.roe or '—' }}</td>
+            <td class="num hide-mobile">{{ c.payout or '—' }}</td>
+            <td class="num">{{ c.r or '—' }}</td>
+            <td class="num">{{ c.gg or '—' }}</td>
+            <td class="num hide-mobile">{{ c.ii or '—' }}</td>
+            <td class="num">{{ c.margin or '—' }}</td>
+            <td class="verdict {{ 'failed' if '失败' in c.verdict else '' }}">{{ c.verdict or ('深度分析' if c.deep else '未深度') }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="table-wrap"><div class="empty">今天没有候选 CSV；可能只跑了指定代码。</div></div>
+    {% endif %}
+  </section>
+
+  <footer>
+    <span>生成于 {{ generated_at }} · {{ day }}</span>
+    <span><a href="ranking.csv">ranking.csv</a> · <a href="ranking_deep.csv">ranking_deep.csv</a> · <a href="health.txt">health.txt</a></span>
+  </footer>
 </main>
+
+<script>
+(function () {
+  var table = document.getElementById("candidate-table");
+  if (!table) return;
+  var rows = Array.prototype.slice.call(table.tBodies[0].rows);
+  var search = document.getElementById("candidate-search");
+  var channel = document.getElementById("channel-filter");
+  var deepOnly = document.getElementById("deep-only");
+  var sort = document.getElementById("candidate-sort");
+  var count = document.getElementById("candidate-count");
+
+  function apply() {
+    var query = (search.value || "").trim().toLowerCase();
+    var selected = channel.value;
+    var onlyDeep = deepOnly.checked;
+    var visible = 0;
+    rows.forEach(function (row) {
+      var ok = (!query || row.dataset.search.indexOf(query) !== -1) &&
+        (!selected || row.dataset.channel === selected) &&
+        (!onlyDeep || row.dataset.deep === "1");
+      row.hidden = !ok;
+      if (ok) visible += 1;
+    });
+    count.textContent = visible + " / " + rows.length;
+  }
+
+  function reorder() {
+    var byMargin = sort.value === "margin";
+    rows.sort(function (a, b) {
+      if (byMargin) {
+        var am = parseFloat(a.dataset.margin);
+        var bm = parseFloat(b.dataset.margin);
+        if (isNaN(am)) am = -Infinity;
+        if (isNaN(bm)) bm = -Infinity;
+        return bm - am;
+      }
+      return Number(a.dataset.rank) - Number(b.dataset.rank);
+    });
+    var body = table.tBodies[0];
+    rows.forEach(function (row) { body.appendChild(row); });
+    apply();
+  }
+
+  search.addEventListener("input", apply);
+  channel.addEventListener("change", apply);
+  deepOnly.addEventListener("change", apply);
+  sort.addEventListener("change", reorder);
+})();
+</script>
 </body>
 </html>
