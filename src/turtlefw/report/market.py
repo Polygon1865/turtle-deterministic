@@ -39,6 +39,11 @@ def _pct(value: Any) -> str:
     return _fmt_pct(_d(value))
 
 
+def _major_value(row: Mapping[str, Any]) -> str:
+    text = _num(row.get("value"))
+    return f"{text}%" if row.get("percent") else text
+
+
 def _rows(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
         return []
@@ -57,6 +62,7 @@ def _has(extras: Mapping[str, Any]) -> bool:
         "announcements",
         "news",
         "governance",
+        "major_holders",
     )
     return any(bool(extras.get(key)) for key in keys)
 
@@ -222,6 +228,7 @@ def _news_section(
     announcements: list[dict[str, Any]],
     news: list[dict[str, Any]],
     governance: list[dict[str, Any]],
+    major_holders: list[dict[str, Any]],
 ) -> str:
     parts: list[str] = []
     if announcements:
@@ -265,6 +272,18 @@ def _news_section(
                 ["l", "r", "r", "l"],
             )
         )
+    if major_holders:
+        parts.append(
+            "**股东结构（Yahoo Finance）**\n\n"
+            + _table(
+                ["项目", "数值"],
+                [
+                    [str(row.get("label", "")), _major_value(row)]
+                    for row in major_holders
+                ],
+                ["l", "r"],
+            )
+        )
     return "### 公告、新闻与治理\n\n" + "\n\n".join(parts) if parts else ""
 
 
@@ -284,13 +303,14 @@ def render_market(extras: Mapping[str, Any] | None) -> str:
     announcements = _rows(extras.get("announcements"))
     news = _rows(extras.get("news"))
     governance = _rows(extras.get("governance"))
+    major_holders = _rows(extras.get("major_holders"))
 
     sections = [
         _research_section(research),
         _macro_section(macro),
         _flow_section(moneyflow, margin, limits),
         _index_section(valuation, weights),
-        _news_section(announcements, news, governance),
+        _news_section(announcements, news, governance, major_holders),
     ]
     body = "\n\n".join(section for section in sections if section)
     if not body:

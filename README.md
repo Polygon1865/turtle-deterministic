@@ -82,7 +82,7 @@ python -m turtlefw.cli coverage AAPL.US
 
 市场与宏观（Tushare）：`report_rc` 卖方预期、`moneyflow`、`margin_detail`、
 `stk_limit`、沪深300 `index_dailybasic`/`index_weight`、CPI/PPI/GDP/PMI/Shibor/LPR；
-港股/美股机构股东走 Yahoo Finance。报告新增“市场与宏观”章节，动态 peer 按申万
+港股/美股机构股东与股东结构摘要走 Yahoo Finance。报告新增“市场与宏观”章节，动态 peer 按申万
 一级与总市值筛选；这些数据只作背景，不进入估值。公告/新闻接口需单独权限，缺失
 时显式标记。详见 [docs/tushare-fields.md](docs/tushare-fields.md#市场宏观与治理2026-10-21-接入)。
 

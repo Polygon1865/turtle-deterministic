@@ -10,6 +10,7 @@ from turtlefw.data.market_extras import (
     normalize_index_valuation,
     normalize_index_weights,
     normalize_macro,
+    normalize_major_holders,
     normalize_margin,
     normalize_moneyflow,
     normalize_research,
@@ -129,6 +130,23 @@ def test_governance_percent_and_date() -> None:
     assert rows[0]["pct"] == Decimal("7.97")
     assert rows[0]["as_of"] == "2026-06-30"
     assert rows[0]["source"] == "yfinance:institutional_holders"
+
+
+def test_major_holders_percent_and_render() -> None:
+    rows = normalize_major_holders(
+        [
+            {"Breakdown": "institutionsPercentHeld", "Value": 0.65},
+            {"Breakdown": "institutionsCount", "Value": 1200},
+        ]
+    )
+    assert rows[0]["value"] == Decimal("65.0")
+    assert rows[0]["percent"] is True
+    assert rows[1]["value"] == Decimal(1200)
+    assert rows[1]["percent"] is False
+    text = render_market({"major_holders": rows, "sources": ["yfinance:major_holders"]})
+    assert "股东结构（Yahoo Finance）" in text
+    assert "65.00%" in text
+    assert "1,200.00" in text
 
 
 def test_render_market_accepts_serialized_numbers() -> None:

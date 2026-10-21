@@ -313,6 +313,28 @@ def normalize_news(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
     return result
 
 
+def normalize_major_holders(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Yahoo ``major_holders`` summary (insider/institution percentages)."""
+    result: list[dict[str, Any]] = []
+    for row in list(rows)[:12]:
+        label = _text(_first(row, "Breakdown", "label", "index"))
+        value = _dec(_first(row, "Value", "value"))
+        if not label or value is None:
+            continue
+        percent = "percent" in label.lower()
+        if percent and abs(value) <= 1:
+            value *= 100
+        result.append(
+            {
+                "label": label,
+                "value": value,
+                "percent": percent,
+                "source": "yfinance:major_holders",
+            }
+        )
+    return result
+
+
 def normalize_governance(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
     """Institutional holders from Yahoo Finance (HK/US fallback)."""
     result: list[dict[str, Any]] = []

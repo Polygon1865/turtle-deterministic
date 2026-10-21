@@ -108,7 +108,9 @@ Tushare endpoint
 - 空响应进 `missing`，权限/网络失败进 `FetchIssue`，不做零填充；
 - 申万分类用于选择行业模板；动态 peer 已接入，按申万一级、总市值取前 8；peer 财务表进入 data pack 第 8 节，快照通过 `ReportManifest.peers_hash` 固化 `inputs.industry_peers`；
 - `report_rc`、宏观、公告/新闻、资金流/两融/涨跌停、指数估值/成分已接入 `market_extras`；公告/新闻需单独权限，缺失时显式标记。
-- HK/US 的机构股东优先取 Yahoo Finance `institutional_holders`；Tushare 无对应标准接口，失败时标记 missing。
+- HK/US 的机构股东优先取 Yahoo Finance `institutional_holders`；另取
+  `major_holders` 的持股比例摘要（内部人/机构/流通机构）；Tushare 无对应标准接口，
+  失败时分别标记 missing。
 
 ## 市场、宏观与治理（2026-10 接入）
 
@@ -128,13 +130,14 @@ data pack 同名附录，**不进入 `StatementRow`，不改变确定性估值**
 | A 股 | 宏观 | `cn_cpi`、`cn_ppi`、`cn_gdp`、`cn_pmi`、`shibor`、`shibor_lpr` | 百分比为百分点；GDP 亿元 |
 | A 股 | 公告/新闻 | `anns_d`、`news` | 需单独公告/新闻权限；缺失标记 missing |
 | HK/US | 机构股东 | Yahoo Finance `institutional_holders` | 第三方数据；失败标记 missing |
+| HK/US | 股东结构摘要 | Yahoo Finance `major_holders` | 比例字段转百分点；失败标记 missing |
 
 动态 peer：`peer_candidates()` 用 `index_member_all` 定位申万一级，再按
 `daily_basic.total_mv` 取前 8；`industry.render_section()` 优先展示动态 peer，
 静态模板 peer 只在没有分类数据时保留。
 
 已知边界：`report_rc` 为供应商预测，未经审计；`anns_d`/`news` 在本账号无权限；
-Yahoo 机构股东可能延迟或为空；这些值均不参与估值。
+Yahoo 机构股东与 major holders 可能延迟或为空；这些值均不参与估值。
 
 ## 来源分类契约
 

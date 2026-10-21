@@ -45,6 +45,7 @@ from .market_extras import (
     normalize_index_weights,
     normalize_limits,
     normalize_macro,
+    normalize_major_holders,
     normalize_margin,
     normalize_moneyflow,
     normalize_news,
@@ -1148,6 +1149,12 @@ class TushareProvider:
                 payload["sources"].append("yfinance:institutional_holders")
             else:
                 payload["missing"].append("governance")
+            major = normalize_major_holders(self._yf_major_holders(code))
+            if major:
+                payload["major_holders"] = major
+                payload["sources"].append("yfinance:major_holders")
+            else:
+                payload["missing"].append("major_holders")
 
         return payload
 
@@ -1175,6 +1182,40 @@ class TushareProvider:
             )
             frame = yf.Ticker(symbol).institutional_holders
             rows = [] if frame is None or frame.empty else frame.to_dict("records")
+        except Exception as exc:  # noqa: BLE001 - optional vendor source
+            self._issues.append(FetchIssue("yfinance", str(code), str(exc)))
+            rows = []
+        self._us_yf[key] = rows
+        return rows
+
+    def _yf_major_holders(self, code: StockCode) -> list[dict[str, Any]]:
+        """Yahoo major-holder summary for HK/US (percentages, not raw shares)."""
+        key = f"major_holders:{code}"
+        cached = self._us_yf.get(key)
+        if isinstance(cached, list):
+            return cached
+        try:
+            import yfinance as yf
+        except ImportError:
+            self._issues.append(FetchIssue("yfinance", str(code), "yfinance not installed"))
+            self._us_yf[key] = []
+            return []
+
+        try:
+            symbol = (
+                f"{int(code.numeric):04d}.HK"
+                if code.market is Market.HK
+                else code.numeric
+            )
+            frame = yf.Ticker(symbol).major_holders
+            rows = (
+                []
+                if frame is None or frame.empty
+                else [
+                    {"Breakdown": str(index), "Value": row.get("Value")}
+                    for index, row in frame.iterrows()
+                ]
+            )
         except Exception as exc:  # noqa: BLE001 - optional vendor source
             self._issues.append(FetchIssue("yfinance", str(code), str(exc)))
             rows = []
