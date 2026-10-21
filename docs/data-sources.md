@@ -144,7 +144,7 @@ Yahoo 机构股东可能延迟或为空；这些值均不参与估值。
 2. **fact**：PDF/SEC `DocumentFact`，带文档 hash、页码/标签；
 3. **vendor context**：Tushare/Yahoo 补充基本面、市场、治理。必须同时出现在 data pack，带 `source`/`missing` 标注；不进入 `StatementRow`、不改变估值、不伪装成 metric/fact。
 
-`numeric-audit --strict` 排除 `inputs.json` 原始值；默认 audit 仍保留它做兼容，但同时打印 strict view，因此默认 `coverage=1.0` 不再被当作 strict 100%。peer 财务已进入 data pack 与 `peer.*` MetricPoint，600887 的默认与 strict view 均为 100%；evidence/治理原始值仍需按上述三类来源继续分类。
+`numeric-audit --strict` 现在也是 `report --save-snapshot` 的默认来源口径：排除 `inputs.json` 原始值，只认 metric、fact、qualitative/research、data pack 与 reported/evidence。`--strict-numeric` 只控制未通过时 CLI 是否返回 1。peer 财务已进入 data pack 与 `peer.*` MetricPoint，600887 默认 strict 为 100%；evidence/治理原始值仍需按上述三类来源继续分类。
 
 ## 关键参考
 

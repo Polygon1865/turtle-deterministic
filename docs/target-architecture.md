@@ -285,7 +285,7 @@ Agent 只能调用白名单工具：
 
 尚未完成：
 
-- **strict numeric 默认**：`report --save-snapshot` 默认 audit 仍把 `inputs.json` 列入 numeric source，但同时打印排除它的 strict view；`--strict-numeric` 才把 strict 结果作为失败门禁。peer 财务已进 data pack/metric ledger，600887 的默认与 strict view 均为 100%；evidence/治理原始值的来源分类仍待收紧；
+- **strict numeric 已默认**：`report --save-snapshot` 默认排除 `inputs.json` 原始值，写入 strict coverage/unknown；`--strict-numeric` 控制未通过时 CLI 返回 1。peer 财务已进 data pack/metric ledger，600887 默认 strict 为 100%；evidence/治理原始值的来源分类仍待收紧；
 - **vendor context 来源契约**：Tushare/Yahoo 补充基本面、市场、治理是第三类来源，必须同时出现在 data pack，不进入 StatementRow/估值；numeric audit 仍是文本 token 匹配，未按 source class 校验；
 - **附注与叙述**：数据包附注文本/表格摘要仍只做证据展示，不进数字 ledger；少数叙述（质押/价值陷阱）未走 registry；
 - **PDF-first 深读**：当前 7 个附注节选、每节 12k 字符、quote 320 字符；不是 v2 的整本 1M context + 38 参数；

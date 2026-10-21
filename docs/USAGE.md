@@ -596,7 +596,7 @@ $env:TURTLE_LLM_MODEL = "your-model"
   --strict-numeric
 ```
 
-`--strict-numeric` 必须与 `--save-snapshot` 一起使用；numeric review 时返回非零。
+`--strict-numeric` 必须与 `--save-snapshot` 一起使用。`--save-snapshot` 现在默认排除 `inputs.json` 原始值；该开关只控制 numeric review 时是否返回非零。
 
 ---
 
