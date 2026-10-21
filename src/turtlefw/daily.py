@@ -124,6 +124,9 @@ def _append_log(path: Path, title: str, result: CommandResult) -> None:
 
 
 def _run_process(command: Sequence[str], cwd: Path, timeout: int) -> CommandResult:
+    environment = os.environ.copy()
+    environment["PYTHONIOENCODING"] = "utf-8"
+    environment["PYTHONUTF8"] = "1"
     try:
         process = subprocess.run(
             list(command),
@@ -134,6 +137,7 @@ def _run_process(command: Sequence[str], cwd: Path, timeout: int) -> CommandResu
             errors="replace",
             timeout=timeout,
             check=False,
+            env=environment,
         )
     except subprocess.TimeoutExpired as exc:
         raw_stdout = exc.stdout
@@ -201,6 +205,10 @@ def parse_ranking(path: Path, *, limit: int) -> list[dict[str, str]]:
         code = _news_code_key(row)
         if not code or code in seen:
             continue
+        if "verdict" in row:
+            verdict = str(row.get("verdict") or "").strip()
+            if not verdict or "失败" in verdict:
+                continue
         code = _validate_code(code)
         seen.add(code)
         selected.append(

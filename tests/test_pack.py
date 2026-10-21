@@ -61,6 +61,17 @@ class TestDataPack:
         source.write_text(text, encoding="utf-8")
         assert audit(report, [source], strict=True)["status"] == "pass"
 
+    def test_parent_cash_threshold_is_traceable(self, tmp_path):
+        text = render()
+        assert "母公司现金占比关注线" in text
+        assert "| 50% |" in text
+
+        report = tmp_path / "report.md"
+        source = tmp_path / "data_pack.md"
+        report.write_text("母公司现金占比低于关注线（<50%）", encoding="utf-8")
+        source.write_text(text, encoding="utf-8")
+        assert audit(report, [source], strict=True)["status"] == "pass"
+
     def test_supplemental_extras_section_is_appended(self):
         text = render_data_pack(
             demo.DEMO_CODE,

@@ -3192,8 +3192,10 @@ def _report(
             shutil.copyfile(research_file, snapshot_root / "research.json")
         pack_candidates = [base_dir / "data_pack.md", *sorted(base_dir.glob("data_pack_*.md"))]
         pack_source = next((item for item in pack_candidates if item.is_file()), None)
-        if pack_source is not None and not (snapshot_root / "data_pack.md").is_file():
-            shutil.copyfile(pack_source, snapshot_root / "data_pack.md")
+        if pack_source is not None:
+            target_pack = snapshot_root / "data_pack.md"
+            if pack_source.resolve() != target_pack.resolve():
+                shutil.copyfile(pack_source, target_pack)
         if pdf_numbers and Path(pdf_numbers).is_file():
             shutil.copyfile(pdf_numbers, snapshot_root / "reported_numbers.json")
         if evidence_path and Path(evidence_path).is_file():

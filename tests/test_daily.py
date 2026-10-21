@@ -59,6 +59,19 @@ def test_parse_ranking_deduplicates_and_limits(tmp_path: Path) -> None:
     ]
 
 
+def test_parse_ranking_skips_failed_verdict(tmp_path: Path) -> None:
+    path = tmp_path / "ranking_deep.csv"
+    path.write_text(
+        "ts_code,name,verdict\n"
+        "600887.SH,伊利,分析失败:InvalidOperation\n"
+        "000858.SZ,五粮液,买入\n"
+        "600519.SH,贵州茅台,\n",
+        encoding="utf-8",
+    )
+    rows = parse_ranking(path, limit=5)
+    assert rows == [{"code": "000858.SZ", "name": "五粮液", "rank": "1"}]
+
+
 def test_parse_ranking_rejects_unsafe_code(tmp_path: Path) -> None:
     path = tmp_path / "ranking.csv"
     path.write_text("ts_code\n../evil\n", encoding="utf-8")

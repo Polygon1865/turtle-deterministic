@@ -775,6 +775,7 @@ def render_data_pack(
             [
                 ["母公司现金（百万元）", _m(parent_cash)],
                 ["母公司现金/合并现金", _pct(parent_ratio)],
+                ["母公司现金占比关注线", "50%"],
                 ["控股股东质押率", _pct(pledge_pct)],
                 ["近 3 年年均回购（百万元）", _m(buyback.amount) if buyback else "—"],
             ],

@@ -13,13 +13,17 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from turtlefw.daily import (
+from turtlefw.daily import (  # noqa: E402
     DailyConfig,
     DailyError,
     DailyPaths,
     load_config,
     run_daily,
 )
+
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
 
 
 def _parse_date(value: str) -> date:
