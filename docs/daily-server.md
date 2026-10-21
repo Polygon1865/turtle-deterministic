@@ -178,6 +178,36 @@ ingress:
 cloudflared service install
 ```
 
+注意：服务以 `LocalSystem` 运行时读取的是
+`C:\Windows\System32\config\systemprofile\.cloudflared\config.yml`，
+不是当前用户的 `%USERPROFILE%\.cloudflared\config.yml`。若只配置了用户目录，
+服务会显示 Running，但隧道没有 connector；Access 登录后会得到 **Error 1033**。
+
+两种修正方式：
+
+1. 管理员把用户配置和凭据复制到 `systemprofile` 下，再重启服务；
+2. 不用服务，改用当前用户的登录任务：
+
+```powershell
+# scripts/run_tunnel.ps1 使用用户 config 启动 turtle-daily
+Register-ScheduledTask -TaskName "Turtle Tunnel" `
+  -Action (New-ScheduledTaskAction -Execute "powershell.exe" `
+    -Argument '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\PyProject\turtle-framework\scripts\run_tunnel.ps1"') `
+  -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME) `
+  -Settings (New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew) `
+  -User $env:USERNAME -Force
+Start-ScheduledTask -TaskName "Turtle Tunnel"
+```
+
+验证：
+
+```powershell
+cloudflared tunnel info turtle-daily
+```
+
+必须看到 `CONNECTOR ID` 行；没有 connector 就是 1033 的根因。登录任务需要用户
+保持登录（锁屏可以），注销后隧道会停止。
+
 ## Cloudflare Access
 
 在 Zero Trust → Access → Applications 为 `daily.example.com` 建应用：
