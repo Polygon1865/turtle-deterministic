@@ -633,17 +633,25 @@ def render_data_pack(
             ("roe", "ROE"),
         ):
             display = str(row.get(key, "—"))
-            raw_peer = display.removesuffix("%").replace(",", "")
+            peer_raw = row.get(f"{key}_pct")
+            peer_value: Decimal | None
             try:
-                numeric = (
-                    Decimal(raw_peer) if raw_peer not in ("", "—", "nan") else None
-                )
+                if peer_raw is not None:
+                    peer_value = Decimal(str(peer_raw))
+                    display = f"{peer_value:.2f}%"
+                else:
+                    raw_peer = display.removesuffix("%").replace(",", "")
+                    peer_value = (
+                        Decimal(raw_peer)
+                        if raw_peer not in ("", "—", "nan")
+                        else None
+                    )
             except (ArithmeticError, ValueError):
-                numeric = None
+                peer_value = None
             add_metric(
                 f"peer.{index}.{key}",
                 f"Peer {index} {label}",
-                numeric,
+                peer_value,
                 display,
                 unit="%",
                 formula=f"peer.{key}",

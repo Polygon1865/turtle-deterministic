@@ -396,7 +396,13 @@ def _peer_metrics_for_inputs(provider: Any, inputs: Any) -> list[dict[str, objec
             if code:
                 candidates.append((code, str(row.get("name", "")).strip() or code))
     if candidates:
-        candidates.insert(0, (str(inputs.code), str(inputs.code)))
+        company = (getattr(inputs, "fundamental_extras", {}) or {}).get("company") or {}
+        target_name = (
+            str(company.get("name") or inputs.code)
+            if isinstance(company, dict)
+            else str(inputs.code)
+        )
+        candidates.insert(0, (str(inputs.code), target_name))
     elif template is not None:
         candidates = [(peer.code, peer.name) for peer in template.peers]
     else:
@@ -441,8 +447,11 @@ def _peer_metrics_for_inputs(provider: Any, inputs: Any) -> list[dict[str, objec
                     else "tushare:income+balancesheet"
                 ),
                 "revenue_cagr": f"{cagr * 100:.2f}%" if cagr is not None else "—",
+                "revenue_cagr_pct": cagr * 100 if cagr is not None else None,
                 "net_margin": f"{net_margin:.2f}%" if net_margin is not None else "—",
+                "net_margin_pct": net_margin,
                 "roe": f"{roe:.2f}%" if roe is not None else "—",
+                "roe_pct": roe,
             }
         )
     return rows
@@ -2644,6 +2653,8 @@ def _report(
             if save_snapshot
             else None
         )
+        if save_snapshot and not data_pack_out:
+            data_pack_out = str(Path(save_snapshot) / "data_pack.md")
         if data_pack_out:
             from .report.pack import render_data_pack
             from .research import engine_decisions
@@ -2754,7 +2765,7 @@ def _report(
             shutil.copyfile(research_file, snapshot_root / "research.json")
         pack_candidates = [base_dir / "data_pack.md", *sorted(base_dir.glob("data_pack_*.md"))]
         pack_source = next((item for item in pack_candidates if item.is_file()), None)
-        if pack_source is not None:
+        if pack_source is not None and not (snapshot_root / "data_pack.md").is_file():
             shutil.copyfile(pack_source, snapshot_root / "data_pack.md")
         if pdf_numbers and Path(pdf_numbers).is_file():
             shutil.copyfile(pdf_numbers, snapshot_root / "reported_numbers.json")
