@@ -6,6 +6,7 @@
 
 - `pdf_sections.json` 命中 ≥4/7 时，**优先用 PDF 原文**；D1/D2/D4/D5/D6 至少各 1 条
   `source_type=document` 且 `page` 非空的证据。
+- 若 `research_context.json` 有 `pdf_deep`，优先使用其中页面；引用写 `pdf://<sha16>/pN`，`quote` 逐字来自该页且 ≤400 字，不得引用未选中页面。
 - PDF 缺失时才用网页替代；此时 `confidence` 不超过 `medium`，并在 `notes` 写明"无 PDF"。
 - 不得把网页摘要改写成"年报原文"；引文必须是可检索的逐字片段。
 - 年报里的数字先与 `data_pack.md` 对照；不一致写入 `discrepancies`，不得静默改数。
@@ -14,6 +15,7 @@
 
 - `.runs/<code>/data_pack.md`（数字，只读）
 - `.runs/<code>/pdf_sections.json`（P2/P3/P4/P6/P13/MDA/SUB，可能缺项）
+- `.runs/<code>/pdf_index.json`（可选；`research_context.pdf_deep` 的页级来源）
 - 网页检索结果（公司公告、交易所、监管、行业数据）
 - 每模块 rubric：`references/<module>.md`
 - 行业锚点：`references/industry_metrics.md`（先定位行业，再取 2–4 个核心指标）

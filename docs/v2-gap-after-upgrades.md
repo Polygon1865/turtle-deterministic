@@ -1,6 +1,6 @@
 # 本地更新后 vs v2：真实差距（2026-10-19）
 
-> **历史快照**：本文的“本地现状”数字与结论写于 2026-10-19（418 tests、P1 未接入、US 未完成）。当前基线为 2026-10-21、446 tests，A 股补充基本面与市场/宏观已接入；最新数据边界见 [data-sources.md](data-sources.md)，不要把下表当作当前实现清单。
+> **历史快照**：本文的“本地现状”数字与结论写于 2026-10-19（418 tests、P1 未接入、US 未完成）。当前基线为 2026-10-21、456 tests，A 股补充基本面与市场/宏观已接入；最新数据边界见 [data-sources.md](data-sources.md)，不要把下表当作当前实现清单。
 >
 > v2 基线：`terancejiang/Turtle_investment_framework` HEAD `c61419c`（2026-07-04，v2.1-beta，未变）。  
 > 本地基线：本轮完成 SBC/稀释/复权/PIT、税档/OE、PDF 附注/股东分部之后。
@@ -22,7 +22,7 @@
 | 因子 3 调整项 | 11 步现金桥（S/T/U、W1–W4、V1/V5、X1/X2） | 核心现金桥（真实现金收入、经营流出、Capex、WC）；PDF 间接桥；未覆盖全部 V/X 调整 | 方法论细节差距 |
 | 估值广度 | 1,516 行 valuation_engine；方法选择/假设更多 | 纯函数 DCF/DDM/PE/PEG/PS + 分类/权重/5×5/反推；无 peer comps、SOTP、公司特定 WACC | 广度差距 |
 | 缓存/刷新 | TTL + `--refresh-market` | 内容寻址缓存，无 refresh 命令 | 运维差距 |
-| 测试规模 | 875 个测试函数 / ~923 收集（README/CHANGELOG 数字不一致） | 446 收集 / 446 通过 / 0 setup error | 覆盖差距，但不是纯数量可比 |
+| 测试规模 | 875 个测试函数 / ~923 收集（README/CHANGELOG 数字不一致） | 456 收集 / 456 通过 / 0 setup error | 覆盖差距，但不是纯数量可比 |
 | Agent 自动化 | 41 个 prompt、8k 行、slash command/skill | 17 个 prompt + `.claude` 入口 + fake-LLM/phase runner；真实 LLM 编排未闭环 | 自动化差距 |
 
 ## 本地已经追平或反超的地方

@@ -4,6 +4,7 @@ Snapshot: $ARGUMENTS
 
 Steps:
 1. `python -m turtlefw.cli research-context --snapshot <snapshot> --out <snapshot>/research_context.json`
+   - optional: `--pdf-index <path> --pdf-max-chars 160000`; `pdf_deep` pages are cited as `pdf://<sha16>/pN`.
 2. Read the context.
 3. Write `<snapshot>/research.json` using `{{metric:id}}` / `{{fact:id}}`; never raw numbers.
 4. Validate:

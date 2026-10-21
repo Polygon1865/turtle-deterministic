@@ -18,6 +18,7 @@ If the user passed `--rf`, `--rf-source`, `--currency`, `--pdf-numbers`, `--evid
 .\.venv\Scripts\python.exe -m turtlefw.cli research-context `
   --snapshot .runs/<code>/snapshot `
   --out .runs/<code>/snapshot/research_context.json
+# 可选：--pdf-index .runs/<code>/pdf_index.json --pdf-max-chars 160000
 ```
 
 Use `$TURTLE_OUTPUT_DIR/<code>/snapshot` when `TURTLE_OUTPUT_DIR` is set; otherwise use `.runs/<code>/snapshot`.

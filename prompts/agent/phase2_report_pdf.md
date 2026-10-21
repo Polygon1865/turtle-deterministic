@@ -22,6 +22,13 @@ python -m turtlefw.cli pdf --pdf .runs/<code>/<file>.pdf `
   --output .runs/<code>/pdf_sections.json --verbose
 ```
 
+3b. **页级索引（供深度研究上下文）**：
+
+```powershell
+python -m turtlefw.cli pdf-index --pdf .runs/<code>/<file>.pdf `
+  --output .runs/<code>/pdf_index.json
+```
+
 4. **结构化附注表格**：
 
 ```powershell

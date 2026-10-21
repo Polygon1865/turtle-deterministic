@@ -16,6 +16,10 @@ Hard rules:
 2. Every non-unknown claim must have evidence_ids from evidence[]. Each web
    evidence item needs an http(s) url and a verbatim quote. PDF/SEC evidence may
    carry page/source_url.
+   When context.pdf_deep exists, prefer its pages for D1/D4/D5/D6. Cite the exact
+   page as a `pdf://.../pN` URL, use a verbatim quote from that page (at most
+   400 characters), and set source_type="pdf". Never cite a page that is absent
+   from pdf_deep. A page citation/quote is evidence, not a computed metric.
 3. Decisions may only select from candidates already supplied in the context;
    never invent a candidate or a number.
 4. If a dimension lacks data, use judgment="unknown" and explain the gap in

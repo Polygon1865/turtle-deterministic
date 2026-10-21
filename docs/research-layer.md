@@ -65,6 +65,7 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
   - `.agents/skills/turtle-research/SKILL.md`
   - `.claude/commands/turtle-research.md`
   - `research-context` 导出 snapshot_id / metrics / facts / governance / coverage / data pack / PDF sections。
+  - `research-context --pdf-index` 额外导出 `pdf_deep`（整本 PDF 页级上下文，`pdf://` 引用）；见 `docs/pdf-first-deep-context.md`。
   - DSH 模型直接写 `research.json`，项目负责 validator/gate，不需要项目持有 API key。
 - `research-provenance` 记录 provider/model/research_sha256/context_sha256。
 - DSH 研究样本回归：`tests/fixtures/dsh_research_sample.json` 验证 D1–D6 / evidence ratio / gate。

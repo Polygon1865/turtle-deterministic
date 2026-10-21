@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 from .facts import ResearchClaim, ResearchDecision, ResearchParam, file_hash
 
@@ -597,6 +598,10 @@ def validate_evidence(
         if allow_data and source_type == "data":
             # Internal data evidence is addressable by its data: id; it has no
             # web URL, but still needs a quote/value.
+            continue
+        if source_type == "pdf" and url.startswith("pdf://"):
+            # Page-addressed evidence from the PDF deep index. The page citation
+            # is the address; the quote is still mandatory.
             continue
         if not url.startswith(("http://", "https://")):
             raise ValueError(f"evidence {item.get('id')}: invalid url")

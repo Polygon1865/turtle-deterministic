@@ -16,13 +16,17 @@ The DSH model writes only `research.json`. Python writes the final report and al
 
 ```powershell
 python -m turtlefw.cli research-context --snapshot <snapshot> --out <snapshot>/research_context.json
+# 可选：snapshot/pdf_index.json 存在时自动加入 pdf_deep；
+# 也可 --pdf-index <path> --pdf-max-chars 160000 --pdf-focus "管理层讨论,治理"
 ```
 
 3. Read `research_context.json`. It contains:
    - `metrics`: computed metric ids and displays;
    - `facts`: PDF/SEC evidence rows with ids;
    - `pdf_sections`: P2/P3/P4/P6/P13/MDA/SUB text;
+   - `pdf_deep` (optional): page-level PDF context with `pdf://<sha16>/pN` citations;
    - `data_pack`: rendered data pack.
+   When citing `pdf_deep`, use `source_type="pdf"`, the exact `pdf://` URL and a verbatim quote from that page; do not cite pages absent from the context.
 4. Write `research.json` using the schema below.
 5. Validate:
 

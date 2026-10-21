@@ -1564,6 +1564,9 @@ def _snapshot_cmd(
 def _research_context(
     snapshot: str,
     data_pack: str | None = None,
+    pdf_index: str | None = None,
+    pdf_max_chars: int = 160_000,
+    pdf_focus: str | None = None,
 ) -> dict[str, object]:
     import json
 
@@ -1643,6 +1646,22 @@ def _research_context(
             for key, value in sections.items()
             if key != "metadata" and isinstance(value, str)
         }
+    index_path = Path(pdf_index) if pdf_index else root / "pdf_index.json"
+    if pdf_index and not index_path.is_file():
+        raise FileNotFoundError(f"PDF 索引不存在：{index_path}")
+    if index_path.is_file():
+        from .pdf.deep_index import deep_context, load_index
+
+        focus = (
+            tuple(part.strip() for part in pdf_focus.split(",") if part.strip())
+            if pdf_focus
+            else None
+        )
+        context["pdf_deep"] = deep_context(
+            load_index(index_path),
+            max_chars=pdf_max_chars,
+            focus_terms=focus,
+        )
     return context
 
 
@@ -1650,12 +1669,21 @@ def _research_context_cmd(
     snapshot: str,
     out: str,
     data_pack: str | None,
+    pdf_index: str | None = None,
+    pdf_max_chars: int = 160_000,
+    pdf_focus: str | None = None,
 ) -> int:
     import json
 
     try:
-        context = _research_context(snapshot, data_pack)
-    except (OSError, ValueError, KeyError) as exc:
+        context = _research_context(
+            snapshot,
+            data_pack,
+            pdf_index,
+            pdf_max_chars,
+            pdf_focus,
+        )
+    except (OSError, TypeError, ValueError, KeyError) as exc:
         print(f"research context 失败：{exc}", file=sys.stderr)
         return 2
     target = Path(out)
@@ -2093,6 +2121,25 @@ def _pdf_numbers(
     if sbc.get("sbc"):
         print(f"  股份支付 SBC：{sbc.get('sbc')} 元（p.{sbc.get('page')}）")
     return 0 if items else 1
+
+
+def _pdf_index(pdf: str, output: str | None, max_pages: int | None) -> int:
+    from .pdf.deep_index import build_from_pdf, write_index
+
+    source = Path(pdf)
+    if not source.is_file():
+        print(f"找不到 PDF：{source}", file=sys.stderr)
+        return 2
+    target = Path(output) if output else source.with_suffix(".pdf_index.json")
+    index = build_from_pdf(source, max_pages=max_pages)
+    write_index(index, target)
+    document = index["document"]
+    print(
+        f"PDF 索引已写入 {target.resolve()}："
+        f"{document['page_count']} 页 / {len(index['sections'])} 节 / "
+        f"{document['chars']} 字符"
+    )
+    return 0
 
 
 def _pdf_footnotes(sections: str, output: str | None) -> int:
@@ -3169,6 +3216,13 @@ def build_parser() -> argparse.ArgumentParser:
     research_context.add_argument("--snapshot", required=True, help="snapshot 目录")
     research_context.add_argument("--out", required=True, help="context.json 输出")
     research_context.add_argument("--data-pack", default=None, help="可选 data_pack.md")
+    research_context.add_argument("--pdf-index", default=None, help="可选 pdf_index.json")
+    research_context.add_argument(
+        "--pdf-max-chars", type=int, default=160_000, help="PDF 深度上下文字符预算"
+    )
+    research_context.add_argument(
+        "--pdf-focus", default=None, help="逗号分隔的 PDF 检索主题"
+    )
 
     research_provenance = sub.add_parser(
         "research-provenance", help="记录 DSH/LLM research provenance"
@@ -3358,6 +3412,11 @@ def build_parser() -> argparse.ArgumentParser:
     pdf.add_argument("--verbose", action="store_true")
     pdf.add_argument("--dry-run", action="store_true")
 
+    pdf_index = sub.add_parser("pdf-index", help="建立整本 PDF 页级索引与章节引用")
+    pdf_index.add_argument("--pdf", required=True, help="年报 PDF 路径")
+    pdf_index.add_argument("--output", default=None, help="pdf_index.json 输出路径")
+    pdf_index.add_argument("--max-pages", type=int, default=None, help="只索引前 N 页")
+
     html = sub.add_parser("html", help="将 Markdown 报告转换为 HTML")
     html.add_argument("--input", required=True, help="Markdown 路径")
     html.add_argument("--output", default=None, help="HTML 输出路径")
@@ -3476,6 +3535,8 @@ def main(argv: list[str] | None = None) -> int:
             if args.dry_run:
                 argv.append("--dry-run")
             return _run_passthrough(preprocessor.main, argv, patch_argv=True)
+        if args.command == "pdf-index":
+            return _pdf_index(args.pdf, args.output, args.max_pages)
         if args.command == "html":
             return _html_cmd(args.input, args.output, args.title)
         if args.command == "pdf-numbers":
@@ -3536,7 +3597,14 @@ def main(argv: list[str] | None = None) -> int:
                 args.min_dimensions,
             )
         if args.command == "research-context":
-            return _research_context_cmd(args.snapshot, args.out, args.data_pack)
+            return _research_context_cmd(
+                args.snapshot,
+                args.out,
+                args.data_pack,
+                args.pdf_index,
+                args.pdf_max_chars,
+                args.pdf_focus,
+            )
         if args.command == "research-provenance":
             return _research_provenance_cmd(
                 args.research,

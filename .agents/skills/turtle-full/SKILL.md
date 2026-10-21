@@ -40,9 +40,11 @@ Stop if this fails.
 .\.venv\Scripts\python.exe -m turtlefw.cli research-context `
   --snapshot .runs/<code>/snapshot `
   --out .runs/<code>/snapshot/research_context.json
+# 如果已生成 .runs/<code>/pdf_index.json：
+#   --pdf-index .runs/<code>/pdf_index.json --pdf-max-chars 160000
 ```
 
-Read the context. It includes metrics, facts, governance, coverage, data pack and PDF sections.
+Read the context. It includes metrics, facts, governance, coverage, data pack and PDF sections; when a PDF index exists it also includes `pdf_deep` page-level citations.
 
 ### 3. Write research.json
 

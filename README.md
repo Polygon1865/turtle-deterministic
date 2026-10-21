@@ -53,7 +53,7 @@ Turtle Framework 把链路拆开：
 | 现金桥 | PDF/报表现金桥，缺失才回退 OCF−Capex |
 | 绝对估值 | DCF / DDM / PE Band / PEG / PS |
 | 定性层 | evidence-backed JSON，非 unknown 必须有 URL + quote |
-| PDF-first | 章节定位、审计数字、附注、页级 evidence |
+| PDF-first | 章节定位、页级索引/deep context、审计数字、附注、页级 evidence |
 | D1–D6 Research | claims / params / decisions，claim-level audit |
 | DSH 原生研究 | DSH 模型直接写 `research.json`，不需要项目 API key |
 | Snapshot | facts/config/research/metrics/report hash 冻结 |
@@ -283,8 +283,9 @@ turtle sec-audit --snapshot .runs\AAPL.US\snapshot --ticker AAPL
 # 1. 年报 PDF（雪球/同花顺）或手动放入
 turtle fetch-report --url "<PDF URL>" --stock-code SH600887 --report-type 年报 --year 2025
 
-# 2. 章节定位
+# 2. 章节定位 + 页级索引
 turtle pdf --pdf .runs\600887.SH\2025年报.pdf --output .runs\600887.SH\pdf_sections.json
+turtle pdf-index --pdf .runs\600887.SH\2025年报.pdf --output .runs\600887.SH\pdf_index.json
 
 # 3. 审计数字 / 附注
 turtle pdf-numbers --pdf .runs\600887.SH\2025年报.pdf --year 2025
@@ -307,6 +308,8 @@ pdf:parent_company
 ```
 
 `pdf:parent_company` 只提供公司层面资产负债表的证据入口，不解析金额。
+
+`pdf-index` 还会生成页级 citation：`pdf://<sha16>/p<N>`。`research-context --pdf-index` 会把预算内的整本页面放进 `pdf_deep`，供研究层引用；规则与限制见 [PDF-first 深度链路](docs/pdf-first-deep-context.md)。
 
 ---
 
@@ -336,7 +339,9 @@ research-context
 ```powershell
 turtle research-context `
   --snapshot .runs\600887.SH\snapshot `
-  --out .runs\600887.SH\snapshot\research_context.json
+  --out .runs\600887.SH\snapshot\research_context.json `
+  --pdf-index .runs\600887.SH\pdf_index.json `
+  --pdf-max-chars 160000
 
 # 由 DSH 写 .runs/600887.SH/snapshot/research.json
 
@@ -512,6 +517,7 @@ CI：pytest + selected ruff + selected mypy，见
 - [Snapshot 复现](docs/snapshot-byte-identical.md)
 - [PIT 本地快照](docs/pit.md)
 - [PDF 提取验证](docs/pdf-extraction-validation.md)
+- [PDF-first 深度链路](docs/pdf-first-deep-context.md)
 - [美股实验边界](docs/us-experimental.md)
 - [Tushare 字段](docs/tushare-fields.md)
 - [v2 差距](docs/v2-gap-after-upgrades.md)
