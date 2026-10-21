@@ -571,6 +571,13 @@ Nightly live smoke 见 [.github/workflows/nightly.yml](.github/workflows/nightly
 - **v2 参照**：内部 v2.1-beta 快照 `c61419c`（2026-07-04），仅用于功能对照，不是运行时依赖，也不随仓库分发；差异讨论见 [docs/upstream-v2-vs-local.md](docs/upstream-v2-vs-local.md)。
 - **项目设计约束**：[target-architecture.md](docs/target-architecture.md)、[research-layer.md](docs/research-layer.md)、[pdf-first-deep-context.md](docs/pdf-first-deep-context.md)、[snapshot-byte-identical.md](docs/snapshot-byte-identical.md)。
 
+### 原项目与致谢
+
+- **原始 GitHub 项目**：[terancejiang/Turtle_investment_framework](https://github.com/terancejiang/Turtle_investment_framework/tree/main)
+- **B 站 UP 主**：[空间地址（UID 322005137）](https://space.bilibili.com/322005137)
+
+感谢原项目与 UP 主对 Turtle Investment Framework 方法论、公开资料和实现思路的分享。本项目是在其启发与参考基础上进行的确定性重构：保留研究框架与领域知识，数字计算、快照、QA 和工程实现由本项目独立维护；原项目及其文档的版权归原作者所有。
+
 > 参考来源用于解释口径和边界；报告中的数字仍只由本项目的确定性管线或明确标注的 vendor context 提供。
 
 ---
