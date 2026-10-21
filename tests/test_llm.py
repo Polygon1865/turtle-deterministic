@@ -1,8 +1,11 @@
+import io
 import json
+import urllib.error
 
 import pytest
 
 from turtlefw.agent import AgentError, OpenAICompatibleLLM
+from turtlefw.agent.llm import UrllibTransport
 
 
 class _Transport:
@@ -37,3 +40,18 @@ def test_openai_compatible_rejects_bad_content():
     )
     with pytest.raises(AgentError):
         llm.complete("system", {})
+
+
+def test_urllib_transport_reports_http_error_body(monkeypatch):
+    def fail(request, timeout):
+        raise urllib.error.HTTPError(
+            request.full_url,
+            400,
+            "Bad Request",
+            {},
+            io.BytesIO(b'{"error":{"message":"model not supported"}}'),
+        )
+
+    monkeypatch.setattr("urllib.request.urlopen", fail)
+    with pytest.raises(AgentError, match="model not supported"):
+        UrllibTransport().post("https://llm.test/v1/chat/completions", {}, {})

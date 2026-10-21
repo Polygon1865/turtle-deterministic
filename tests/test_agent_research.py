@@ -28,6 +28,8 @@ def test_research_prompt_covers_d1_to_d6():
     assert "pdf_deep" in ResearchAgent.SYSTEM
     assert "pdf_notes" in ResearchAgent.SYSTEM
     assert "pdf://" in ResearchAgent.SYSTEM
+    assert "claim_id" in ResearchAgent.SYSTEM
+    assert "evidence[].id" in ResearchAgent.SYSTEM
     assert "Never write a raw number" in ResearchAgent.SYSTEM
     assert "final report" not in ResearchAgent.SYSTEM.lower()
 

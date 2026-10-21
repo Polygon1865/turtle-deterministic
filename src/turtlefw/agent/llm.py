@@ -38,6 +38,14 @@ class UrllibTransport:
             if not isinstance(parsed, dict):
                 raise AgentError("LLM response must be a JSON object")
             return parsed
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read().decode("utf-8", errors="replace")[:500]
+            except Exception:
+                detail = ""
+            suffix = f": {detail}" if detail else ""
+            raise AgentError(f"LLM request failed: HTTP {exc.code}{suffix}") from exc
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
             raise AgentError(f"LLM request failed: {exc}") from exc
 

@@ -152,8 +152,10 @@ turtle run 600887.SH --rf 1.6516 --rf-source "ICBC 2026-10-15" --with-research
 ```
 
 `--with-research` 默认调用 OpenAI-compatible LLM；需要
-`TURTLE_LLM_API_KEY` / `TURTLE_LLM_MODEL`（或对应的 `--research-api-key` /
-`--research-model`）。离线回放可加 `--research-response <research.json>`。
+`TURTLE_LLM_API_KEY` / `TURTLE_LLM_BASE_URL` / `TURTLE_LLM_MODEL`（或对应的
+`--research-api-key` / `--research-base-url` / `--research-model`）。离线回放可加
+`--research-response <research.json>`。
+DeepSeek 的配置、模型名和实测边界见 [docs/llm-deepseek.md](docs/llm-deepseek.md)。
 自动模式会把 `pdf_deep`（若提供了 `--pdf-index`）一并放进研究上下文。
 `--research-max-input-tokens N` 按 context 字符数 / 4 估算输入 token，超限不调用
 LLM 直接失败；实际消耗写入 `research.usage.json` 并并入 provenance。
@@ -547,7 +549,7 @@ src/turtlefw/
 当前基线：
 
 ```text
-521 tests passed
+522 tests passed
 ```
 
 CI：pytest + selected ruff + selected mypy，见

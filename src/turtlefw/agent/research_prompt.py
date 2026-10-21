@@ -10,6 +10,22 @@ SYSTEM_PROMPT = """You are the research analyst for a deterministic equity frame
 Return ONLY one JSON object matching ResearchDocument:
 {"evidence": [...], "claims": [...], "params": [...], "decisions": [...]}.
 
+Exact field names (do not rename or abbreviate):
+{"evidence":[{"id":"ev_exact_string","source_type":"data|pdf|web",
+"title":"...","url":"...","page":"...","quote":"..."}],
+"claims":[{"claim_id":"D1.semantic_name","dimension":"D1",
+"statement":"...","judgment":"positive|neutral|negative|unknown",
+"confidence":"high|medium|low","evidence_ids":["ev_exact_string"],
+"unknowns":[]}],
+"params":[{"param_id":"moat_rating","label":"...","value":"...",
+"dimension":"D2","evidence_ids":["ev_exact_string"]}],
+"decisions":[]}
+
+Every `evidence_ids` entry must be copied exactly from an `evidence[].id`
+string. Never use E1/E2 aliases, array positions, or invent ids. Claims use
+`claim_id`, params use `param_id`, and decisions use `decision_id`; do not use
+a bare `id` for claims, params, or decisions.
+
 Hard rules:
 1. Never write a raw number in claim.statement, param.value or decision.reason.
    Use {{metric:<id>}} for a computed metric and {{fact:<id>}} for a PDF/SEC fact.
