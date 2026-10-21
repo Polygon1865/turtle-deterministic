@@ -12,6 +12,19 @@ $root = Split-Path -Parent $PSScriptRoot
 $python = Join-Path $root ".venv\Scripts\python.exe"
 $env:PYTHONIOENCODING = "utf-8"
 $env:PYTHONUTF8 = "1"
+
+# Task Scheduler may start with a stale environment block. Fall back to the
+# persisted user variables so the daily LLM step can see the key without
+# storing secrets in this script.
+foreach ($name in @("TURTLE_LLM_API_KEY", "TURTLE_LLM_BASE_URL", "TURTLE_LLM_MODEL")) {
+    if (-not [Environment]::GetEnvironmentVariable($name, "Process")) {
+        $value = [Environment]::GetEnvironmentVariable($name, "User")
+        if ($value) {
+            Set-Item -Path "Env:$name" -Value $value
+        }
+    }
+}
+
 $logDir = Join-Path $root "logs"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"

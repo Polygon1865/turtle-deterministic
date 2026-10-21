@@ -57,6 +57,8 @@ logs/
 1. 仓库已安装：`.venv\Scripts\python.exe -m pip install -e .`
 2. `.env` 中有 `TUSHARE_TOKEN`；若要启用 LLM，再加
    `TURTLE_LLM_API_KEY`、`TURTLE_LLM_MODEL`（兼容 OpenAI 接口）。
+   计划任务通过 `scripts/run_daily.ps1` 启动；如果进程环境缺少这些变量，
+   脚本会从当前 Windows 用户的环境变量回退读取，因此不需要把 key 写进脚本。
 3. 可选：把年报 PDF 放到 `data/pdfs/600887.SH/`，pipeline 会自动建页级索引；
    不放 PDF 也能正常出确定性报告。
 4. Caddy、cloudflared 可放在 `C:\Tools\`，不必加入系统 PATH。
