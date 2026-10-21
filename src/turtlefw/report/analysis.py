@@ -2,21 +2,24 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from decimal import Decimal
-from typing import Any, Sequence
+from typing import Any
 
 from jinja2 import Environment, FileSystemLoader
 
 from ..config import Settings
 from ..factors.engine import FactorContext, FactorResult, final_verdict
-from ..metrics import statements, valuation
 from ..metrics import registry as metric_registry
-from ..metrics.dps_check import crosscheck_dps
-from ..qualitative import MODULES, all_evidence, summary as qual_summary
-from ..types import Currency, DividendEvent, FetchIssue
-from .format import TEMPLATE_DIR, _m, _num, _pct, _table
-from . import industry
+from ..metrics import statements, valuation
 from ..metrics.dividends import average_dps
+from ..metrics.dps_check import crosscheck_dps
+from ..qualitative import MODULES, all_evidence
+from ..qualitative import summary as qual_summary
+from ..types import Currency, DividendEvent, FetchIssue
+from . import industry
+from .extras import render_extras
+from .format import TEMPLATE_DIR, _m, _num, _pct, _table
 
 STATUS = {"pass": "通过", "veto": "否决", "unknown": "未验证", "info": "观察"}
 
@@ -79,6 +82,8 @@ def render_analysis(
     document_facts: Sequence[dict[str, Any]] = (),
     fact_rows: Sequence[dict[str, Any]] = (),
     industry_peers: Sequence[dict[str, Any]] = (),
+    fundamental_extras: Mapping[str, Any] | None = None,
+    industry_name: str = "",
 ) -> str:
     verdict, reason = final_verdict(results)
     rows = ctx.rows
@@ -129,8 +134,15 @@ def render_analysis(
         ctx, results, composite=composite, premium=premium, stats=stats
     )
     industry_md = industry.render_section(
-        str(ctx.code), metric_ledger, list(industry_peers)
+        str(ctx.code), metric_ledger, list(industry_peers), industry_name
     )
+    fundamental_md = render_extras(fundamental_extras)
+    fundamental_section = (
+        f"## 十二、补充基本面（Tushare）\n\n{fundamental_md}\n\n"
+        if fundamental_md
+        else ""
+    )
+    disclaimer_heading = "十三" if fundamental_md else "十二"
     status_label = {"stable": "口径一致", "divergent": "口径分歧", "unavailable": "不可用"}[
         stats.status
     ]
@@ -389,6 +401,8 @@ def render_analysis(
         "metric": metric_ledger.display,
         "metric_registry": metric_ledger,
         "industry_md": industry_md,
+        "fundamental_section": fundamental_section,
+        "disclaimer_heading": disclaimer_heading,
         "pdf_fact_rows": [
             [
                 str(fact.get("label", "")),

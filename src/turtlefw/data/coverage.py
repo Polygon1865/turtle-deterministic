@@ -38,7 +38,15 @@ def capabilities(code: StockCode) -> list[Capability]:
                 Capability("pledge", "质押", "available", "A 股治理接口"),
                 Capability("buyback", "回购", "available", "A 股治理接口"),
                 Capability("holders", "十大股东", "available", "A 股接口"),
+                Capability("ownership", "股东结构", "available", "十大流通股东/股东户数/增减持/解禁"),
                 Capability("main_business", "主营构成", "available", "A 股接口"),
+                Capability("financial_indicators", "财务指标", "available", "fina_indicator"),
+                Capability("forecast", "业绩预告", "available", "forecast"),
+                Capability("express", "业绩快报", "available", "express"),
+                Capability("disclosure", "披露日期", "available", "disclosure_date"),
+                Capability("company", "公司信息", "available", "stock_company"),
+                Capability("management", "管理层/薪酬", "available", "stk_managers + stk_rewards"),
+                Capability("industry", "申万行业", "available", "index_classify + index_member_all"),
                 Capability("pit", "PIT 本地快照", "partial", "本地 snapshot，非 vendor 历史"),
             ]
         )
@@ -46,6 +54,7 @@ def capabilities(code: StockCode) -> list[Capability]:
         rows.extend(
             [
                 Capability("holders", "主要股东", "partial", "PDF P4 提取"),
+                Capability("financial_indicators", "财务指标", "available", "hk_fina_indicator"),
                 Capability("segments", "业务分部", "partial", "PDF MDA 提取"),
                 Capability("parent_cash", "母公司现金", "pdf_optional", "年报 Company-level statement 可抽取"),
                 Capability("pledge", "质押", "not_applicable", "港股无标准化质押比例接口"),
@@ -58,6 +67,7 @@ def capabilities(code: StockCode) -> list[Capability]:
             [
                 Capability("statements_sec", "SEC 报表 fallback", "partial", "10-K companyfacts"),
                 Capability("sec_evidence", "SEC evidence", "available", "companyfacts + filing"),
+                Capability("financial_indicators", "财务指标", "available", "us_fina_indicator"),
                 Capability("parent_cash", "母公司现金", "not_applicable", "US GAAP 无标准母公司报表"),
                 Capability("pledge", "质押", "not_applicable", "美股无对应制度"),
                 Capability("buyback", "回购", "partial", "SEC companyfacts / yfinance"),

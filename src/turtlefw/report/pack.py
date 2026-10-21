@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from datetime import date
 from decimal import Decimal
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -12,14 +13,12 @@ from ..config import Settings
 from ..data.coverage import coverage_markdown
 from ..data.protocol import StatementRow
 from ..facts import MetricPoint, MetricRegistry
-from ..metrics import cashflow
+from ..metrics import cashflow, grids, report_returns, returns, statements, valuation
 from ..metrics import dividends as div_metrics
 from ..metrics.dividends import average_dps
-from ..metrics import grids, returns, statements, valuation
-from ..metrics import report_returns
 from ..pdf.hk_facts import extract as extract_hk_facts
 from ..types import Currency, DividendEvent, FetchIssue, Money, StockCode
-
+from .extras import render_extras
 from .format import TEMPLATE_DIR, _m, _num, _pct, _ratio_pct, _table, _x
 from .pdf_facts import apply_document_facts
 from .snapshot_id import source_snapshot_id
@@ -75,6 +74,7 @@ def render_data_pack(
     decisions: Mapping[str, str] | None = None,
     snapshot_id: str | None = None,
     document_facts: list[dict[str, object]] | None = None,
+    fundamental_extras: Mapping[str, Any] | None = None,
 ) -> str:
     rows = apply_document_facts(list(rows), document_facts)
     decisions = decisions or {}
@@ -733,7 +733,7 @@ def render_data_pack(
     env = Environment(loader=FileSystemLoader(TEMPLATE_DIR), autoescape=False)
     text = env.get_template("data_pack.md.j2").render(**context)
     if document_facts:
-        rows = [
+        fact_rows = [
             [
                 str(fact.get("label", "")),
                 str(fact.get("value", "")),
@@ -743,6 +743,9 @@ def render_data_pack(
             for fact in document_facts
         ]
         text += "\n\n## PDF 证据\n\n" + _table(
-            ["项目", "数值", "单位", "页码"], rows
+            ["项目", "数值", "单位", "页码"], fact_rows
         )
+    extras_md = render_extras(fundamental_extras)
+    if extras_md:
+        text += "\n\n## 17. 补充基本面（Tushare）\n\n" + extras_md
     return text

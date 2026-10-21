@@ -1,7 +1,8 @@
 # Tushare 字段与权限核对
 
-> 观测日期：2026-10-19  
-> 样本：`600887.SH`（A 股）、`00700.HK`（港股）  
+> 观测日期：2026-10-21
+>
+> 样本：`600887.SH`（A 股）、`00700.HK`（港股）、`AAPL.US`（美股）
 > 说明：以下是**本机账号实际返回**的字段，不代表所有 Tushare 账号都有相同权限。换账号后请用文末探测脚本重跑。
 
 ## 结论摘要
@@ -16,6 +17,9 @@
 | 回购 | 可用（`repurchase`） | 因子 2 的 O |
 | 审计意见 | 可用（`fina_audit`） | 因子 1A |
 | 港股三大报表 | 可用（line-item） | 缺毛利现金收付明细，只能做“间接现金桥” |
+| 港股/美股财务指标 | 可用（`hk_fina_indicator` / `us_fina_indicator`） | 仅作交叉核对，不覆盖三表 |
+| 补充基本面 | A 股 13 个接口已接入 | 指标、预告/快报/披露、公司、管理层、股东、申万分类 |
+| A 股申万分类 | 可用（`index_classify` + `index_member_all`） | 用于选择行业模板；同行表仍为模板内固定 peer |
 | 港股 D&A | 已修正为 `加:折旧及摊销` | G 网格不再因缺 D&A 回退 |
 | 港股 DPS | 可用但可能重复 | 重复时标记不可靠，股息隐含价跳过 |
 | `hk_daily` | 限频 1 次/小时 | 行情优先 yfinance，失败才回退 |
@@ -88,13 +92,59 @@
 | `fina_audit` | `audit_agency,audit_result` | 审计意见 | ✅ | 因子 1A unknown |
 | `pledge_stat` | `pledge_ratio` | 质押率 | ✅ | 因子 1A unknown，不否决 |
 | `repurchase` | `amount,vol,proc` | 回购 O | ✅（金额单位：元） | O=0 |
-| `top10_holders` | `holder_name,hold_amount,hold_ratio` | 股东结构 | ✅ | 数据包“未接入” |
-| `fina_mainbz` | `bz_item,bz_sales,bz_profit` | 主营/分部 | ✅ | 数据包“未接入” |
+| `top10_holders` | `holder_name,hold_amount,hold_ratio` | 股东结构 | ✅ | 数据包股东段为空 |
+| `fina_mainbz` | `bz_item,bz_sales,bz_profit` | 主营/分部 | ✅ | 数据包主营段为空 |
 | `adj_factor` | `adj_factor` | A 股后复权 | ✅ | 价格不复权 |
 | `stock_basic` | `name,industry,area,market,exchange,list_date,delist_date` | 股票元数据/上市状态 | ✅ | 名称/行业空 |
 | `trade_cal` | `cal_date,is_open` | 最新交易日 | ✅ | 行情日期回退今天 |
 | `yc_cb` | 国债收益率 | Rf | ❌ 无权限 | `--rf` 或 `default_rf` |
 | `fina_indicator_vip` | `roe_waa,grossprofit_margin,debt_to_assets` | 批量筛选 | 视权限 | Tier1 指标空 |
+| `fina_indicator` | `roe_waa,grossprofit_margin,netprofit_margin,debt_to_assets,ocf_to_or,eps,bps` | 单票财务指标 | ✅（本机） | 仅补充章节，不并入三表 |
+| `forecast` | `type,p_change_min/max,net_profit_min/max,summary,change_reason` | 业绩预告 | ✅（本机） | 空响应标注未取得 |
+| `express` | `revenue,n_income,total_assets,total_hldr_eqy_exc_min_int,diluted_eps,diluted_roe` | 业绩快报 | ✅（本机） | 空响应标注未取得 |
+| `disclosure_date` | `pre_date,actual_date,modify_date` | 预约披露 | ✅（本机） | 空响应标注未取得 |
+| `stock_company` | `com_name,chairman,manager,reg_capital,main_business` | 公司信息 | ✅（120 积分） | 仅展示，不参与估值 |
+| `stk_managers` | `name,title,begin_date,end_date` | 管理层 | ✅（本机） | 仅展示 |
+| `stk_rewards` | `name,title,reward,hold_vol` | 管理层薪酬 | ✅（本机） | `reward` 单位元，报告按百万元展示 |
+| `top10_floatholders` | `holder_name,hold_amount,hold_ratio,hold_change` | 十大流通股东 | ✅（本机） | 补充章节展示 |
+| `stk_holdernumber` | `holder_num` | 股东户数 | ✅（本机） | 补充章节展示 |
+| `stk_holdertrade` | `in_de,change_vol,change_ratio,avg_price` | 增减持 | ✅（本机） | 补充章节展示 |
+| `share_float` | `float_date,float_share,float_ratio` | 限售解禁 | ✅（本机） | 补充章节展示 |
+| `index_classify` | `index_code,industry_name,level` | 申万分类 | ✅（本机） | 用于模板选择 |
+| `index_member_all` | `l1_code,l1_name,l2_name,l3_name,in_date,is_new` | 申万成分 | ✅（本机） | 用于模板选择 |
+
+## 补充基本面（2026-10-21 接入）
+
+这些数据走 `TushareProvider.fundamental_extras()`，只进入报告/data pack 的
+“补充基本面”章节，**不进入 `StatementRow`，不改变确定性指标**。空响应写入
+`missing`，权限/网络失败写入 `FetchIssue`；两者都不会被零填充。
+
+| 数据 | 接口 | 标准化 | 单位/口径 |
+|:--|:--|:--|:--|
+| A 股财务指标 | `fina_indicator` | `normalize_fina_indicator` | 比例字段为百分点；`ocf_to_or` 是比率，×100 转百分点 |
+| 港股财务指标 | `hk_fina_indicator` | 同上 | `ocf_sales` 已是百分点，不再乘 100 |
+| 美股财务指标 | `us_fina_indicator` | 同上 | 无 `ocf_sales`/`bps` 时保持 `None` |
+| 业绩预告 | `forecast` | `normalize_forecast` | `net_profit_min/max` 单位万元，×10000 转元 |
+| 业绩快报 | `express` | `normalize_express` | 金额为元；EPS/ROE 兼容 `diluted_*` |
+| 预约披露 | `disclosure_date` | `normalize_disclosures` | 保留预约/实际/修改日期 |
+| 公司信息 | `stock_company` | `normalize_company` | 仅展示，不参与估值 |
+| 管理层/薪酬 | `stk_managers` / `stk_rewards` | `normalize_managers` / `normalize_rewards` | 按起始/公告日期倒序 |
+| 股东结构 | `top10_floatholders` / `stk_holdernumber` / `stk_holdertrade` / `share_float` | `normalize_float_holders` 等 | 最新一期/最近记录；比例字段为百分点 |
+| 申万分类 | `index_classify` + `index_member_all` | `normalize_industry` | 取当前 `is_new=Y` 的最新 `in_date`；用于选择行业模板 |
+
+实现位置：
+
+- `src/turtlefw/data/tushare_provider.py`（schema `turtle-8`）
+- `src/turtlefw/data/extras.py`（标准化）
+- `src/turtlefw/report/extras.py`（报告/data pack 共用渲染）
+- `src/turtlefw/report/snapshot.py`（`ReportInputs.fundamental_extras`、`industry_name`、`extras_hash` 校验）
+
+边界：
+
+- 预告/快报未经审计，不覆盖正式报表；报告中明确标注。
+- 财务指标是供应商口径，季度/中报未年化。
+- 申万分类只决定行业模板；当前 peer 表仍是模板内固定 peer，不做全市场动态筛选。
+- A 股接口多需约 2000 积分；`stock_company` 门槛较低。实际权限以账号为准。
 
 ## 港股字段（line-item）
 
@@ -105,7 +155,7 @@
 | `hk_income` | ✅ 映射全部命中 | 营业额/营运支出/股东应占溢利/EPS 等 |
 | `hk_balancesheet` | ✅ 映射全部命中 | 现金/应收/预付款项/递延收入/股东权益等 |
 | `hk_cashflow` | ✅ 核心项命中；D&A 已修正 | 无“销售收现/购买商品付现”明细；Capex 由 PPE + 无形资产两项相加 |
-| `hk_fina_indicator` | ✅ `dps_hkd,divi_ratio` | DPS 可能多年重复，需标记不可靠 |
+| `hk_fina_indicator` | ✅ `dps_hkd,divi_ratio` + ROE/毛利率/净利率/负债率/OCF 占比 | 指标用于补充基本面；DPS 可能多年重复 |
 | `hk_daily` | ⚠️ 1 次/小时 | yfinance 优先；限流时跳过行情 |
 
 ### 港股现金桥为什么是“间接”
@@ -140,6 +190,7 @@
 | 三大报表 | `Ticker.financials/balance_sheet/cashflow` 标签映射 | 实验可用 |
 | 行情/股本 | `info.marketCap/sharesOutstanding/currentPrice` + 1y history | 实验可用 |
 | 分红 | `Ticker.dividends` | 实验可用 |
+| 财务指标 | Tushare `us_fina_indicator` | 补充基本面；仅 ROE/毛利率/净利率/负债率/EPS |
 | 审计/质押/股东/主营 | 无 | 返回空 |
 
 注意：yfinance 报表只有最近 4 个年度、字段命名可能变化；US 报告不应当当作与 A/HK 同等覆盖。
@@ -168,5 +219,7 @@ for endpoint, fields in [
 
 - 字段映射：[tushare_maps.py](../src/turtlefw/data/tushare_maps.py)
 - 取数与降级：[tushare_provider.py](../src/turtlefw/data/tushare_provider.py)
+- 补充基本面标准化：[extras.py](../src/turtlefw/data/extras.py)
+- 补充基本面渲染：[report/extras.py](../src/turtlefw/report/extras.py)
 - 现金桥：[cashflow.py](../src/turtlefw/metrics/cashflow.py)
-- 缓存 schema：`TushareProvider.SCHEMA_VERSION = "turtle-7"`；升级字段后需换版本避免旧缓存。
+- 缓存 schema：`TushareProvider.SCHEMA_VERSION = "turtle-8"`；升级字段后需换版本避免旧缓存。

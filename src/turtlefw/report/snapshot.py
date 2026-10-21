@@ -18,6 +18,7 @@ from typing import Any
 
 from ..config import Settings, load_settings
 from ..data.protocol import StatementRow
+from ..factors.engine import FactorContext, run
 from ..facts import (
     FORMULA_VERSION,
     ReportManifest,
@@ -27,16 +28,15 @@ from ..facts import (
     statement_payload,
     template_hash,
 )
-from ..factors.engine import FactorContext, run
 from ..metrics import grids, statements
+from ..metrics.dividends import average_dps
 from ..metrics.valuation import build_valuation
+from ..pdf.fact_hash import pdf_facts_hash
 from ..qualitative import load as load_qualitative
 from ..report.analysis import render_analysis
-from ..metrics.dividends import average_dps
-from ..pdf.fact_hash import pdf_facts_hash
+from ..types import Currency, DividendEvent, FetchIssue, Money, StockCode
 from .pdf_facts import apply_document_facts
 from .snapshot_id import source_snapshot_id
-from ..types import Currency, DividendEvent, FetchIssue, Money, StockCode
 
 
 def resolve_markdown(payload: list[dict[str, Any]]) -> str:
@@ -92,6 +92,8 @@ class ReportInputs:
     fact_rows: list[dict[str, Any]] = field(default_factory=list)
     dps_fact: dict[str, Any] | None = None
     industry_peers: list[dict[str, Any]] = field(default_factory=list)
+    fundamental_extras: dict[str, Any] = field(default_factory=dict)
+    industry_name: str = ""
 
 
 def inputs_to_dict(inputs: ReportInputs) -> dict[str, Any]:
@@ -161,6 +163,8 @@ def inputs_to_dict(inputs: ReportInputs) -> dict[str, Any]:
         "fact_rows": inputs.fact_rows,
         "dps_fact": inputs.dps_fact,
         "industry_peers": inputs.industry_peers,
+        "fundamental_extras": inputs.fundamental_extras,
+        "industry_name": inputs.industry_name,
     }
 
 
@@ -240,6 +244,8 @@ def inputs_from_dict(payload: dict[str, Any]) -> ReportInputs:
         fact_rows=list(payload.get("fact_rows", [])),
         dps_fact=payload.get("dps_fact"),
         industry_peers=list(payload.get("industry_peers", [])),
+        fundamental_extras=dict(payload.get("fundamental_extras") or {}),
+        industry_name=str(payload.get("industry_name", "")),
     )
 
 
@@ -308,6 +314,11 @@ def verify_manifest(
     actual_config = content_hash(config_payload(settings))
     if actual_config != manifest.config_hash:
         errors.append("config_hash mismatch")
+    actual_extras = content_hash(inputs.fundamental_extras or {})
+    if (
+        manifest.extras_hash or inputs.fundamental_extras
+    ) and actual_extras != manifest.extras_hash:
+        errors.append("extras_hash mismatch")
     research_file = root / "research.json"
     actual_research = file_hash(research_file) if research_file.is_file() else ""
     if actual_research != manifest.research_hash:
@@ -408,7 +419,8 @@ def render(
         else Path(research_path) if research_path is not None else None
     )
     if research_candidate is not None and research_candidate.is_file():
-        from ..research import engine_decisions, load as load_research
+        from ..research import engine_decisions
+        from ..research import load as load_research
 
         research_document = load_research(research_candidate)
     decisions = (
@@ -575,6 +587,8 @@ def render(
             document_facts=inputs.document_facts,
             fact_rows=inputs.fact_rows,
             industry_peers=inputs.industry_peers,
+            fundamental_extras=inputs.fundamental_extras,
+            industry_name=inputs.industry_name,
         )
         metric_map.update(
             {
@@ -613,6 +627,8 @@ def render(
         document_facts=inputs.document_facts,
         fact_rows=inputs.fact_rows,
         industry_peers=inputs.industry_peers,
+        fundamental_extras=inputs.fundamental_extras,
+        industry_name=inputs.industry_name,
     )
     if decisions and research_document is not None:
         selected = "、".join(

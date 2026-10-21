@@ -20,10 +20,24 @@ from typing import Any
 
 import pandas as pd
 
-from ..types import Currency, DividendEvent, FetchIssue, Market, StockCode
-from ..paths import output_root
 from ..metrics.prices import adjust_ohlc, factor_map
+from ..paths import output_root
+from ..types import Currency, DividendEvent, FetchIssue, Market, StockCode
 from .cache import FileCache
+from .extras import (
+    normalize_company,
+    normalize_disclosures,
+    normalize_express,
+    normalize_fina_indicator,
+    normalize_float_holders,
+    normalize_forecast,
+    normalize_holder_count,
+    normalize_holder_trades,
+    normalize_industry,
+    normalize_managers,
+    normalize_rewards,
+    normalize_share_float,
+)
 from .normalize import (
     dividend_events,
     hk_dividend_events,
@@ -53,11 +67,55 @@ DAILY_BASIC_FIELDS = (
     "ts_code,trade_date,close,pe_ttm,pb,total_mv,circ_mv,dv_ttm,turnover_rate,total_share"
 )
 STOCK_BASIC_FIELDS = "ts_code,name,industry,area,market,exchange,list_date,delist_date"
+A_INDICATOR_FIELDS = (
+    "ts_code,end_date,ann_date,roe_waa,grossprofit_margin,netprofit_margin,"
+    "debt_to_assets,ocf_to_or,eps,bps"
+)
+HK_INDICATOR_FIELDS = (
+    "ts_code,end_date,ann_date,roe_avg,gross_profit_ratio,net_profit_ratio,"
+    "debt_asset_ratio,ocf_sales,basic_eps,bps"
+)
+US_INDICATOR_FIELDS = (
+    "ts_code,end_date,roe_avg,gross_profit_ratio,net_profit_ratio,"
+    "debt_asset_ratio,basic_eps"
+)
+FORECAST_FIELDS = (
+    "ts_code,ann_date,end_date,type,p_change_min,p_change_max,net_profit_min,"
+    "net_profit_max,summary,change_reason"
+)
+EXPRESS_FIELDS = (
+    "ts_code,ann_date,end_date,revenue,n_income,total_assets,"
+    "total_hldr_eqy_exc_min_int,diluted_eps,diluted_roe"
+)
+DISCLOSURE_FIELDS = "ts_code,ann_date,end_date,pre_date,actual_date,modify_date"
+COMPANY_FIELDS = (
+    "ts_code,com_name,chairman,manager,secretary,reg_capital,setup_date,"
+    "province,city,employees,main_business,website"
+)
+MANAGER_FIELDS = "ts_code,ann_date,name,gender,title,begin_date,end_date"
+REWARD_FIELDS = "ts_code,ann_date,name,title,reward,hold_vol"
+CLASSIFY_FIELDS = "index_code,industry_name,level,industry_code,is_pub,parent_code"
+MEMBER_FIELDS = (
+    "l1_code,l1_name,l2_code,l2_name,l3_code,l3_name,ts_code,name,"
+    "in_date,out_date,is_new"
+)
+FLOAT_HOLDER_FIELDS = (
+    "ts_code,ann_date,end_date,holder_name,hold_amount,hold_ratio,"
+    "hold_float_ratio,hold_change,holder_type"
+)
+HOLDER_COUNT_FIELDS = "ts_code,ann_date,end_date,holder_num"
+HOLDER_TRADE_FIELDS = (
+    "ts_code,ann_date,holder_name,holder_type,in_de,change_vol,change_ratio,"
+    "after_share,after_ratio,avg_price"
+)
+SHARE_FLOAT_FIELDS = (
+    "ts_code,ann_date,float_date,holder_name,float_share,float_ratio,share_type"
+)
 
 
 class TushareProvider:
     name = "tushare"
-    SCHEMA_VERSION = "turtle-7"
+    SCHEMA_VERSION = "turtle-8"
 
     def __init__(
         self,
@@ -643,6 +701,185 @@ class TushareProvider:
             "ts_code,end_date,roe_waa,grossprofit_margin,debt_to_assets",
             period=period,
         )
+
+    # -- supplemental fundamentals -----------------------------------------
+    def fundamental_extras(self, code: StockCode) -> dict[str, Any]:
+        """Fetch non-statement fundamentals for one listing.
+
+        This is deliberately separate from :meth:`statements`: forecast,
+        express and indicator data must never be merged into the audited
+        statement rows.  Empty responses are reported as ``missing`` rather
+        than zero-filled.  Vendor permission failures are captured by
+        :meth:`_safe` and surface through ``provider.issues``.
+        """
+        payload: dict[str, Any] = {
+            "code": str(code),
+            "market": code.market.value,
+            "sources": [],
+            "missing": [],
+        }
+        start = (date.today() - timedelta(days=365 * 6)).strftime("%Y%m%d")
+
+        def records(endpoint: str, fields: str, **params: Any) -> list[dict[str, Any]]:
+            frame = self._safe(endpoint, fields=fields, **params)
+            return [] if frame.empty else frame.to_dict("records")
+
+        def add(key: str, endpoint: str, value: Any) -> None:
+            if value:
+                payload[key] = value
+                payload["sources"].append(f"tushare:{endpoint}")
+            else:
+                payload["missing"].append(key)
+
+        if code.is_a_share:
+            add(
+                "financial_indicators",
+                "fina_indicator",
+                normalize_fina_indicator(
+                    records(
+                        "fina_indicator",
+                        A_INDICATOR_FIELDS,
+                        ts_code=str(code),
+                        start_date=start,
+                    ),
+                    "A",
+                ),
+            )
+            add(
+                "forecasts",
+                "forecast",
+                normalize_forecast(
+                    records(
+                        "forecast",
+                        FORECAST_FIELDS,
+                        ts_code=str(code),
+                        start_date=start,
+                    )
+                ),
+            )
+            add(
+                "express",
+                "express",
+                normalize_express(
+                    records(
+                        "express",
+                        EXPRESS_FIELDS,
+                        ts_code=str(code),
+                        start_date=start,
+                    )
+                ),
+            )
+            add(
+                "disclosures",
+                "disclosure_date",
+                normalize_disclosures(
+                    records("disclosure_date", DISCLOSURE_FIELDS, ts_code=str(code))
+                ),
+            )
+            company_rows = records("stock_company", COMPANY_FIELDS, ts_code=str(code))
+            add(
+                "company",
+                "stock_company",
+                normalize_company(company_rows[0] if company_rows else None),
+            )
+            add(
+                "managers",
+                "stk_managers",
+                normalize_managers(
+                    records("stk_managers", MANAGER_FIELDS, ts_code=str(code))
+                ),
+            )
+            add(
+                "rewards",
+                "stk_rewards",
+                normalize_rewards(
+                    records("stk_rewards", REWARD_FIELDS, ts_code=str(code))
+                ),
+            )
+
+            memberships = records(
+                "index_member_all",
+                MEMBER_FIELDS,
+                ts_code=str(code),
+            )
+            classifications = records(
+                "index_classify", CLASSIFY_FIELDS, level="L1"
+            )
+            add(
+                "industry",
+                "index_member_all",
+                normalize_industry(memberships, classifications),
+            )
+            add(
+                "float_holders",
+                "top10_floatholders",
+                normalize_float_holders(
+                    records(
+                        "top10_floatholders",
+                        FLOAT_HOLDER_FIELDS,
+                        ts_code=str(code),
+                    )
+                ),
+            )
+            add(
+                "holder_count",
+                "stk_holdernumber",
+                normalize_holder_count(
+                    records("stk_holdernumber", HOLDER_COUNT_FIELDS, ts_code=str(code))
+                ),
+            )
+            add(
+                "holder_trades",
+                "stk_holdertrade",
+                normalize_holder_trades(
+                    records(
+                        "stk_holdertrade",
+                        HOLDER_TRADE_FIELDS,
+                        ts_code=str(code),
+                        start_date=start,
+                    )
+                ),
+            )
+            add(
+                "share_float",
+                "share_float",
+                normalize_share_float(
+                    records("share_float", SHARE_FLOAT_FIELDS, ts_code=str(code))
+                ),
+            )
+            return payload
+
+        if code.market is Market.HK:
+            add(
+                "financial_indicators",
+                "hk_fina_indicator",
+                normalize_fina_indicator(
+                    records(
+                        "hk_fina_indicator",
+                        HK_INDICATOR_FIELDS,
+                        ts_code=str(code),
+                    ),
+                    "HK",
+                ),
+            )
+            return payload
+
+        if code.market is Market.US:
+            add(
+                "financial_indicators",
+                "us_fina_indicator",
+                normalize_fina_indicator(
+                    records(
+                        "us_fina_indicator",
+                        US_INDICATOR_FIELDS,
+                        ts_code=str(code).removesuffix(".US"),
+                    ),
+                    "US",
+                ),
+            )
+            return payload
+
+        return payload
 
     # -- governance / capital actions -------------------------------------
     def pledge(self, code: StockCode, *, years: int = 5) -> list[dict]:

@@ -14,7 +14,7 @@ v2 HEAD：`c61419c9fb5458595c0e44458ea5798dab501d92`（README 写 v2.0-beta）�
 | 港股 | 行情/股东 | yfinance，`hk_daily` fallback |
 | 港股 | 母公司 | 不提供（v2: HKFRS 不拆母公司） |
 | 港股 | 回购/质押 | 占位符 |
-| 美股 | 三表/行情 | Tushare `us_*` + yfinance |
+| 美股 | 三表/行情 | yfinance + SEC companyfacts；`us_fina_indicator` 仅补充指标 |
 | 美股 | 母公司 | 不提供（v2: US GAAP 不拆母公司） |
 | 美股 | 回购/质押 | 占位符 |
 | 全部 | PIT | 无 |
@@ -79,6 +79,35 @@ quote = 公告日期 + 标题
 | 美股 13F 股东 | external | 需 SEC 13F bulk dataset 或第三方 API |
 
 `coverage` 与 QA 会显示 `external`，不把它们伪装成 `available`，也不把它们算作本地 missing。
+
+## 补充基本面（2026-10 接入）
+
+Tushare P0 中不进入三表的单票数据已接入，统一由
+`TushareProvider.fundamental_extras()` 拉取并标准化：
+
+| 市场 | 已接入 | 入口 |
+|:--|:--|:--|
+| A 股 | `fina_indicator`、`forecast`、`express`、`disclosure_date`、`stock_company`、`stk_managers`、`stk_rewards`、`top10_floatholders`、`stk_holdernumber`、`stk_holdertrade`、`share_float`、`index_classify` + `index_member_all` | `data/extras.py` |
+| 港股 | `hk_fina_indicator` | 同上 |
+| 美股 | `us_fina_indicator`（去 `.US` 后缀） | 同上 |
+
+数据流：
+
+```text
+Tushare endpoint
+  → normalize_*()（单位/字段统一，缺失 None）
+  → ReportInputs.fundamental_extras / industry_name
+  → snapshot inputs.json + manifest.extras_hash
+  → report 第十二节 + data pack 第十七节（同一段 Markdown）
+```
+
+边界：
+
+- 只做交叉核对与前瞻提示，**不进入 `StatementRow`，不改变确定性财务指标**；
+- 预告/快报未经审计，不覆盖正式报表；
+- 空响应进 `missing`，权限/网络失败进 `FetchIssue`，不做零填充；
+- 申万分类用于选择行业模板；peer 表仍是模板内固定 peer，动态全市场同行筛选尚未接入；
+- `report_rc`、宏观、公告/新闻/研报、资金流仍属 P1，未接入。
 
 ## 关键参考
 

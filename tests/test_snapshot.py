@@ -3,8 +3,8 @@ import json
 import os
 import shutil
 import tempfile
-from decimal import Decimal
 from dataclasses import replace
+from decimal import Decimal
 from pathlib import Path
 
 from turtlefw import demo
@@ -17,11 +17,11 @@ from turtlefw.facts import (
     statement_payload,
     template_hash,
 )
-from turtlefw.report.snapshot import ReportInputs, freeze, load, render, verify_manifest
+from turtlefw.pdf.fact_hash import pdf_facts_hash
 from turtlefw.report.finalize import FinalizeError, finalize_research
 from turtlefw.report.manifest import build_manifest
 from turtlefw.report.pdf_facts import apply_document_facts
-from turtlefw.pdf.fact_hash import pdf_facts_hash
+from turtlefw.report.snapshot import ReportInputs, freeze, load, render, verify_manifest
 
 
 def _root() -> Path:
@@ -488,6 +488,33 @@ def test_finalize_decision_rebuilds_data_pack(tmp_path, monkeypatch):
     report = (tmp_path / "report.md").read_text(encoding="utf-8")
     assert manifest["snapshot_id"] in pack
     assert "research decisions" in report
+
+
+def test_snapshot_carries_extras_and_manifest_hash(tmp_path):
+    settings = load_settings()
+    extras = {
+        "market": "A",
+        "financial_indicators": [{"period_end": "2024-12-31", "roe": "20.5"}],
+        "industry": {"level1": "食品饮料"},
+        "sources": ["tushare:fina_indicator", "tushare:index_member_all"],
+    }
+    inputs = replace(
+        _inputs(),
+        fundamental_extras=extras,
+        industry_name="食品饮料",
+    )
+    freeze(inputs, settings, tmp_path)
+    loaded, _ = load(tmp_path)
+    assert loaded.fundamental_extras == extras
+    assert loaded.industry_name == "食品饮料"
+
+    manifest = build_manifest(inputs, settings, tmp_path)
+    assert manifest.extras_hash == content_hash(extras)
+    assert verify_manifest(inputs, settings, "", manifest, tmp_path) == []
+    bad = replace(manifest, extras_hash="bad")
+    assert "extras_hash mismatch" in verify_manifest(
+        inputs, settings, "", bad, tmp_path
+    )
 
 
 def test_finalize_refuses_existing_target(tmp_path):

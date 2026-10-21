@@ -9,6 +9,25 @@ def test_a_share_has_parent_and_pledge():
     assert rows["pit"].status == "partial"
 
 
+def test_supplemental_fundamentals_are_declared():
+    a = {row.key: row for row in capabilities(StockCode.parse("600887.SH"))}
+    for key in (
+        "financial_indicators",
+        "forecast",
+        "express",
+        "disclosure",
+        "company",
+        "management",
+        "industry",
+        "ownership",
+    ):
+        assert a[key].status == "available"
+    hk = {row.key: row for row in capabilities(StockCode.parse("00700.HK"))}
+    assert hk["financial_indicators"].status == "available"
+    us = {row.key: row for row in capabilities(StockCode.parse("AAPL.US"))}
+    assert us["financial_indicators"].status == "available"
+
+
 def test_us_marks_parent_and_holder_gaps():
     rows = {row.key: row for row in capabilities(StockCode.parse("AAPL.US"))}
     assert rows["statements_sec"].status == "partial"

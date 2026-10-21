@@ -9,18 +9,17 @@ import shutil
 from decimal import Decimal
 from pathlib import Path
 
+from .. import state as st
 from ..facts import file_hash
 from ..metrics import grids, statements
 from ..paths import output_root
-from ..types import Currency, Money, StockCode
-from .. import state as st
+from ..pdf.fact_hash import pdf_facts_hash
+from ..research import engine_decisions, snapshot_audit
 from ..research import load as load_research
 from ..research import quality as research_quality
-from ..research import snapshot_audit
-from ..research import engine_decisions
+from ..types import Currency, Money, StockCode
 from . import snapshot as snap
 from .html import convert_file
-from ..pdf.fact_hash import pdf_facts_hash
 from .manifest import build_manifest
 from .pack import render_data_pack
 
@@ -119,6 +118,7 @@ def finalize_research(
                 decisions=decisions,
                 snapshot_id=final_snapshot_id,
                 document_facts=inputs.document_facts,
+                fundamental_extras=inputs.fundamental_extras,
             ),
             encoding="utf-8",
         )

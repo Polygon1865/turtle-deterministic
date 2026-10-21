@@ -15,8 +15,8 @@ from . import __version__
 from .config import Settings, get_token, load_settings
 from .data.protocol import StatementRow
 from .data.store import StatementStore
-from .metrics import dividends as div_metrics
 from .metrics import cashflow, grids, owner_earnings, returns, statements, valuation
+from .metrics import dividends as div_metrics
 from .paths import output_root
 from .qualitative import load as load_qualitative
 from .qualitative import summary as qualitative_summary
@@ -346,11 +346,31 @@ def _pdf_sbc(path: str | None) -> Decimal | None:
         return None
 
 
-def _peer_metrics_for_inputs(provider, inputs) -> list[dict[str, object]]:
+def _industry_name(extras: dict[str, object]) -> str:
+    industry = extras.get("industry")
+    if isinstance(industry, dict):
+        return str(industry.get("level1", "")).strip()
+    return ""
+
+
+def _load_fundamental_extras(
+    provider: Any, code: StockCode
+) -> tuple[dict[str, Any], str]:
+    method = getattr(provider, "fundamental_extras", None)
+    if not callable(method):
+        return {}, ""
+    try:
+        payload = method(code)
+    except Exception as exc:  # noqa: BLE001 - optional supplemental source
+        return {}, str(exc)
+    return (dict(payload) if isinstance(payload, dict) else {}), ""
+
+
+def _peer_metrics_for_inputs(provider: Any, inputs: Any) -> list[dict[str, object]]:
     from .metrics import statements
     from .report.industry import template_for
 
-    template = template_for(str(inputs.code))
+    template = template_for(str(inputs.code), str(getattr(inputs, "industry_name", "")))
     if template is None:
         return []
     rows: list[dict[str, object]] = []
@@ -625,6 +645,16 @@ def _pack(
     main_business = (
         provider.main_business(code) if hasattr(provider, "main_business") else []
     )
+    fundamental_extras, _extras_error = _load_fundamental_extras(provider, code)
+    pack_issues = list(provider.issues)
+    if _extras_error:
+        pack_issues.append(
+            FetchIssue(
+                endpoint="fundamental-extras",
+                code=str(code),
+                message=_extras_error,
+            )
+        )
     footnotes = None
     if footnotes_path:
         import json
@@ -663,7 +693,7 @@ def _pack(
         diluted_shares=diluted_shares,
         rf_pct=rf_value,
         settings=settings,
-        issues=provider.issues,
+        issues=pack_issues,
         tax_pct=grids.default_tax_rate(code),
         rf_source=rf_src,
         parent_cash=parent_cash,
@@ -678,6 +708,7 @@ def _pack(
         pdf_sections=pdf_sections,
         pit_note=pit_note,
         document_facts=document_facts,
+        fundamental_extras=fundamental_extras,
     )
 
     path = Path(out) if out else output_root() / str(code) / "data_pack.md"
@@ -1632,7 +1663,7 @@ def _research_agent_cmd(
     import json
     import os
 
-    from .agent import AgentError, FakeLLM, LLM, OpenAICompatibleLLM, ResearchAgent
+    from .agent import LLM, AgentError, FakeLLM, OpenAICompatibleLLM, ResearchAgent
     from .research import to_payload
 
     try:
@@ -1817,7 +1848,7 @@ def _sec_audit_cmd(
 ) -> int:
     import json
 
-    from .data.sec import annual_facts, cik_for_ticker, compare_rows, UrllibTransport
+    from .data.sec import UrllibTransport, annual_facts, cik_for_ticker, compare_rows
 
     inputs_path = Path(snapshot) / "inputs.json"
     if not inputs_path.is_file():
@@ -1957,9 +1988,9 @@ def _pdf_numbers(
     max_pages: int | None,
 ) -> int:
     from .pdf.extract import (
+        extract_capex_detail_facts,
         extract_dps_pdf,
         extract_main_business_facts,
-        extract_capex_detail_facts,
         extract_pdf_bundle,
         write_reported_numbers,
     )
@@ -2372,7 +2403,8 @@ def _report(
             else output_root() / str(code) / "research.json"
         )
         if research_file.is_file():
-            from .research import engine_decisions, load as load_research
+            from .research import engine_decisions
+            from .research import load as load_research
 
             engine_decisions(
                 load_research(research_file),
@@ -2476,6 +2508,62 @@ def _report(
             fact_rows=list(pdf_payload.get("fact_rows", [])),
             dps_fact=pdf_payload.get("dps"),
         )
+        extras, extras_error = _load_fundamental_extras(provider, code)
+        inputs.fundamental_extras = extras
+        inputs.industry_name = _industry_name(extras)
+        if extras_error:
+            issues.append(
+                FetchIssue(
+                    endpoint="fundamental-extras",
+                    code=str(code),
+                    message=extras_error,
+                )
+            )
+        try:
+            holders = provider.holders(code) if hasattr(provider, "holders") else []
+        except Exception as exc:  # noqa: BLE001 - optional pack section
+            holders = []
+            issues.append(
+                FetchIssue(endpoint="holders", code=str(code), message=str(exc))
+            )
+        try:
+            main_business = (
+                provider.main_business(code)
+                if hasattr(provider, "main_business")
+                else []
+            )
+        except Exception as exc:  # noqa: BLE001 - optional pack section
+            main_business = []
+            issues.append(
+                FetchIssue(
+                    endpoint="main_business", code=str(code), message=str(exc)
+                )
+            )
+        from .report.pdf_facts import main_business_rows, merge_main_business
+
+        main_business = merge_main_business(
+            list(main_business), main_business_rows(inputs.fact_rows)
+        )
+        from json import loads as json_loads
+
+        footnotes = (
+            json_loads(Path(footnotes_path).read_text(encoding="utf-8-sig"))
+            if footnotes_path and Path(footnotes_path).is_file()
+            else None
+        )
+        pdf_sections = (
+            json_loads(Path(pdf_sections_path).read_text(encoding="utf-8-sig"))
+            if pdf_sections_path and Path(pdf_sections_path).is_file()
+            else None
+        )
+        inputs.holders = list(holders)
+        inputs.main_business = list(main_business)
+        inputs.footnotes = footnotes
+        inputs.pdf_sections = pdf_sections
+        inputs.pit_note = pit_note
+        inputs.issues = list(provider.issues) + [
+            issue for issue in issues if issue not in provider.issues
+        ]
         inputs.industry_peers = _peer_metrics_for_inputs(provider, inputs)
         if save_snapshot:
             snap.freeze(
@@ -2498,10 +2586,9 @@ def _report(
             else None
         )
         if data_pack_out:
-            from json import loads as json_loads
-
-            from .research import engine_decisions, load as load_research
             from .report.pack import render_data_pack
+            from .research import engine_decisions
+            from .research import load as load_research
 
             pack_decisions: dict[str, str] = {}
             if allow_research_decisions and research_file.is_file():
@@ -2509,38 +2596,6 @@ def _report(
                     load_research(research_file), allow=True
                 )
 
-            try:
-                holders = provider.holders(code) if hasattr(provider, "holders") else []
-            except Exception:  # noqa: BLE001 - optional pack section
-                holders = []
-            try:
-                main_business = (
-                    provider.main_business(code)
-                    if hasattr(provider, "main_business")
-                    else []
-                )
-            except Exception:  # noqa: BLE001 - optional pack section
-                main_business = []
-            from .report.pdf_facts import main_business_rows, merge_main_business
-
-            main_business = merge_main_business(
-                list(main_business), main_business_rows(inputs.fact_rows)
-            )
-            footnotes = (
-                json_loads(Path(footnotes_path).read_text(encoding="utf-8-sig"))
-                if footnotes_path and Path(footnotes_path).is_file()
-                else None
-            )
-            pdf_sections = (
-                json_loads(Path(pdf_sections_path).read_text(encoding="utf-8-sig"))
-                if pdf_sections_path and Path(pdf_sections_path).is_file()
-                else None
-            )
-            inputs.holders = list(holders)
-            inputs.main_business = list(main_business)
-            inputs.footnotes = footnotes
-            inputs.pdf_sections = pdf_sections
-            inputs.pit_note = pit_note
             pack_markdown = render_data_pack(
                 code,
                 inputs.rows,
@@ -2564,17 +2619,18 @@ def _report(
                 ),
                 sbc=Money(Decimal(inputs.sbc), unit) if inputs.sbc else None,
                 pdf_bridge=inputs.pdf_bridge,
-                holders=holders,
-                main_business=main_business,
+                holders=inputs.holders,
+                main_business=inputs.main_business,
                 as_of=inputs.as_of,
-                footnotes=footnotes,
-                pdf_sections=pdf_sections,
-                pit_note=pit_note,
+                footnotes=inputs.footnotes,
+                pdf_sections=inputs.pdf_sections,
+                pit_note=inputs.pit_note,
                 decisions=pack_decisions,
                 snapshot_id=(
                     frozen_manifest.snapshot_id if frozen_manifest else None
                 ),
                 document_facts=inputs.document_facts,
+                fundamental_extras=inputs.fundamental_extras,
             )
             pack_path = Path(data_pack_out)
             pack_path.parent.mkdir(parents=True, exist_ok=True)

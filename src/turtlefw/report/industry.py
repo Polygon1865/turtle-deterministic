@@ -99,7 +99,33 @@ TEMPLATES: dict[str, IndustryTemplate] = {
 }
 
 
-def template_for(code: str) -> IndustryTemplate | None:
+INDUSTRY_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("telecom", ("电信", "通信", "卫星传输")),
+    ("food", ("酒、饮料", "饮料", "食品制造", "农副食品")),
+    ("internet", ("互联网", "软件和信息技术")),
+)
+
+
+def template_key_for(industry_name: str) -> str:
+    """Map a Shenwan L1 industry name to a template key.
+
+    Classification is authoritative when present: a code that was previously
+    hard-coded to ``food`` must not silently keep that template if the vendor
+    now says it belongs to another industry.  Callers fall back to the legacy
+    code table only when no classification was obtained.
+    """
+    name = industry_name.strip()
+    if not name:
+        return ""
+    for key, keywords in INDUSTRY_KEYWORDS:
+        if any(word in name for word in keywords):
+            return key
+    return ""
+
+
+def template_for(code: str, industry_name: str = "") -> IndustryTemplate | None:
+    if industry_name.strip():
+        return TEMPLATES.get(template_key_for(industry_name))
     normalized = code.strip().upper()
     for template in TEMPLATES.values():
         if normalized in template.codes:
@@ -111,9 +137,18 @@ def render_section(
     code: str,
     ledger: MetricRegistry,
     peer_metrics: list[dict[str, object]] | None = None,
+    industry_name: str = "",
 ) -> str:
-    template = template_for(code)
+    template = template_for(code, industry_name)
     if template is None:
+        if industry_name.strip():
+            return (
+                "## 行业分类\n\n"
+                f"- 申万一级：{industry_name.strip()}\n"
+                "- 采用模板：暂无专用模板\n"
+                "- 来源：`tushare:index_member_all`\n\n"
+                "> 财务指标仍按通用框架展示；不为该行业填充未经核实的 KPI。"
+            )
         return ""
     rows: list[list[str]] = []
     for spec in template.kpis:
@@ -137,9 +172,15 @@ def render_section(
             ],
             ["l", "r", "r", "r"],
         )
+    classification = (
+        f"\n\n> 申万一级：{industry_name.strip()}（`tushare:index_member_all`）"
+        if industry_name.strip()
+        else ""
+    )
     return (
         f"## 行业模板：{template.name}\n\n"
-        f"{template.description}\n\n"
+        f"{template.description}"
+        f"{classification}\n\n"
         + _table(["KPI", "数值", "状态"], rows, ["l", "r", "l"])
         + "\n\n**Peer 组**\n\n"
         + _table(["公司", "代码", "市场"], peer_rows, ["l", "l", "l"])

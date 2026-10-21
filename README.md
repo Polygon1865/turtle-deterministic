@@ -75,6 +75,12 @@ python -m turtlefw.cli coverage AAPL.US
 | 港股 | 完成 | `pdf_optional` | 完成 | `partial` | `not_applicable` | PDF `partial` |
 | 美股 | yfinance + SEC fallback | `not_applicable` | 完成 | SEC `partial` | `not_applicable` | 分部/13F `external` |
 
+补充基本面（Tushare，A 股为主）：`fina_indicator`、`forecast`/`express`/
+`disclosure_date`、`stock_company`、`stk_managers`/`stk_rewards`、股东结构、
+申万分类；港股/美股接入 `hk_fina_indicator`/`us_fina_indicator`。这些数据只进入
+报告/data pack 的“补充基本面”章节，**不进入 `StatementRow`，不改变确定性指标**。
+详见 [docs/tushare-fields.md](docs/tushare-fields.md#补充基本面2026-10-21-接入)。
+
 状态含义：
 
 - `available`：本地可用；

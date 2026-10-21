@@ -26,6 +26,35 @@ def render() -> str:
 
 
 class TestDataPack:
+    def test_supplemental_extras_section_is_appended(self):
+        text = render_data_pack(
+            demo.DEMO_CODE,
+            demo.demo_rows(),
+            demo.demo_dividends(),
+            quote={"trade_date": "20261016", "close": 28.2},
+            history=[{"trade_date": "20261016", "close": 28.2}],
+            market_cap=Money(demo.DEMO_MARKET_CAP, Currency.CNY),
+            shares=demo.DEMO_SHARES,
+            rf_pct=demo.DEMO_RF,
+            settings=load_settings(),
+            fundamental_extras={
+                "financial_indicators": [
+                    {
+                        "period_end": "2024-12-31",
+                        "roe": "20.5",
+                        "gross_margin": "30",
+                        "net_margin": "12",
+                        "debt_ratio": "45",
+                        "ocf_to_revenue": "15.17",
+                    }
+                ],
+                "sources": ["tushare:fina_indicator"],
+            },
+        )
+        assert "## 17. 补充基本面（Tushare）" in text
+        assert "### 财务指标（Tushare）" in text
+        assert "不进入 StatementRow" in text
+
     def test_sections_present(self):
         text = render()
         for heading in (

@@ -65,6 +65,15 @@ def test_render_section_with_peer_financials():
     assert "18.00%" in text
 
 
+def test_industry_classification_overrides_legacy_code():
+    assert template_for("600887.SH", "电信").key == "telecom"
+    assert template_for("600887.SH", "银行") is None
+    text = render_section("600887.SH", MetricRegistry(), industry_name="银行")
+    assert "## 行业分类" in text
+    assert "暂无专用模板" in text
+    assert "申万一级：银行" in text
+
+
 def test_render_section_marks_missing_and_shows_peers():
     ledger = MetricRegistry()
     ledger.add(
