@@ -45,11 +45,67 @@ def _toc_html(headings: list[tuple[int, str, str]]) -> str:
     links = "".join(
         f'<a class="toc-l{level}" href="#{anchor}">{html.escape(text)}</a>'
         for level, text, anchor in headings
-        if level in (2, 3)
+        if level == 2
     )
     if not links:
         return ""
     return f'<nav class="toc" aria-label="目录"><div class="toc-title">目录</div>{links}</nav>'
+
+
+_FOLD_HEADINGS = {"证据索引", "定性证据", "数字交叉验证", "研究参数"}
+_FOLD_H2 = {
+    "补充基本面（Tushare）",
+    "市场与宏观（Tushare）",
+    "来源冲突决策（SourceRank）",
+    "数据问题与待验证事项",
+}
+
+
+def _fold_h2(text: str) -> bool:
+    return any(text.endswith(name) for name in _FOLD_H2)
+
+
+def _quick_read(markdown_text: str, *, has_research: bool) -> str:
+    verdict = re.search(r"\*\*(买入|观察|排除|减持)\*\*\s*[—-]\s*(.+)", markdown_text)
+    if verdict is None:
+        return ""
+    floor = re.search(r"综合底价：([\d,.]+)", markdown_text)
+    premium = re.search(r"当前价溢价：([\d,.]+%)", markdown_text)
+    margin = re.search(r"\|\s*安全边际\s*\|\s*([^|]+)\|", markdown_text)
+    confidence = re.search(r"\|\s*外推可信度\s*\|\s*([^|]+)\|", markdown_text)
+    rough = re.search(r"\|\s*粗算回报率\s*R\s*\|\s*([^|]+)\|", markdown_text)
+    refined = re.search(r"\|\s*精算回报率\s*GG\s*\|\s*([^|]+)\|", markdown_text)
+    threshold = re.search(r"\|\s*门槛\s*II\s*\|\s*([^|]+)\|", markdown_text)
+    position = re.search(r"\|\s*仓位建议\s*\|\s*([^|]+)\|", markdown_text)
+    confidence_labels = {"low": "低", "medium": "中", "high": "高"}
+    confidence_value = confidence.group(1).strip() if confidence else "—"
+    confidence_value = confidence_labels.get(confidence_value.lower(), confidence_value)
+    cells = [
+        ("综合底价", floor.group(1) if floor else "—"),
+        ("当前价溢价", premium.group(1) if premium else "—"),
+        ("安全边际", margin.group(1).strip() if margin else "—"),
+        ("粗算 R / 精算 GG", f"{rough.group(1).strip() if rough else '—'} / {refined.group(1).strip() if refined else '—'}"),
+        ("门槛 II", threshold.group(1).strip() if threshold else "—"),
+        ("外推可信度", confidence_value),
+    ]
+    tone = "neg" if verdict.group(1) in {"排除", "减持"} else "pos"
+    metrics = "".join(
+        f'<div class="qr-cell"><span>{label}</span><strong>{html.escape(value)}</strong></div>'
+        for label, value in cells
+    )
+    source = "LLM 研究 + 确定性数字" if has_research else "确定性报告"
+    position_html = (
+        f'<div class="qr-position">仓位建议：{_inline(position.group(1).strip())}</div>'
+        if position
+        else ""
+    )
+    return (
+        f'<section class="quickread" aria-label="决策摘要">'
+        f'<div class="qr-main"><div class="qr-kicker">决策摘要 · {source}</div>'
+        f'<div class="qr-verdict {tone}">{verdict.group(1)}</div>'
+        f'<p>{_inline(verdict.group(2).strip())}</p>{position_html}</div>'
+        f'<div class="qr-grid">{metrics}</div></section>'
+    )
 
 
 def markdown_to_html(
@@ -60,6 +116,8 @@ def markdown_to_html(
     back_href: str = "/",
 ) -> str:
     raw_lines = markdown_text.splitlines()
+    has_research = "## 研究摘要" in markdown_text and "**研究覆盖**" in markdown_text
+    quick = _quick_read(markdown_text, has_research=has_research)
     body: list[str] = []
     headings: list[tuple[int, str, str]] = []
     display_title = title
@@ -67,6 +125,11 @@ def markdown_to_html(
     paragraph: list[str] = []
     in_list = False
     in_table = False
+    in_fold = False
+    in_section_fold = False
+    skip_table = False
+    summary_table_skipped = False
+    current_h2 = ""
 
     def flush_paragraph() -> None:
         nonlocal paragraph
@@ -86,12 +149,19 @@ def markdown_to_html(
             body.append("</tbody></table></div>")
             in_table = False
 
+    def close_fold() -> None:
+        nonlocal in_fold
+        if in_fold:
+            body.append("</details>")
+            in_fold = False
+
     for line in raw_lines:
         stripped = line.strip()
         if not stripped:
             flush_paragraph()
             close_list()
             close_table()
+            skip_table = False
             continue
 
         if stripped.startswith("|") and stripped.endswith("|"):
@@ -100,8 +170,27 @@ def markdown_to_html(
             if _is_separator(stripped):
                 continue
             cells = _cells(stripped)
+            if skip_table:
+                continue
+            if (
+                quick
+                and not in_table
+                and not summary_table_skipped
+                and cells[:2] == ["项目", "数值"]
+            ):
+                summary_table_skipped = True
+                skip_table = True
+                continue
+            if (
+                not in_table
+                and current_h2.startswith("七、估值指标与底价")
+                and cells[:2] == ["指标", "数值"]
+            ):
+                skip_table = True
+                continue
             if not in_table:
-                body.append('<div class="table-wrap"><table>')
+                table_class = ' class="kv"' if quick and len(cells) == 2 else ""
+                body.append(f'<div class="table-wrap"><table{table_class}>')
                 body.append(
                     "<thead><tr>"
                     + "".join(f"<th>{_inline(c)}</th>" for c in cells)
@@ -115,6 +204,19 @@ def markdown_to_html(
             continue
 
         close_table()
+        if stripped.startswith("**") and stripped.endswith("**"):
+            label = stripped[2:-2].strip()
+            if label in _FOLD_HEADINGS or label.startswith("数字交叉验证"):
+                flush_paragraph()
+                close_list()
+                close_fold()
+                body.append(
+                    f'<details class="fold"><summary>{_inline(label)} '
+                    '<span class="fold-hint">展开</span></summary>'
+                )
+                in_fold = True
+                continue
+
         if stripped.startswith("#"):
             flush_paragraph()
             close_list()
@@ -124,8 +226,30 @@ def markdown_to_html(
                 display_title = text or title
                 found_h1 = True
                 continue
+            if level == 2:
+                current_h2 = text
+                close_fold()
+                in_section_fold = False
+            elif not in_section_fold:
+                close_fold()
             anchor = f"sec-{len(headings) + 1}"
             headings.append((level, text, anchor))
+            if level == 2 and _fold_h2(text):
+                body.append(
+                    f'<details class="fold section-fold" id="{anchor}"><summary>'
+                    f"<strong>{_inline(text)}</strong> "
+                    '<span class="fold-hint">展开</span></summary>'
+                )
+                in_fold = True
+                in_section_fold = True
+                continue
+            if level == 3 and text in _FOLD_HEADINGS and not in_section_fold:
+                body.append(
+                    f'<details class="fold"><summary>{_inline(text)} '
+                    '<span class="fold-hint">展开</span></summary>'
+                )
+                in_fold = True
+                continue
             body.append(
                 f'<h{level} id="{anchor}"><a class="anchor" href="#{anchor}">'
                 f"{_inline(text)}</a></h{level}>"
@@ -140,10 +264,13 @@ def markdown_to_html(
 
         if stripped.startswith(("- ", "* ")):
             flush_paragraph()
+            item = stripped[2:]
+            if item.startswith("证据："):
+                continue
             if not in_list:
                 body.append("<ul>")
                 in_list = True
-            body.append(f"<li>{_inline(stripped[2:])}</li>")
+            body.append(f"<li>{_inline(item)}</li>")
             continue
 
         paragraph.append(stripped)
@@ -151,13 +278,13 @@ def markdown_to_html(
     flush_paragraph()
     close_list()
     close_table()
+    close_fold()
 
     code = title.strip()
     match = _CODE_IN_TITLE.search(display_title) or _CODE_IN_TITLE.search(title)
     if match:
         code = match.group(1)
     market = _market(code)
-    has_research = "## 研究摘要" in markdown_text and "**研究覆盖**" in markdown_text
     meta_label = (
         f"{market} · LLM 研究 + 确定性数字"
         if has_research
@@ -224,6 +351,28 @@ def markdown_to_html(
             ".research-tag{flex:0 0 auto;font:800 10px/1.6 ui-monospace,monospace;letter-spacing:.08em;"
             "color:var(--paper);background:var(--accent);border-radius:3px;padding:1px 6px}",
             ".research-banner strong{color:var(--fg)}",
+            ".quickread{display:grid;grid-template-columns:1.3fr 1fr;gap:24px;margin:22px 0 0;"
+            "padding:18px 20px;background:var(--card);border:1px solid var(--line);border-radius:8px;max-width:900px}",
+            ".qr-kicker{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;"
+            "color:var(--muted);margin-bottom:8px}",
+            ".qr-verdict{font-family:'Iowan Old Style','Palatino Linotype',Georgia,serif;font-size:34px;"
+            "font-weight:700;line-height:1;letter-spacing:-.04em;margin-bottom:6px}",
+            ".qr-verdict.neg{color:var(--accent)}.qr-verdict.pos{color:var(--fg)}",
+            ".qr-main p{margin:0;color:var(--muted);font-size:13px;line-height:1.55}",
+            ".qr-position{margin-top:8px;font:600 11px/1.5 ui-monospace,monospace;color:var(--muted)}",
+            ".qr-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 18px;align-content:center}",
+            ".qr-cell{border-top:1px solid var(--line);padding-top:8px}",
+            ".qr-cell span{display:block;font-size:10px;letter-spacing:.05em;color:var(--muted)}",
+            ".qr-cell strong{font:700 17px/1.4 ui-monospace,monospace;font-variant-numeric:tabular-nums}",
+            ".fold{margin:14px 0;border:1px solid var(--line);border-radius:7px;background:var(--card)}",
+            ".fold summary{cursor:pointer;padding:11px 14px;font-weight:700;font-size:13px;color:var(--fg)}",
+            ".fold summary::marker{color:var(--accent)}",
+            ".fold-hint{font-weight:400;font-size:10px;color:var(--muted);margin-left:6px}",
+            ".fold[open] .fold-hint{display:none}.fold .table-wrap{border:0;border-top:1px solid var(--line)}",
+            ".section-fold{margin:2.4rem 0;border:0;background:transparent}",
+            ".section-fold summary{font-family:'Iowan Old Style','Palatino Linotype',Georgia,serif;"
+            "font-size:24px;line-height:1.25;padding:0 0 .45rem;border-bottom:1px solid var(--line)}",
+            ".section-fold .fold-hint{font-family:ui-sans-serif,sans-serif;font-size:10px}",
             ".layout{display:grid;grid-template-columns:minmax(0,1fr);gap:40px;padding:34px 0 64px}",
             ".layout.with-toc{grid-template-columns:220px minmax(0,1fr)}",
             ".toc{position:sticky;top:20px;align-self:start;max-height:calc(100vh - 40px);overflow:auto;"
@@ -247,6 +396,7 @@ def markdown_to_html(
             "background:var(--card)}",
             "table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:560px;"
             "font-variant-numeric:tabular-nums}",
+            ".table-wrap table.kv{min-width:0}.table-wrap table.kv td:first-child{width:38%;color:var(--muted)}",
             "th,td{border-bottom:1px solid var(--line);padding:10px 12px;text-align:left;vertical-align:top;"
             "line-height:1.55}",
             "th{position:sticky;top:0;z-index:1;background:var(--soft);font-size:11.5px;letter-spacing:.02em;"
@@ -263,11 +413,11 @@ def markdown_to_html(
             "font-size:11px;padding:18px 0 36px;border-top:1px solid var(--line)}",
             "@media(max-width:900px){.layout.with-toc{grid-template-columns:1fr}.toc{position:static;"
             "max-height:220px;display:flex;flex-wrap:wrap;gap:4px 14px}.toc-title{width:100%}"
-            ".toc a{padding:3px 0}.toc-l3{display:none}}",
+            ".toc a{padding:3px 0}.toc-l3{display:none}.quickread{grid-template-columns:1fr}}",
             "@media(max-width:640px){.shell{padding:0 16px}.hero{padding-top:24px}"
             ".top{font-size:11px}.hero h1{font-size:29px}.report{max-width:none}"
             "body{font-size:14.5px}.reading-tip{font-size:11px}table{font-size:12.5px}"
-            "th,td{padding:8px 9px}}",
+            "th,td{padding:8px 9px}.quickread{padding:15px}.qr-grid{grid-template-columns:1fr 1fr}}",
             "@media print{.top,.toc,.back{display:none}.layout{display:block;padding:0}"
             "body{background:#fff;color:#000;font-size:10.5pt}.table-wrap{overflow:visible}"
             "h2{break-after:avoid;page-break-after:avoid}table{font-size:9pt}"
@@ -283,7 +433,7 @@ def markdown_to_html(
             f'<p class="lede">{lede_text}</p>'
             '<p class="reading-tip">建议阅读顺序：结论 → 因子 4 → 估值与底价 → 数据问题。'
             "左侧目录可跳转，表格可横向滚动。</p>"
-            f"{research_banner}</section>",
+            f"{research_banner}{quick}</section>",
             f'<div class="{layout_class}">',
             toc,
             f'<article class="report">{chart}',

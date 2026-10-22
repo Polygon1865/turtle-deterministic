@@ -49,3 +49,20 @@ def test_llm_report_is_labeled_and_has_research_banner():
     assert "本报告包含 LLM 研究判断" in html
     assert "D1–D6" in html
     assert "研究判断由 LLM 生成" in html
+
+
+def test_quick_read_replaces_summary_table_and_folds_appendix():
+    html = markdown_to_html(
+        "# 正丹股份（300641.SZ）\n\n## 一、结论\n\n"
+        "**观察** — 估值或数据仍待确认\n\n"
+        "| 项目 | 数值 |\n|---|---|\n| 粗算回报率 R | 4.42% |\n| 安全边际 | 5.33% |\n\n"
+        "## 八、数据问题与待验证事项\n\n- 供应商权限不足\n\n"
+        "**证据索引**\n\n| 证据 | 页面 |\n|---|---|\n| e1 | p10 |"
+    )
+    assert 'class="quickread"' in html
+    assert 'qr-verdict' in html and "观察" in html
+    assert "粗算 R / 精算 GG" in html
+    assert "<td>粗算回报率 R</td>" not in html
+    assert 'class="fold section-fold"' in html
+    assert "数据问题与待验证事项" in html
+    assert '<a class="toc-l3"' not in html
