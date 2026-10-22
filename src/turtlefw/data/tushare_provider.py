@@ -1379,7 +1379,7 @@ class TushareProvider:
                 amount = Decimal(str(raw)) if raw is not None else None
             except Exception:  # noqa: BLE001 - vendor payload
                 amount = None
-            if amount is not None and amount > 0:
+            if amount is not None and amount.is_finite() and amount > 0:
                 by_year[year] = max(by_year.get(year, Decimal("0")), amount)
         if not by_year:
             return None
