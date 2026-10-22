@@ -2,7 +2,8 @@ param(
     [string]$Cloudflared = "C:\Tools\cloudflared\cloudflared.exe",
     [string]$Config = "",
     [string]$Log = "",
-    [switch]$Supervise
+    [switch]$Supervise,
+    [switch]$Force
 )
 
 # The tunnel is the other half of the site: cloudflared connects to the Cloudflare
@@ -49,9 +50,19 @@ if (-not (Test-Path $Config)) {
 }
 
 # The launcher is invoked from the logon item and can also be run by hand; never
-# start a second connector just because someone double-clicked again. Any
-# cloudflared process counts, including one started by the Windows service.
-$running = @(Get-Process -Name "cloudflared" -ErrorAction SilentlyContinue)
+# start a second connector just because someone double-clicked again.
+#
+# Only processes that have been up for a while count: the broken service starts
+# a bare cloudflared that dies within a second, and a check that catches that
+# short-lived process would refuse to start the real connector. -Force skips the
+# check entirely for a service instance that is alive but not connected (the SCM
+# can keep reporting RUNNING with a PID that owns no sockets at all).
+$running = @()
+if (-not $Force) {
+    $running = @(Get-Process -Name "cloudflared" -ErrorAction SilentlyContinue | Where-Object {
+        try { ((Get-Date) - $_.StartTime).TotalSeconds -ge 15 } catch { $false }
+    })
+}
 if ($running.Count -gt 0) {
     Write-LaunchLog ("no-op: cloudflared already running (pid {0})" -f $running[0].Id)
     Write-Output "cloudflared is already running (pid $($running[0].Id)); nothing to do"

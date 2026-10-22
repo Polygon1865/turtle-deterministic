@@ -254,9 +254,20 @@ SCM 里显示 `RUNNING`，却没有 connector（2026-10-22 见过 PID 已消失�
 powershell -NoProfile -ExecutionPolicy Bypass -File C:\PyProject\turtle-framework\scripts\run_tunnel.ps1 -Supervise
 ```
 
-- 幂等：任何名为 `cloudflared` 的进程已在运行时会写
+- 幂等：已有 cloudflared 进程**且该进程存活 ≥ 15 秒**时，写
   `no-op: cloudflared already running (pid N)` 并退出，登录项、手工双击、服务
-  不会互相打架；
+  不会互相打架。15 秒这个门槛是必要的：坏服务被 SCM 反复拉起时会闪起一个裸
+  `cloudflared.exe` 再秒退，只看“进程存在”的守卫会正好抓到那一下，把真正的
+  连接器挡在门外（2026-10-22 发生过）；
+- 僵尸服务实例（SCM 报 `4 RUNNING`、进程对当前用户不可见、`netstat -ano`
+  里那个 PID **一个 socket 都没有**）同样会挡住启动。用 `-Force` 跳过守卫：
+
+  ```powershell
+  powershell -NoProfile -ExecutionPolicy Bypass -File C:\PyProject\turtle-framework\scripts\run_tunnel.ps1 -Supervise -Force
+  ```
+
+  判断“连接器是否真的在线”永远以 `Registered tunnel connection` 为准，不以进程
+  存在或 SCM 状态为准；
 - `-Supervise`：连接器退出后自动重连（秒退的崩溃循环退避 30 秒）；
 - 启动/退出记录在 `logs\tunnel-launch.log`，cloudflared 自身日志追加到
   `logs\cloudflared.log`（cmd 重定向保持 UTF-8；不要用 `Tee-Object`，PS 5.1
@@ -266,13 +277,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File C:\PyProject\turtle-framewor
 `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\`。注销后隧道停止，
 锁屏不受影响。
 
-验证“隧道真的连上”只看进程和日志，不看服务状态：
+验证“隧道真的连上”只看日志里的连接记录，不看进程存在性、也不看服务状态：
 
 ```powershell
-Get-Process cloudflared | Select-Object Id,StartTime
 Get-Content C:\PyProject\turtle-framework\logs\cloudflared.log -Tail 20
 # 期望：precheck complete hard_fail=false + 多行 Registered tunnel connection
+netstat -ano | Select-String ':7844'
+# 连接器一定有到 Cloudflare 边缘的 socket（QUIC/UDP 或 TCP 7844）
 ```
+
+注意：由 explorer 登录项拉起的进程属于用户桌面会话，从受限/低完整性会话
+（如 DSH 命令沙箱）里 `Get-Process -Id` 会报“找不到进程”、`tasklist` 会报
+`Access denied`，这**不代表进程没在跑**；用 `netstat` 的 PID 和 HTTP 响应判断。
 
 如果要恢复成系统服务（开机不登录也在线）：管理员把用户配置和凭据复制到
 `C:\Windows\System32\config\systemprofile\.cloudflared\`，再重启 `Cloudflared`
