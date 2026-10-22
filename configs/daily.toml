@@ -11,9 +11,11 @@ deep_limit = 30
 markets = ["A", "HK"]
 hk_codes = [
   "00700.HK", "09988.HK", "03690.HK", "01810.HK", "00941.HK",
-  "01299.HK", "02318.HK", "00005.HK", "00388.HK", "09618.HK",
+  "01024.HK", "02318.HK", "02382.HK", "00388.HK", "09618.HK",
+  "00883.HK", "00939.HK", "01398.HK", "03988.HK", "02628.HK",
+  "02388.HK", "00016.HK", "00001.HK", "02020.HK", "01211.HK",
 ]
-hk_limit = 10
+hk_limit = 20
 hk_llm_top_n = 3
 
 # Leave rf empty to let the provider decide. Set a decimal string for a fixed

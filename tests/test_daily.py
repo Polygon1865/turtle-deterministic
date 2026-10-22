@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 
 from turtlefw.daily import (
+    HK_DEFAULT_CODES,
+    HK_DEFAULT_NAMES,
     CommandResult,
     DailyConfig,
     DailyError,
@@ -38,6 +40,9 @@ def test_default_config_screens_100_and_reports_20():
         20,
         0,
     )
+    assert config.hk_limit == 20
+    assert len(HK_DEFAULT_CODES) == 20
+    assert set(HK_DEFAULT_CODES) == set(HK_DEFAULT_NAMES)
 
 
 def _write_success(code_dir: Path, *, research: bool = False) -> None:
