@@ -38,3 +38,14 @@ def test_report_shell_has_toc_and_scrollable_table():
     assert 'class="toc"' in html
     assert 'class="table-wrap"' in html
     assert "返回研究终端" in html
+    assert "确定性报告" in html
+
+
+def test_llm_report_is_labeled_and_has_research_banner():
+    html = markdown_to_html(
+        "# 正丹股份（300641.SZ）\n\n## 研究摘要\n\n**研究覆盖**\n\n- claims：3"
+    )
+    assert "LLM 研究 + 确定性数字" in html
+    assert "本报告包含 LLM 研究判断" in html
+    assert "D1–D6" in html
+    assert "研究判断由 LLM 生成" in html

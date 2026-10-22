@@ -49,6 +49,7 @@ class SiteReport:
     r: str = ""
     payout: str = ""
     thesis: str = ""
+    market_rank: int = 0
 
 
 @dataclass(frozen=True)
@@ -112,7 +113,7 @@ def _replace_placeholders(text: str, metrics: dict[str, Any]) -> str:
     return _PLACEHOLDER.sub(replace, text)
 
 
-def _report_details(code_dir: Path) -> dict[str, str]:
+def _report_details(code_dir: Path) -> dict[str, Any]:
     snapshot = code_dir / "snapshot"
     metrics = _load_json(snapshot / "metrics.json")
     inputs = _load_json(snapshot / "inputs.json")
@@ -383,14 +384,26 @@ def _render_index(
     template = environment.get_template("site_index.html.j2")
     candidate_by_code = {candidate.code: candidate for candidate in candidates}
     normalized: list[SiteReport] = []
+    market_counts: dict[str, int] = {}
     for report in reports:
         candidate = candidate_by_code.get(report.code)
         name = candidate.name if candidate and candidate.name else report.name
         rank = report.rank or (candidate.rank if candidate else 0)
-        normalized.append(replace(report, name=name, rank=rank))
+        market = report.market or "A"
+        market_counts[market] = market_counts.get(market, 0) + 1
+        normalized.append(
+            replace(
+                report,
+                name=name,
+                rank=rank,
+                market=market,
+                market_rank=market_counts[market],
+            )
+        )
     passed = sum(report.qa == "PASS" for report in normalized)
     failed = sum(report.qa == "FAIL" for report in normalized)
     hk_count = sum(report.market == "HK" for report in normalized)
+    a_count = len(normalized) - hk_count
     return template.render(
         day=day,
         trade_date=trade_date,
@@ -400,6 +413,7 @@ def _render_index(
         generated_at=generated_at,
         total=len(normalized),
         candidate_count=len(candidates),
+        a_count=a_count,
         hk_count=hk_count,
         passed=passed,
         failed=failed,

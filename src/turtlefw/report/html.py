@@ -157,7 +157,29 @@ def markdown_to_html(
     if match:
         code = match.group(1)
     market = _market(code)
-    meta_label = f"{market} · 确定性报告"
+    has_research = "## 研究摘要" in markdown_text and "**研究覆盖**" in markdown_text
+    meta_label = (
+        f"{market} · LLM 研究 + 确定性数字"
+        if has_research
+        else f"{market} · 确定性报告"
+    )
+    if has_research:
+        lede_text = (
+            "财务数字由 Python 计算并写入快照；D1–D6 研究判断由 LLM 基于冻结上下文生成，"
+            "只引用指标和证据。数字仍不进入 LLM 自由生成。"
+        )
+        research_banner = (
+            '<div class="research-banner"><span class="research-tag">LLM</span>'
+            "<div><strong>本报告包含 LLM 研究判断</strong><br>"
+            "第十一节 D1–D6 由 LLM 生成；结论、因子和估值中的数字仍来自确定性链路。"
+            "</div></div>"
+        )
+    else:
+        lede_text = (
+            "所有财务数字由 Python 计算并写入快照；研究文本只使用指标占位符。"
+            "本页可离线复现，数字不进入 LLM 自由生成。"
+        )
+        research_banner = ""
     chart = f'<div class="chart">{chart_html}</div>' if chart_html else ""
     toc = _toc_html(headings)
     layout_class = "layout with-toc" if toc else "layout"
@@ -170,12 +192,12 @@ def markdown_to_html(
             '<meta name="viewport" content="width=device-width, initial-scale=1">',
             f"<title>{html.escape(display_title)} · Turtle Daily</title>",
             "<style>",
-            ":root{--paper:#f7f5f1;--card:#fffdf9;--fg:#14201d;--muted:#66736e;--line:#dedbd3;"
-            "--accent:#0f4d3f;--soft:#e7f0eb;--warn:#9a3412;--warn-soft:#ffedd5}",
-            "@media (prefers-color-scheme:dark){:root{--paper:#101614;--card:#151d1a;--fg:#e8eee9;"
-            "--muted:#9aa8a2;--line:#2a3631;--accent:#8fd3b8;--soft:#1b2a24;--warn:#fdba74;--warn-soft:#3a2114}}",
+            ":root{--paper:#f3f0e8;--card:#fbf8f1;--fg:#1f1d18;--muted:#6e675b;--line:#d8d0c0;"
+            "--accent:#b4552f;--soft:#ebe3d5;--warn:#8a5a1f;--warn-soft:#f3e8d6}",
+            "@media (prefers-color-scheme:dark){:root{--paper:#171512;--card:#211e19;--fg:#eee9de;"
+            "--muted:#a59d8e;--line:#3b352b;--accent:#e3a07d;--soft:#2b261f;--warn:#f0b27a;--warn-soft:#3b2a19}}",
             "*{box-sizing:border-box}",
-            "body{margin:0;background:var(--paper);color:var(--fg);font:15px/1.7 system-ui,-apple-system,"
+            "body{margin:0;background:var(--paper);color:var(--fg);font:14px/1.7 ui-sans-serif,-apple-system,"
             "'Segoe UI','Microsoft YaHei',sans-serif}",
             "a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}",
             ".shell{max-width:1240px;margin:0 auto;padding:0 28px}",
@@ -190,9 +212,16 @@ def markdown_to_html(
             "letter-spacing:.04em;text-transform:uppercase;margin:0 0 14px}",
             ".badge{display:inline-flex;border-radius:5px;padding:2px 7px;background:var(--soft);"
             "color:var(--accent);font:700 10px/1.4 ui-monospace,monospace;letter-spacing:.06em}",
-            ".hero h1{font-size:clamp(28px,4vw,46px);line-height:1.12;letter-spacing:-.035em;margin:0 0 12px;"
+            ".hero h1{font-family:'Iowan Old Style','Palatino Linotype',Georgia,serif;"
+            "font-size:clamp(30px,4vw,50px);line-height:1.08;letter-spacing:-.035em;margin:0 0 12px;"
             "max-width:900px}",
             ".lede{color:var(--muted);max-width:780px;margin:0;font-size:14px}",
+            ".research-banner{display:flex;gap:10px;align-items:flex-start;margin:18px 0 0;padding:12px 14px;"
+            "border:1px solid color-mix(in srgb, var(--accent) 30%, var(--line));border-left:3px solid var(--accent);"
+            "background:var(--soft);border-radius:4px;font-size:13px;color:var(--muted);max-width:780px}",
+            ".research-tag{flex:0 0 auto;font:800 10px/1.6 ui-monospace,monospace;letter-spacing:.08em;"
+            "color:var(--paper);background:var(--accent);border-radius:3px;padding:1px 6px}",
+            ".research-banner strong{color:var(--fg)}",
             ".layout{display:grid;grid-template-columns:minmax(0,1fr);gap:36px;padding:30px 0 56px}",
             ".layout.with-toc{grid-template-columns:210px minmax(0,1fr)}",
             ".toc{position:sticky;top:20px;align-self:start;max-height:calc(100vh - 40px);overflow:auto;"
@@ -204,8 +233,8 @@ def markdown_to_html(
             ".toc-l2{font-weight:700;color:var(--fg)!important}.toc-l3{padding-left:12px!important}",
             ".report{min-width:0;max-width:900px}",
             ".report>h1{display:none}",
-            "h2{font-size:24px;line-height:1.25;letter-spacing:-.02em;margin:2.2rem 0 .8rem;"
-            "padding-bottom:.45rem;border-bottom:1px solid var(--line)}",
+            "h2{font-family:'Iowan Old Style','Palatino Linotype',Georgia,serif;font-size:24px;line-height:1.25;"
+            "letter-spacing:-.02em;margin:2.2rem 0 .8rem;padding-bottom:.45rem;border-bottom:1px solid var(--line)}",
             "h3{font-size:18px;line-height:1.3;margin:1.7rem 0 .5rem}",
             "h4{font-size:15px;margin:1.2rem 0 .4rem}",
             ".anchor{color:inherit}.anchor:hover{text-decoration:none;color:var(--accent)}",
@@ -239,16 +268,15 @@ def markdown_to_html(
             f"{back}</header>",
             '<section class="hero"><div class="kicker">'
             f'<span class="badge">{html.escape(code)}</span><span>{html.escape(meta_label)}</span>'
-            '<span>· 数字来自确定性指标与已冻结事实</span></div>'
+            f'<span>· {"研究判断由 LLM 生成" if has_research else "数字来自确定性指标与已冻结事实"}</span></div>'
             f"<h1>{_inline(display_title)}</h1>"
-            '<p class="lede">所有财务数字由 Python 计算并写入快照；研究文本只使用指标占位符。'
-            "本页可离线复现，数字不进入 LLM 自由生成。</p></section>",
+            f'<p class="lede">{lede_text}</p>{research_banner}</section>',
             f'<div class="{layout_class}">',
             toc,
             f'<article class="report">{chart}',
             *body,
             "</article></div>",
-            '<footer class="footer"><span>Generated by turtle-framework · deterministic report</span>'
+            '<footer class="footer"><span>Generated by turtle-framework · deterministic numbers</span>'
             f"<span>{html.escape(code)} · 仅供研究，不构成投资建议</span></footer>",
             "</div></body></html>",
         ]

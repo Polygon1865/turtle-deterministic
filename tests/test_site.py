@@ -144,6 +144,9 @@ def test_build_site_archives_prior_dates(tmp_path: Path) -> None:
     assert "2026-10-22" in latest
     assert "00700.HK" in latest
     assert "market-chip hk" in latest
+    assert 'data-market-tab="A"' in latest
+    assert 'data-market-tab="HK"' in latest
+    assert 'data-market="HK"' in latest
     assert "days=2" in (release / "health.txt").read_text(encoding="utf-8")
 
 

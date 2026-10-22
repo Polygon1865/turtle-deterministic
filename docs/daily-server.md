@@ -26,7 +26,10 @@ Task Scheduler 19:00
 - LLM 失败自动回退确定性报告，不阻塞当天发布；
 - 新站点先构建到 `site/releases/<date>/`，成功后再切换 `site/current`；
 - 每次发布同时生成 `day/<date>/index.html` 和 `archive/<date>/`，首页日期 tab
-  可回看历史；旧 release 不删除；
+  可回看历史；旧 release 不删除；首页另有 `全部 / A 股 / 港股` 市场 tab，
+  切换时按市场过滤报告并隐藏 A 股候选池；
+- 含 LLM 研究的报告页显示“LLM 研究 + 确定性数字”，确定性报告显示
+  “确定性报告”，避免把两者混淆；
 - 全部股票失败或站点构建失败时 `site/current` 保持旧版本；部分失败按
   `publish_partial` 配置处理；
 - Caddy 只监听 `127.0.0.1`，公网入口只经过 Cloudflare Access。
