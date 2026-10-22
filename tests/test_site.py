@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -104,6 +105,46 @@ def test_build_site_renders_candidate_pool_and_report_enrichment(
     assert "600887.SH" in index and "000858.SZ" in index
     assert "5.33%" in index
     assert "只看深度" in index
+
+
+def test_build_site_archives_prior_dates(tmp_path: Path) -> None:
+    site = tmp_path / "site"
+    first = tmp_path / "2026-10-21"
+    _make_code(first, "600887.SH", qa="pass", name="伊利")
+    (first / "status.json").write_text(
+        json.dumps({"date": "2026-10-21", "trade_date": "20261021", "stocks": []}),
+        encoding="utf-8",
+    )
+    build_site(first, site)
+
+    second = tmp_path / "2026-10-22"
+    _make_code(second, "00700.HK", qa="pass", name="腾讯")
+    (second / "status.json").write_text(
+        json.dumps(
+            {
+                "date": "2026-10-22",
+                "trade_date": "20261022",
+                "stocks": [{"code": "00700.HK", "rank": 1, "qa": "PASS"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    release = build_site(second, site)
+
+    assert (release / "archive" / "2026-10-21" / "600887.SH.html").is_file()
+    historical = (release / "day" / "2026-10-21" / "index.html").read_text(
+        encoding="utf-8"
+    )
+    assert "600887.SH" in historical
+    assert "../../archive/2026-10-21/600887.SH.html" in historical
+    assert "2026-10-22" in historical
+    latest = (release / "index.html").read_text(encoding="utf-8")
+    assert "2026-10-21" in latest
+    assert "day/2026-10-21/index.html" in latest
+    assert "2026-10-22" in latest
+    assert "00700.HK" in latest
+    assert "market-chip hk" in latest
+    assert "days=2" in (release / "health.txt").read_text(encoding="utf-8")
 
 
 def test_build_site_rejects_empty_day(tmp_path: Path) -> None:

@@ -39,6 +39,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", type=Path, default=ROOT / "configs" / "daily.toml")
     parser.add_argument("--top", type=int, default=None, help="number of ranked stocks")
     parser.add_argument("--llm-top", type=int, default=None, help="first N get LLM research")
+    parser.add_argument(
+        "--hk-llm-top", type=int, default=None, help="first N HK names get LLM research"
+    )
     parser.add_argument("--runs-root", type=Path, default=ROOT / ".runs" / "daily")
     parser.add_argument("--site-root", type=Path, default=ROOT / "site")
     parser.add_argument("--pdf-root", type=Path, default=ROOT / "data" / "pdfs")
@@ -66,6 +69,7 @@ def main(argv: list[str] | None = None) -> int:
     overrides: dict[str, object] = {
         "top_n": args.top,
         "llm_top_n": args.llm_top,
+        "hk_llm_top_n": args.hk_llm_top,
         "retry_seconds": args.retry_seconds,
         "screen_attempts": args.screen_attempts,
         "stock_timeout_seconds": args.stock_timeout,
@@ -103,8 +107,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"stocks: {len(result['stocks'])}")
     for row in result["stocks"]:
         print(
-            f"  {row['rank']:>2} {row['code']:<12} {row['status']:<7} "
-            f"qa={row['qa']:<7} research={row['research']:<9} "
+            f"  {row['rank']:>2} {row['market']:<2} {row['code']:<12} "
+            f"{row['status']:<7} qa={row['qa']:<7} research={row['research']:<9} "
             f"coverage={row['numeric_coverage'] or '—'}"
         )
         if row.get("error"):

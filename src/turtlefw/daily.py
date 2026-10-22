@@ -41,12 +41,42 @@ class DailyError(RuntimeError):
     """Raised when the daily pipeline cannot continue safely."""
 
 
+HK_DEFAULT_CODES: tuple[str, ...] = (
+    "00700.HK",
+    "09988.HK",
+    "03690.HK",
+    "01810.HK",
+    "00941.HK",
+    "01299.HK",
+    "02318.HK",
+    "00005.HK",
+    "00388.HK",
+    "09618.HK",
+)
+HK_DEFAULT_NAMES: dict[str, str] = {
+    "00700.HK": "腾讯控股",
+    "09988.HK": "阿里巴巴-W",
+    "03690.HK": "美团-W",
+    "01810.HK": "小米集团-W",
+    "00941.HK": "中国移动",
+    "01299.HK": "友邦保险",
+    "02318.HK": "中国平安",
+    "00005.HK": "汇丰控股",
+    "00388.HK": "香港交易所",
+    "09618.HK": "京东集团-SW",
+}
+
+
 @dataclass(frozen=True)
 class DailyConfig:
     top_n: int = 20
     llm_top_n: int = 0
     fast_limit: int = 100
     deep_limit: int = 30
+    markets: tuple[str, ...] = ("A",)
+    hk_codes: tuple[str, ...] = HK_DEFAULT_CODES
+    hk_limit: int = 10
+    hk_llm_top_n: int = 3
     rf: str | None = None
     rf_source: str = ""
     research_max_input_tokens: int = 60_000
@@ -405,17 +435,22 @@ def run_stock(
     config: DailyConfig,
     *,
     run_command: CommandRunner = _run_process,
+    market: str = "A",
+    research_rank: int | None = None,
 ) -> dict[str, Any]:
     """Run one stock and return a serializable status record."""
 
     started = time.monotonic()
     code = _validate_code(code)
+    market = "HK" if market.upper() == "HK" or code.endswith(".HK") else "A"
+    research_rank = rank if research_rank is None else research_rank
     code_dir = paths.day_dir / code
     code_dir.mkdir(parents=True, exist_ok=True)
     log_path = code_dir / "pipeline.log"
     record: dict[str, Any] = {
         "code": code,
         "name": "",
+        "market": market,
         "rank": rank,
         "status": "failed",
         "qa": "UNKNOWN",
@@ -450,7 +485,11 @@ def run_stock(
             record["pdf"] = "error"
             record["pdf_error"] = _tail(pdf_result.stderr or pdf_result.stdout)
 
-    wants_research = rank <= config.llm_top_n
+    wants_research = (
+        research_rank <= config.hk_llm_top_n
+        if market == "HK"
+        else rank <= config.llm_top_n
+    )
     if wants_research:
         record["research"] = "attempted"
 
@@ -506,6 +545,26 @@ def run_stock(
     if result.ok and record["qa"] in {"PASS", "WARN"} and not record["error"]:
         record["status"] = "ok"
     return record
+
+
+def _hk_ranking(config: DailyConfig) -> list[dict[str, str]]:
+    """Return the configured HK watchlist in display order.
+
+    HK does not have an A-share style market-wide fast screen in this project:
+    there is no batch ``hk_income`` endpoint, so screening would require one
+    request per stock.  The daily flow therefore uses a curated watchlist and
+    still runs the full deterministic + optional research pipeline per stock.
+    """
+
+    codes = tuple(dict.fromkeys(_validate_code(code) for code in config.hk_codes))
+    return [
+        {
+            "code": code,
+            "name": HK_DEFAULT_NAMES.get(code, ""),
+            "market": "HK",
+        }
+        for code in codes[: config.hk_limit]
+    ]
 
 
 def _screen(
@@ -565,6 +624,10 @@ def run_daily(
     }
 
     with daily_lock(paths.lock_path):
+        markets = {str(item).upper() for item in config.markets}
+        if not markets or not markets <= {"A", "HK"}:
+            raise DailyError(f"unsupported markets: {config.markets!r}")
+
         if skip_screen:
             selected_codes = list(
                 dict.fromkeys(
@@ -575,25 +638,54 @@ def run_daily(
             )
             if not selected_codes:
                 raise DailyError("--skip-screen requires at least one --code")
-            ranking = [
-                {"code": code, "name": "", "rank": str(index + 1)}
-                for index, code in enumerate(selected_codes[: config.top_n])
-            ]
+            ranking = []
+            research_counts = {"A": 0, "HK": 0}
+            for index, code in enumerate(selected_codes[: config.top_n]):
+                market = "HK" if code.endswith(".HK") else "A"
+                research_counts[market] += 1
+                ranking.append(
+                    {
+                        "code": code,
+                        "name": HK_DEFAULT_NAMES.get(code, ""),
+                        "rank": str(index + 1),
+                        "research_rank": str(research_counts[market]),
+                        "market": market,
+                    }
+                )
             status["trade_date"] = expected_trade_date(paths.day)
         else:
-            status["screen"] = "running"
-            _write_json(paths.status_path, status)
-            screen_ok, detail, ranking = _screen(
-                paths, config, run_command=run_command, sleep=sleep
-            )
-            status["screen"] = "ok" if screen_ok else "failed"
-            status["trade_date"] = detail if screen_ok else ""
-            if not screen_ok:
-                status["error"] = detail
-                status["finished_at"] = datetime.now().isoformat(timespec="seconds")
+            ranking = []
+            if "A" in markets:
+                status["screen"] = "running"
                 _write_json(paths.status_path, status)
-                _notify(config, status)
-                return status
+                screen_ok, detail, screened = _screen(
+                    paths, config, run_command=run_command, sleep=sleep
+                )
+                status["screen"] = "ok" if screen_ok else "failed"
+                status["trade_date"] = detail if screen_ok else ""
+                if not screen_ok:
+                    status["error"] = detail
+                    status["finished_at"] = datetime.now().isoformat(timespec="seconds")
+                    _write_json(paths.status_path, status)
+                    _notify(config, status)
+                    return status
+                for entry in screened:
+                    entry = dict(entry)
+                    entry["market"] = "A"
+                    entry["research_rank"] = entry.get("rank", "")
+                    ranking.append(entry)
+            else:
+                status["screen"] = "skipped"
+                status["trade_date"] = expected_trade_date(paths.day)
+
+            if "HK" in markets:
+                hk_entries = _hk_ranking(config)
+                start = len(ranking) + 1
+                for index, entry in enumerate(hk_entries):
+                    entry = dict(entry)
+                    entry["rank"] = str(start + index)
+                    entry["research_rank"] = str(index + 1)
+                    ranking.append(entry)
 
         for entry in ranking:
             record = run_stock(
@@ -602,6 +694,8 @@ def run_daily(
                 paths,
                 config,
                 run_command=run_command,
+                market=str(entry.get("market", "A")),
+                research_rank=int(entry.get("research_rank", entry["rank"])),
             )
             record["name"] = entry.get("name", "")
             status["stocks"].append(record)
@@ -650,6 +744,10 @@ def load_config(path: Path) -> DailyConfig:
     unknown = sorted(set(payload) - known)
     if unknown:
         raise DailyError(f"unknown config keys: {', '.join(unknown)}")
+    for key in ("markets", "hk_codes"):
+        value = payload.get(key)
+        if isinstance(value, list):
+            payload[key] = tuple(str(item) for item in value)
     return DailyConfig(**payload)
 
 

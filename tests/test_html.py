@@ -27,3 +27,14 @@ def test_script_is_escaped():
     html = markdown_to_html("<script>alert(1)</script>")
     assert "<script>" not in html
     assert "&lt;script&gt;" in html
+
+
+def test_report_shell_has_toc_and_scrollable_table():
+    html = markdown_to_html(
+        "# 伊利股份（600887.SH）\n\n## 一、结论\n\n| 项目 | 数值 |\n|---|---|\n| R | 3.5% |",
+        title="analysis_report",
+    )
+    assert '<span class="badge">600887.SH</span>' in html
+    assert 'class="toc"' in html
+    assert 'class="table-wrap"' in html
+    assert "返回研究终端" in html

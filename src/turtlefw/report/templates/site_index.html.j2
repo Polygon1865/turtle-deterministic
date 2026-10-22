@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Turtle Daily · A 股确定性研究日报">
+  <meta name="description" content="Turtle Daily · A 股与港股确定性研究日报">
   <title>Turtle Daily · {{ day }}</title>
   <style>
     :root {
@@ -73,6 +73,23 @@
       background: var(--fg); color: var(--paper); font-size: 15px;
     }
     .topbar nav { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+    .date-tabs {
+      max-width: 1240px; margin: 14px auto 0; padding: 0 24px;
+      display: flex; gap: 6px; overflow-x: auto; scrollbar-width: thin;
+    }
+    .date-tabs a {
+      flex: 0 0 auto; padding: 7px 13px; border: 1px solid var(--line);
+      border-radius: 999px; color: var(--muted); font-size: 12px;
+      background: var(--paper);
+    }
+    .date-tabs a.active { color: var(--paper); background: var(--fg); border-color: var(--fg); font-weight: 700; }
+    .date-tabs a:hover { text-decoration: none; border-color: var(--accent); }
+    .market-chip {
+      display: inline-flex; align-items: center; border-radius: 5px; padding: 1px 6px;
+      margin-left: 5px; font-size: 10px; font-weight: 750; letter-spacing: .04em;
+      color: var(--accent); background: var(--accent-soft);
+    }
+    .market-chip.hk { color: #9a3412; background: #ffedd5; }
     main { max-width: 1240px; margin: 0 auto; padding: 26px 24px 72px; }
     .hero {
       display: grid;
@@ -159,6 +176,7 @@
     }
     @media (max-width: 640px) {
       .topbar, main { padding-left: 16px; padding-right: 16px; }
+      .date-tabs { padding-left: 16px; padding-right: 16px; margin-top: 10px; }
       .topbar nav { display: none; }
       .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       th, td { padding: 10px 11px; }
@@ -175,22 +193,27 @@
 <header class="topbar">
   <div class="brand"><span class="brand-mark">T</span><span>Turtle Daily</span></div>
   <nav>
-    <a href="ranking.csv">候选 CSV</a>
-    <a href="ranking_deep.csv">深度 CSV</a>
-    <a href="health.txt">健康检查</a>
+    <a href="{{ ranking_href }}">候选 CSV</a>
+    <a href="{{ deep_href }}">深度 CSV</a>
+    <a href="{{ health_href }}">健康检查</a>
   </nav>
 </header>
+<div class="date-tabs" aria-label="按日期切换">
+  {% for tab in tabs %}
+  <a href="{{ tab.href }}" class="{{ 'active' if tab.active else '' }}"{% if tab.active %} aria-current="page"{% endif %}>{{ tab.date }}</a>
+  {% endfor %}
+</div>
 
 <main>
   <section class="hero">
     <div>
       <p class="eyebrow">{{ day }}{% if trade_date %} · 数据日 {{ trade_date }}{% endif %}</p>
-      <h1>今日研究终端</h1>
-      <p class="lede">从全市场筛出的候选池，到通过 QA 的深度报告。先看结论，再按需下钻。</p>
+      <h1>{% if day == (tabs|first).date %}今日研究终端{% else %}{{ day }} 研究存档{% endif %}</h1>
+      <p class="lede">A 股候选池 + 港股观察清单，逐票生成确定性报告；港股按研究预算优先进入 LLM。</p>
     </div>
     <div class="stats">
-      <div class="stat"><b>{{ candidate_count }}</b><span>候选池</span></div>
-      <div class="stat"><b>{{ total }}</b><span>今日报告</span></div>
+      <div class="stat"><b>{{ candidate_count }}</b><span>A 股候选池</span></div>
+      <div class="stat"><b>{{ total }}</b><span>当日报告</span></div>
       <div class="stat"><b class="status-ok">{{ passed }}</b><span>QA 通过</span></div>
       <div class="stat"><b class="{{ 'status-bad' if failed else 'status-ok' }}">{{ failed }}</b><span>QA 失败</span></div>
     </div>
@@ -214,7 +237,7 @@
           <span class="badge {{ 'status-ok' if r.qa == 'PASS' else ('status-warn' if r.qa == 'WARN' else 'status-bad') }}">{{ r.qa }}</span>
         </div>
         <h3>{{ r.name or r.code }}</h3>
-        <div class="ticker"><code>{{ r.code }}</code>{% if r.industry %} · {{ r.industry }}{% endif %}</div>
+        <div class="ticker"><code>{{ r.code }}</code><span class="market-chip {{ 'hk' if r.market == 'HK' else '' }}">{{ r.market or 'A' }}</span>{% if r.industry %} · {{ r.industry }}{% endif %}</div>
         <p class="thesis">
           {% if r.thesis %}{{ r.thesis }}{% elif r.research == 'on' %}LLM 研究已完成，正文见报告。{% else %}确定性报告；未启用 LLM 研究。{% endif %}
         </p>
@@ -242,13 +265,14 @@
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>#</th><th>标的</th><th class="hide-mobile">行业</th><th>QA</th><th class="hide-mobile">研究</th><th>覆盖率</th><th class="hide-mobile">安全边际</th><th>报告</th></tr>
+          <tr><th>#</th><th>标的</th><th>市场</th><th class="hide-mobile">行业</th><th>QA</th><th class="hide-mobile">研究</th><th>覆盖率</th><th class="hide-mobile">安全边际</th><th>报告</th></tr>
         </thead>
         <tbody>
         {% for r in reports %}
           <tr>
             <td class="num">{{ r.rank or loop.index }}</td>
-            <td><span class="report-name">{{ r.name or '—' }}</span><br><code>{{ r.code }}</code></td>
+            <td><span class="report-name">{{ r.name or r.code }}</span><br><code>{{ r.code }}</code></td>
+            <td><span class="market-chip {{ 'hk' if r.market == 'HK' else '' }}">{{ r.market or 'A' }}</span></td>
             <td class="hide-mobile">{{ r.industry or '—' }}</td>
             <td><span class="badge {{ 'status-ok' if r.qa == 'PASS' else ('status-warn' if r.qa == 'WARN' else 'status-bad') }}">{{ r.qa }}</span></td>
             <td class="hide-mobile">{{ 'LLM' if r.research == 'on' else '确定性' }}</td>
@@ -267,8 +291,8 @@
 
   <section id="candidates">
     <div class="section-head">
-      <h2>候选池 {{ candidate_count }}</h2>
-      <span class="section-note">快速筛选结果 · 不代表全部都会生成报告</span>
+      <h2>A 股候选池 {{ candidate_count }}</h2>
+      <span class="section-note">快速筛选结果 · 港股使用观察清单，不参与 A 股排名</span>
     </div>
     {% if candidates %}
     <div class="toolbar">
@@ -316,7 +340,7 @@
 
   <footer>
     <span>生成于 {{ generated_at }} · {{ day }}</span>
-    <span><a href="ranking.csv">ranking.csv</a> · <a href="ranking_deep.csv">ranking_deep.csv</a> · <a href="health.txt">health.txt</a></span>
+    <span><a href="{{ ranking_href }}">ranking.csv</a> · <a href="{{ deep_href }}">ranking_deep.csv</a> · <a href="{{ health_href }}">health.txt</a></span>
   </footer>
 </main>
 

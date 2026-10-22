@@ -1,9 +1,9 @@
 # 每日生产：Windows 本机 + Cloudflare Tunnel
 
 目标不是“再跑一个脚本”，而是让一台普通 Windows 电脑每天自动产出可访问的
-A 股研究报告，并且失败时按配置保留上一版站点或发布部分结果。默认策略是
-**全市场筛出 100 个候选，对前 20 名逐只生成确定性报告**；LLM 研究默认关闭，
-需要时用 `--llm-top N` 只对前 N 只启用。
+A 股 + 港股研究报告，并且失败时按配置保留上一版站点或发布部分结果。默认策略是：
+**A 股全市场筛出 100 个候选，对前 20 名逐只生成确定性报告；另加 10 只港股观察清单，
+其中前 3 只启用 LLM 研究**。A 股 LLM 研究默认关闭，需要时用 `--llm-top N` 只对前 N 只启用。
 
 ## 架构
 
@@ -25,6 +25,8 @@ Task Scheduler 19:00
 - 数字只来自确定性 CLI；LLM 只写定性研究，不写报告数字；
 - LLM 失败自动回退确定性报告，不阻塞当天发布；
 - 新站点先构建到 `site/releases/<date>/`，成功后再切换 `site/current`；
+- 每次发布同时生成 `day/<date>/index.html` 和 `archive/<date>/`，首页日期 tab
+  可回看历史；旧 release 不删除；
 - 全部股票失败或站点构建失败时 `site/current` 保持旧版本；部分失败按
   `publish_partial` 配置处理；
 - Caddy 只监听 `127.0.0.1`，公网入口只经过 Cloudflare Access。
@@ -101,6 +103,9 @@ top_n = 20
 llm_top_n = 0
 fast_limit = 100
 deep_limit = 30
+markets = ["A", "HK"]
+hk_limit = 10
+hk_llm_top_n = 3
 rf = ""
 research_max_input_tokens = 60000
 research_retries = 1
@@ -112,8 +117,11 @@ publish_partial = true
 
 - `fast_limit`：快速筛选后保留的候选数（默认 100，写入 `ranking.csv`）；
 - `deep_limit`：进入深度分析的候选数（默认 30，写入 `ranking_deep.csv`；比 `top_n` 多留失败缓冲）；
-- `top_n`：从深度排名中取前 N 只逐票生成报告（默认 20）；
-- `llm_top_n`：前 N 只调用 `--with-research`；默认 0，全部确定性；
+- `top_n`：A 股从深度排名中取前 N 只逐票生成报告（默认 20）；
+- `markets`：启用的市场，A 走全市场 screen，HK 走观察清单；可只填 `["A"]`；
+- `hk_limit`：港股观察清单最多运行几只（默认 10）；
+- `hk_llm_top_n`：港股前 N 只启用 LLM 研究（默认 3），与 A 股预算独立；
+- `llm_top_n`：A 股前 N 只调用 `--with-research`；默认 0，全部确定性；
 - `research_retries`：LLM 输出校验失败时的重试次数（默认 1）；仍失败则回退确定性；
 - `rf`：留空使用 provider；固定值用字符串，例如 `"2.0"`；
 - `refresh_market`：每日绕过 7 天行情缓存；
@@ -341,7 +349,9 @@ credentials file，所以用日志里的 `Registered tunnel connection` 判断�
 
 ## 边界
 
-- 只覆盖 A 股；港股/美股不在每日流水线内；
+- 每日流水线覆盖 A 股 + 港股观察清单；美股不在每日流水线内；
+- 站点按日期归档，`site/releases/<date>/` 保留历史；首页日期 tab 可切换到
+  `day/<date>/index.html`，当前版仍由 `site/current` 指向；
 - PDF 是文本层 PDF，扫描件需要 OCR（当前不做）；
 - `anns_d`/`news` 权限、vendor PIT、分部自动提取仍是外部边界；
 - LLM 只写定性研究；没有 key 或调用失败时回退确定性；

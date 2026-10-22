@@ -14,7 +14,7 @@ import re
 import shutil
 import subprocess
 from collections.abc import Sequence
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -30,6 +30,7 @@ from .report.format import TEMPLATE_DIR
 class SiteReport:
     code: str
     name: str = ""
+    market: str = ""
     rank: int = 0
     status: str = "unknown"
     qa: str = "UNKNOWN"
@@ -142,6 +143,7 @@ def _report_from_dir(code_dir: Path) -> SiteReport:
     details = _report_details(code_dir)
     return SiteReport(
         code=code_dir.name,
+        market="HK" if code_dir.name.endswith(".HK") else "A",
         status=status,
         qa=qa,
         research="on" if research_path.is_file() else "off",
@@ -180,6 +182,7 @@ def collect_reports(day_dir: Path) -> list[SiteReport]:
                 SiteReport(
                     code=code,
                     name=str(row.get("name") or ""),
+                    market=str(row.get("market") or ("HK" if code.endswith(".HK") else "A")),
                     rank=int(row.get("rank") or 0),
                     status=str(row.get("status") or "failed"),
                     qa=qa,
@@ -264,6 +267,103 @@ def collect_candidates(day_dir: Path) -> list[Candidate]:
     return candidates
 
 
+def _date_key(label: str) -> str:
+    match = re.match(r"(\d{4}-\d{2}-\d{2})", label)
+    return match.group(1) if match else label
+
+
+def _report_from_payload(payload: dict[str, Any]) -> SiteReport | None:
+    code = str(payload.get("code") or "").strip()
+    if not code:
+        return None
+    fields: dict[str, Any] = {
+        "code": code,
+        "name": str(payload.get("name") or ""),
+        "market": str(
+            payload.get("market") or ("HK" if code.endswith(".HK") else "A")
+        ),
+        "rank": int(payload.get("rank") or 0),
+        "status": str(payload.get("status") or "failed"),
+        "qa": str(payload.get("qa") or "UNKNOWN"),
+        "research": str(payload.get("research") or "off"),
+        "pdf": str(payload.get("pdf") or "none"),
+        "snapshot_id": str(payload.get("snapshot_id") or ""),
+        "numeric_coverage": str(payload.get("numeric_coverage") or ""),
+        "report_href": "",
+        "error": str(payload.get("error") or ""),
+        "industry": str(payload.get("industry") or ""),
+        "floor": str(payload.get("floor") or ""),
+        "price": str(payload.get("price") or ""),
+        "premium": str(payload.get("premium") or ""),
+        "margin": str(payload.get("margin") or ""),
+        "gg": str(payload.get("gg") or ""),
+        "r": str(payload.get("r") or ""),
+        "payout": str(payload.get("payout") or ""),
+        "thesis": str(payload.get("thesis") or ""),
+    }
+    return SiteReport(**fields)
+
+
+def _reports_from_release(release: Path) -> tuple[str, str, list[SiteReport]]:
+    status = _load_json(release / "status.json")
+    data = _load_json(release / "site_data.json")
+    date_label = str(data.get("date") or status.get("date") or release.name)
+    trade_date = str(data.get("trade_date") or status.get("trade_date") or "")
+    payloads = data.get("reports")
+    reports: list[SiteReport] = []
+    if isinstance(payloads, list):
+        for payload in payloads:
+            if isinstance(payload, dict):
+                report = _report_from_payload(payload)
+                if report is not None:
+                    reports.append(report)
+    if not reports:
+        rows = status.get("stocks")
+        if isinstance(rows, list):
+            for row in rows:
+                if isinstance(row, dict):
+                    report = _report_from_payload(row)
+                    if report is not None:
+                        reports.append(report)
+    return date_label, trade_date, reports
+
+
+def _prior_releases(site_root: Path) -> list[Path]:
+    releases = site_root / "releases"
+    if not releases.is_dir():
+        return []
+    chosen: dict[str, tuple[float, str, Path]] = {}
+    for child in releases.iterdir():
+        if not child.is_dir() or not (child / "status.json").is_file():
+            continue
+        date_label, _, _ = _reports_from_release(child)
+        key = _date_key(date_label)
+        try:
+            mtime = child.stat().st_mtime
+        except OSError:
+            continue
+        current = chosen.get(key)
+        if current is None or (mtime, child.name) > (current[0], current[1]):
+            chosen[key] = (mtime, child.name, child)
+    return [item[2] for item in sorted(chosen.values(), key=lambda value: value[0])]
+
+
+def _tabs(dates: Sequence[str], active: str, *, root: bool) -> list[dict[str, Any]]:
+    latest = dates[-1] if dates else active
+    tabs: list[dict[str, Any]] = []
+    for item in sorted(dates, reverse=True):
+        if root:
+            href = "index.html" if item == latest else f"day/{item}/index.html"
+        elif item == latest:
+            href = "../../index.html"
+        elif item == active:
+            href = "index.html"
+        else:
+            href = f"../{item}/index.html"
+        tabs.append({"date": item, "href": href, "active": item == active})
+    return tabs
+
+
 def _render_index(
     *,
     day: str,
@@ -271,6 +371,10 @@ def _render_index(
     reports: Sequence[SiteReport],
     candidates: Sequence[Candidate],
     generated_at: str,
+    tabs: Sequence[dict[str, Any]],
+    ranking_href: str,
+    deep_href: str,
+    health_href: str,
 ) -> str:
     environment = Environment(
         loader=FileSystemLoader(str(TEMPLATE_DIR)),
@@ -286,6 +390,7 @@ def _render_index(
         normalized.append(replace(report, name=name, rank=rank))
     passed = sum(report.qa == "PASS" for report in normalized)
     failed = sum(report.qa == "FAIL" for report in normalized)
+    hk_count = sum(report.market == "HK" for report in normalized)
     return template.render(
         day=day,
         trade_date=trade_date,
@@ -295,9 +400,34 @@ def _render_index(
         generated_at=generated_at,
         total=len(normalized),
         candidate_count=len(candidates),
+        hk_count=hk_count,
         passed=passed,
         failed=failed,
         ok=bool(normalized) and failed == 0,
+        tabs=tabs,
+        ranking_href=ranking_href,
+        deep_href=deep_href,
+        health_href=health_href,
+    )
+
+
+def _candidate_from_payload(payload: dict[str, Any]) -> Candidate | None:
+    code = str(payload.get("code") or "").strip()
+    if not code:
+        return None
+    return Candidate(
+        rank=int(payload.get("rank") or 0),
+        code=code,
+        name=str(payload.get("name") or ""),
+        channel=str(payload.get("channel") or ""),
+        roe=str(payload.get("roe") or ""),
+        payout=str(payload.get("payout") or ""),
+        r=str(payload.get("r") or ""),
+        gg=str(payload.get("gg") or ""),
+        ii=str(payload.get("ii") or ""),
+        margin=str(payload.get("margin") or ""),
+        verdict=str(payload.get("verdict") or ""),
+        deep=bool(payload.get("deep")),
     )
 
 
@@ -309,7 +439,7 @@ def build_site(
     reports: Sequence[SiteReport] | None = None,
     candidates: Sequence[Candidate] | None = None,
 ) -> Path:
-    """Build a release directory; never touches ``current``."""
+    """Build an archived release; never touches ``current``."""
 
     reports = list(reports) if reports is not None else collect_reports(day_dir)
     candidates = (
@@ -320,6 +450,7 @@ def build_site(
     status = _load_json(day_dir / "status.json")
     trade_date = str(status.get("trade_date") or "")
     label = date_label or day_dir.name
+    day_key = _date_key(label)
     release = site_root / "releases" / label
     if release.exists():
         counter = 1
@@ -327,20 +458,124 @@ def build_site(
             release = site_root / "releases" / f"{label}-{counter}"
             counter += 1
     release.mkdir(parents=True)
+    archive = release / "archive"
+    generated_at = datetime.now().isoformat(timespec="seconds")
 
+    # Current day: keep root-level report copies for backward compatibility and
+    # write an archive copy used by the date-tab pages.
+    current_reports: list[SiteReport] = []
     for report in reports:
         source = day_dir / report.code / "analysis_report.html"
+        destination = archive / day_key / f"{report.code}.html"
         if source.is_file():
             shutil.copyfile(source, release / f"{report.code}.html")
-    generated_at = datetime.now().isoformat(timespec="seconds")
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, destination)
+            href = f"archive/{day_key}/{quote(report.code)}.html"
+        else:
+            href = ""
+        current_reports.append(
+            replace(
+                report,
+                report_href=href,
+                market=report.market
+                or ("HK" if report.code.endswith(".HK") else "A"),
+            )
+        )
+    for ranking_name in ("ranking.csv", "ranking_deep.csv"):
+        ranking = day_dir / ranking_name
+        if ranking.is_file():
+            shutil.copyfile(ranking, release / ranking_name)
+            (archive / day_key).mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ranking, archive / day_key / ranking_name)
+
+    days: dict[str, tuple[str, list[SiteReport], list[Candidate]]] = {
+        day_key: (trade_date, current_reports, candidates)
+    }
+
+    # Merge the latest release for each prior date.  A same-date rebuild wins.
+    for prior in _prior_releases(site_root):
+        prior_label, prior_trade, prior_reports = _reports_from_release(prior)
+        prior_key = _date_key(prior_label)
+        if not prior_reports or prior_key == day_key:
+            continue
+        data = _load_json(prior / "site_data.json")
+        raw_candidates = data.get("candidates")
+        prior_candidates: list[Candidate] = []
+        if isinstance(raw_candidates, list):
+            for payload in raw_candidates:
+                if isinstance(payload, dict):
+                    candidate = _candidate_from_payload(payload)
+                    if candidate is not None:
+                        prior_candidates.append(candidate)
+        if not prior_candidates:
+            prior_candidates = collect_candidates(prior)
+        page_reports: list[SiteReport] = []
+        for report in prior_reports:
+            source = prior / f"{report.code}.html"
+            href = ""
+            if source.is_file():
+                destination = archive / prior_key / f"{report.code}.html"
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(source, destination)
+                href = f"archive/{prior_key}/{quote(report.code)}.html"
+            page_reports.append(
+                replace(
+                    report,
+                    report_href=href,
+                    market=report.market
+                    or ("HK" if report.code.endswith(".HK") else "A"),
+                )
+            )
+        for ranking_name in ("ranking.csv", "ranking_deep.csv"):
+            ranking = prior / ranking_name
+            if ranking.is_file():
+                (archive / prior_key).mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ranking, archive / prior_key / ranking_name)
+        days[prior_key] = (prior_trade, page_reports, prior_candidates)
+
+    dates = sorted(days)
+    for date_key in dates:
+        page_dir = release / "day" / date_key
+        page_dir.mkdir(parents=True, exist_ok=True)
+        page_trade, page_reports, page_candidates = days[date_key]
+        page_hrefs = [
+            replace(
+                report,
+                report_href=(
+                    f"../../{report.report_href}" if report.report_href else ""
+                ),
+            )
+            for report in page_reports
+        ]
+        index = _render_index(
+            day=date_key,
+            trade_date=page_trade,
+            reports=page_hrefs,
+            candidates=page_candidates,
+            generated_at=generated_at,
+            tabs=_tabs(dates, date_key, root=False),
+            ranking_href=f"../../archive/{date_key}/ranking.csv",
+            deep_href=f"../../archive/{date_key}/ranking_deep.csv",
+            health_href="../../health.txt",
+        )
+        (page_dir / "index.html").write_text(index, encoding="utf-8")
+
+    latest = dates[-1]
+    latest_trade, latest_reports, latest_candidates = days[latest]
     index = _render_index(
-        day=label,
-        trade_date=trade_date,
-        reports=reports,
-        candidates=candidates,
+        day=latest,
+        trade_date=latest_trade,
+        reports=latest_reports,
+        candidates=latest_candidates,
         generated_at=generated_at,
+        tabs=_tabs(dates, latest, root=True),
+        ranking_href=f"archive/{latest}/ranking.csv",
+        deep_href=f"archive/{latest}/ranking_deep.csv",
+        health_href="health.txt",
     )
     (release / "index.html").write_text(index, encoding="utf-8")
+
     passed = sum(report.qa == "PASS" for report in reports)
     failed = sum(report.qa == "FAIL" for report in reports)
     health = (
@@ -349,6 +584,7 @@ def build_site(
         f"trade_date={trade_date}\n"
         f"reports={len(reports)}\n"
         f"candidates={len(candidates)}\n"
+        f"days={len(dates)}\n"
         f"qa_pass={passed}\n"
         f"qa_fail={failed}\n"
         f"generated_at={generated_at}\n"
@@ -357,10 +593,15 @@ def build_site(
     status_path = day_dir / "status.json"
     if status_path.is_file():
         shutil.copyfile(status_path, release / "status.json")
-    for ranking_name in ("ranking.csv", "ranking_deep.csv"):
-        ranking = day_dir / ranking_name
-        if ranking.is_file():
-            shutil.copyfile(ranking, release / ranking_name)
+    site_data = {
+        "date": label,
+        "trade_date": trade_date,
+        "reports": [asdict(report) for report in current_reports],
+        "candidates": [asdict(candidate) for candidate in candidates],
+    }
+    (release / "site_data.json").write_text(
+        json.dumps(site_data, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     return release
 
 

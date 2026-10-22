@@ -311,12 +311,50 @@ def test_run_daily_publishes_partial_when_configured(tmp_path: Path) -> None:
     assert (paths.site_root / "current" / "index.html").is_file()
 
 
+def test_hk_research_budget_uses_hk_rank(tmp_path: Path) -> None:
+    paths = _paths(tmp_path)
+    commands: list[list[str]] = []
+
+    def fake(command, cwd, timeout):
+        commands.append(list(command))
+        code = command[command.index("run") + 1]
+        _write_success(paths.day_dir / code, research=False)
+        return CommandResult(command=command, returncode=0, stdout="ok", stderr="")
+
+    first = run_stock(
+        "00700.HK",
+        21,
+        paths,
+        DailyConfig(hk_llm_top_n=1),
+        run_command=fake,
+        market="HK",
+        research_rank=1,
+    )
+    second = run_stock(
+        "09988.HK",
+        22,
+        paths,
+        DailyConfig(hk_llm_top_n=1),
+        run_command=fake,
+        market="HK",
+        research_rank=2,
+    )
+    assert first["market"] == "HK"
+    assert first["research"] == "on"
+    assert second["research"] == "off"
+    assert any("--with-research" in command for command in commands)
+    assert sum("--with-research" in command for command in commands) == 1
+
+
 def test_load_config_and_unknown_key(tmp_path: Path) -> None:
     path = tmp_path / "daily.toml"
-    path.write_text("top_n = 3\nllm_top_n = 1\n", encoding="utf-8")
+    path.write_text(
+        'top_n = 3\nllm_top_n = 1\nmarkets = ["A", "HK"]\n', encoding="utf-8"
+    )
     config = load_config(path)
     assert config.top_n == 3
     assert config.llm_top_n == 1
+    assert config.markets == ("A", "HK")
 
     path.write_text("top_n = 3\nunknown = true\n", encoding="utf-8")
     with pytest.raises(DailyError, match="unknown config keys"):
