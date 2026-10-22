@@ -376,7 +376,8 @@ def _load_market_extras(
     try:
         payload = method(code)
     except Exception as exc:  # noqa: BLE001 - optional market source
-        return {}, str(exc)
+        message = "供应商市场字段解析失败" if isinstance(exc, ArithmeticError) else str(exc)
+        return {}, message
     return (dict(payload) if isinstance(payload, dict) else {}), ""
 
 
@@ -410,8 +411,10 @@ def _peer_metrics_for_inputs(provider: Any, inputs: Any) -> list[dict[str, objec
         return []
 
     rows: list[dict[str, object]] = []
+    target_market = "HK" if str(inputs.code).endswith(".HK") else "A"
+    allowed_suffixes = (".HK",) if target_market == "HK" else (".SH", ".SZ")
     for peer_code, peer_name in candidates:
-        if peer_code != str(inputs.code) and not peer_code.endswith((".SH", ".SZ")):
+        if peer_code != str(inputs.code) and not peer_code.endswith(allowed_suffixes):
             continue
         try:
             if peer_code == str(inputs.code):
@@ -441,6 +444,7 @@ def _peer_metrics_for_inputs(provider: Any, inputs: Any) -> list[dict[str, objec
             {
                 "name": peer_name,
                 "code": peer_code,
+                "market": "HK" if peer_code.endswith(".HK") else "A",
                 "period": str(latest) if latest is not None else "",
                 "source": (
                     "snapshot:rows"

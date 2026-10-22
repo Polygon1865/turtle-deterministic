@@ -108,6 +108,31 @@ def test_industry_classification_overrides_legacy_code():
     assert "申万一级：银行" in text
 
 
+def test_kpi_marks_inventory_and_dps_available():
+    ledger = MetricRegistry()
+    ledger.add(
+        MetricPoint(
+            id="inventory",
+            name="存货",
+            value=Decimal("100"),
+            unit="CNY",
+            display="100.00",
+        )
+    )
+    ledger.add(
+        MetricPoint(
+            id="dps",
+            name="DPS",
+            value=Decimal("1.2"),
+            unit="CNY/股",
+            display="1.2000",
+        )
+    )
+    text = render_section("600887.SH", ledger)
+    assert "| 存货 | 100.00 | 可用 |" in text
+    assert "| DPS | 1.2000 | 可用 |" in text
+
+
 def test_render_section_marks_missing_and_shows_peers():
     ledger = MetricRegistry()
     ledger.add(

@@ -32,18 +32,23 @@ def to_decimal(raw: Any) -> Decimal | None:
     """Convert a payload value to Decimal without introducing float noise."""
     if raw is None:
         return None
-    if isinstance(raw, float):
+    if isinstance(raw, Decimal):
+        return None if raw.is_nan() else raw
+    if isinstance(raw, bool):
+        return Decimal(int(raw))
+    if isinstance(raw, (int, float)):
         if pd.isna(raw):
             return None
-        return Decimal(repr(raw))
-    if isinstance(raw, Decimal):
-        return raw
+        try:
+            return Decimal(str(raw))
+        except (ArithmeticError, ValueError):
+            return None
     text = str(raw).strip()
     if not text or text.lower() in {"nan", "none", "--"}:
         return None
     try:
         return Decimal(text)
-    except Exception:  # noqa: BLE001 - payload may contain placeholders
+    except (ArithmeticError, ValueError):  # payload may contain placeholders
         return None
 
 

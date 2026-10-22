@@ -16,7 +16,7 @@ from ..metrics.dividends import average_dps
 from ..metrics.dps_check import crosscheck_dps
 from ..qualitative import MODULES, all_evidence
 from ..qualitative import summary as qual_summary
-from ..types import Currency, DividendEvent, FetchIssue
+from ..types import Currency, DividendEvent, FetchIssue, Market
 from . import industry
 from .extras import render_extras
 from .format import TEMPLATE_DIR, _m, _num, _pct, _table
@@ -397,6 +397,18 @@ def render_analysis(
         if any(row.source == "ttm" for row in ctx.rows)
         else ""
     )
+    fx_note = ""
+    if ctx.code.market is Market.HK and ctx.market_cap.currency is Currency.CNY:
+        fx_note = (
+            f"港股行情与分红按 1 HKD = {ctx.settings.fx.cny_per_hkd} CNY 折算，"
+            "原币为 HKD"
+        )
+    qual_note = ""
+    if research_sections and ctx.qualitative is None:
+        qual_note = (
+            "因子 1B 使用独立的 qualitative.json 证据；第十一节 research.json "
+            "不会自动映射到 1B。"
+        )
 
     context = {
         "code": str(ctx.code),
@@ -424,6 +436,8 @@ def render_analysis(
         "market_section": market_section,
         "disclaimer_heading": disclaimer_heading,
         "data_basis": data_basis,
+        "fx_note": fx_note,
+        "qual_note": qual_note,
         "pdf_fact_rows": [
             [
                 str(fact.get("label", "")),

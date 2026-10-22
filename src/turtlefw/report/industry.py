@@ -169,13 +169,22 @@ def render_section(
         return ""
     rows: list[list[str]] = []
     for spec in template.kpis:
-        if spec.metric_id and ledger.get(spec.metric_id) is not None:
-            rows.append([spec.label, ledger.display(spec.metric_id), "可用"])
+        metric_id = spec.metric_id
+        point = ledger.get(metric_id) if metric_id else None
+        if metric_id == "dps.pdf" and (point is None or point.value is None):
+            metric_id = "dps"
+            point = ledger.get(metric_id)
+        if point is not None and point.value is not None:
+            rows.append([spec.label, ledger.display(metric_id or ""), "可用"])
         else:
             rows.append([spec.label, "—", spec.note or "数据未取得"])
     peer_rows = (
         [
-            [str(row.get("name", "")), str(row.get("code", "")), "A"]
+            [
+                str(row.get("name", "")),
+                str(row.get("code", "")),
+                str(row.get("market", "") or "—"),
+            ]
             for row in peer_metrics
         ]
         if peer_metrics

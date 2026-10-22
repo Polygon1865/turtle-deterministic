@@ -249,6 +249,17 @@ def test_report_contains_industry_template():
     assert "Peer 组" in markdown
 
 
+def test_hk_report_discloses_fx_rate():
+    metrics: dict[str, object] = {}
+    markdown, _ = render(
+        replace(_inputs(), code="00700.HK"), load_settings(), metrics_out=metrics
+    )
+    assert "1 HKD = 0.92 CNY" in markdown
+    point = metrics["fx.cny_per_hkd"]
+    assert isinstance(point, dict)
+    assert point["value"] == "0.92"
+
+
 def test_manifest_facts_hash_uses_effective_pdf_rows():
     rows = [
         replace(row, item="accounts_receiv")

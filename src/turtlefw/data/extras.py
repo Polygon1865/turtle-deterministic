@@ -191,35 +191,118 @@ def normalize_company(row: Mapping[str, Any] | None) -> dict[str, Any]:
     }
 
 
+_TITLE_PRIORITY = (
+    "董事长",
+    "副董事长",
+    "总裁",
+    "总经理",
+    "财务总监",
+    "董事会秘书",
+    "副总经理",
+    "副总裁",
+    "首席",
+)
+
+
+def _manager_sort_key(row: Mapping[str, Any]) -> tuple[int, int, str]:
+    current = 0 if not _text(row.get("end_date")) else 1
+    title = _text(row.get("title"))
+    rank = next(
+        (index for index, keyword in enumerate(_TITLE_PRIORITY) if keyword in title),
+        len(_TITLE_PRIORITY),
+    )
+    return current, rank, _text(_first(row, "begin_date", "beg_date"))
+
+
+def _split_title(title: str) -> list[str]:
+    normalized = (
+        title.replace("，", ",")
+        .replace("、", ",")
+        .replace("\\", ",")
+        .replace("/", ",")
+    )
+    return [part.strip() for part in normalized.split(",") if part.strip()]
+
+
+def _merge_title(existing: str, incoming: str) -> str:
+    parts = _split_title(existing)
+    for value in _split_title(incoming):
+        if value not in parts:
+            parts.append(value)
+    visible = [part for part in parts if "委员会" not in part]
+    return "、".join((visible or parts)[:6])
+
+
 def normalize_managers(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
-    result = []
-    for row in _sorted(rows, "begin_date", limit=20):
+    result: list[dict[str, Any]] = []
+    by_name: dict[str, dict[str, Any]] = {}
+    for row in sorted(rows, key=_manager_sort_key):
+        name = _text(row.get("name"))
+        if not name:
+            continue
+        title = _text(row.get("title"))
+        existing = by_name.get(name)
+        if existing is not None:
+            existing["title"] = _merge_title(str(existing["title"]), title)
+            continue
         item = {
-            "name": _text(row.get("name")),
+            "name": name,
             "gender": _text(row.get("gender")),
-            "title": _text(row.get("title")),
+            "title": _merge_title("", title),
             "beg_date": _iso(_first(row, "begin_date", "beg_date")),
             "end_date": _iso(row.get("end_date")),
             "source": "tushare:stk_managers",
         }
-        if item["name"]:
-            result.append(item)
+        by_name[name] = item
+        result.append(item)
+        if len(result) >= 20:
+            break
     return result
 
 
 def normalize_rewards(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
-    result = []
-    for row in _sorted(rows, "ann_date", limit=20):
+    result: list[dict[str, Any]] = []
+    by_name: dict[str, dict[str, Any]] = {}
+    for row in _sorted(rows, "ann_date"):
+        name = _text(row.get("name"))
+        if not name:
+            continue
+        reward = _dec(row.get("reward"))
+        hold_vol = _dec(row.get("hold_vol"))
+        existing = by_name.get(name)
+        if existing is not None:
+            ann_date = _iso(row.get("ann_date"))
+            if existing["reward"] is None and reward is not None:
+                existing["ann_date"] = ann_date
+                existing["title"] = _merge_title(
+                    str(existing["title"]), _text(row.get("title"))
+                )
+                existing["reward"] = reward
+                existing["hold_vol"] = hold_vol
+                continue
+            if existing["ann_date"] == ann_date:
+                if reward is not None and (
+                    existing["reward"] is None or reward > existing["reward"]
+                ):
+                    existing["reward"] = reward
+                if hold_vol is not None and (
+                    existing["hold_vol"] is None or hold_vol > existing["hold_vol"]
+                ):
+                    existing["hold_vol"] = hold_vol
+                existing["title"] = _merge_title(str(existing["title"]), _text(row.get("title")))
+            continue
         item = {
             "ann_date": _iso(row.get("ann_date")),
-            "name": _text(row.get("name")),
+            "name": name,
             "title": _text(row.get("title")),
-            "reward": _dec(row.get("reward")),
-            "hold_vol": _dec(row.get("hold_vol")),
+            "reward": reward,
+            "hold_vol": hold_vol,
             "source": "tushare:stk_rewards",
         }
-        if item["name"]:
-            result.append(item)
+        by_name[name] = item
+        result.append(item)
+        if len(result) >= 10:
+            break
     return result
 
 

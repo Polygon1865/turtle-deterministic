@@ -8,6 +8,7 @@ from turtlefw.data.extras import (
     normalize_holder_count,
     normalize_industry,
     normalize_managers,
+    normalize_rewards,
 )
 from turtlefw.data.tushare_provider import US_INDICATOR_FIELDS, TushareProvider
 from turtlefw.report.extras import render_extras
@@ -88,6 +89,68 @@ def test_manager_and_holder_count_vendor_columns():
     assert managers[0]["beg_date"] == "2024-01-01"
     counts = normalize_holder_count([{"end_date": "20241231", "holder_num": 12345}])
     assert counts[0]["holder_count"] == Decimal(12345)
+
+
+def test_managers_deduplicate_and_prioritise_executives():
+    managers = normalize_managers(
+        [
+            {
+                "name": "独立董事甲",
+                "title": "审计委员会主任",
+                "begin_date": "20250101",
+                "end_date": "",
+            },
+            {
+                "name": "独立董事甲",
+                "title": "薪酬委员会委员",
+                "begin_date": "20250101",
+                "end_date": "",
+            },
+            {
+                "name": "潘刚",
+                "title": "董事长,总裁",
+                "begin_date": "20230101",
+                "end_date": "",
+            },
+            {
+                "name": "旧任董事",
+                "title": "董事",
+                "begin_date": "20150101",
+                "end_date": "20220101",
+            },
+        ]
+    )
+    assert managers[0]["name"] == "潘刚"
+    assert managers[0]["title"] == "董事长、总裁"
+    assert [row["name"] for row in managers].count("独立董事甲") == 1
+    assert managers[1]["title"] == "审计委员会主任、薪酬委员会委员"
+    assert managers[-1]["name"] == "旧任董事"
+
+
+def test_rewards_deduplicate_same_day_and_keep_non_null_amount():
+    rewards = normalize_rewards(
+        [
+            {"ann_date": "20250301", "name": "潘刚", "title": "董事长", "reward": None},
+            {
+                "ann_date": "20250301",
+                "name": "潘刚",
+                "title": "总裁",
+                "reward": "1200000",
+                "hold_vol": "10000",
+            },
+            {
+                "ann_date": "20240301",
+                "name": "潘刚",
+                "title": "董事长",
+                "reward": "900000",
+                "hold_vol": "8000",
+            },
+        ]
+    )
+    assert len(rewards) == 1
+    assert rewards[0]["reward"] == Decimal("1200000")
+    assert rewards[0]["hold_vol"] == Decimal("10000")
+    assert rewards[0]["title"] == "董事长、总裁"
 
 
 def test_industry_prefers_current_membership_and_classification_name():

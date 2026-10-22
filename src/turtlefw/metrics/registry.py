@@ -12,8 +12,8 @@ import re
 from dataclasses import replace
 from decimal import Decimal, InvalidOperation
 
-from ..facts import MetricPoint, MetricRegistry
 from ..factors.engine import FactorContext, FactorResult
+from ..facts import MetricPoint, MetricRegistry
 from . import dividends as div_metrics
 from . import statements
 
@@ -354,6 +354,57 @@ def build(
             period=period,
             source=("revenue.latest",),
         )
+        revenue_cagr = statements.revenue_cagr(ctx.rows)
+        _add(
+            registry,
+            "revenue.cagr",
+            "营业收入 CAGR",
+            revenue_cagr * Decimal("100") if revenue_cagr is not None else None,
+            unit="%",
+            formula_id="statement.revenue_cagr",
+            period=period,
+            source=("revenue.latest",),
+        )
+        net_income_cagr = statements.net_income_cagr(ctx.rows)
+        _add(
+            registry,
+            "net_income.cagr",
+            "归母净利润 CAGR",
+            net_income_cagr * Decimal("100") if net_income_cagr is not None else None,
+            unit="%",
+            formula_id="statement.net_income_cagr",
+            period=period,
+            source=("net_income.latest",),
+        )
+        ocf = statements.annual_series(ctx.rows, "cashflow", "n_cashflow_act")
+        net_income = income.get(latest)
+        ocf_ni_ratio = (
+            (ocf[latest] / net_income * Decimal("100"))
+            if latest in ocf and net_income not in (None, Decimal("0"))
+            else None
+        )
+        _add(
+            registry,
+            "ocf_ni_ratio",
+            "OCF/净利润",
+            ocf_ni_ratio,
+            unit="%",
+            formula_id="cashflow.ocf_ni_ratio",
+            period=period,
+            source=("ocf.latest", "net_income.latest"),
+        )
+        average_dps = div_metrics.average_dps(ctx.dividends)
+        _add(
+            registry,
+            "dps",
+            "三年均值 DPS",
+            average_dps,
+            unit=f"{ctx.market_cap.currency.value}/股",
+            formula_id="dividends.average_dps",
+            period=period,
+            source=("dividends",),
+            display=f"{average_dps:.4f}" if average_dps is not None else "—",
+        )
 
     if latest is not None:
         values = {
@@ -411,34 +462,23 @@ def build(
             )
         )
     if latest is not None:
-        for item, label in (
-            ("accounts_receiv", "应收账款"),
-            ("inventory", "存货"),
-            ("contract_liab", "合同负债"),
+        for metric_id, item, label in (
+            ("accounts_receiv", "accounts_receiv", "应收账款"),
+            ("inventory", "inventories", "存货"),
+            ("contract_liab", "contract_liab", "合同负债"),
         ):
             series = statements.annual_series(ctx.rows, "balance", item)
             balance_value = series.get(latest)
-            source_rows = [
-                row
-                for row in ctx.rows
-                if row.statement == "balance"
-                and row.item == item
-                and row.period_type == "annual"
-            ]
-            source_row = max(source_rows, key=lambda row: row.period_end) if source_rows else None
-            source = (
-                ctx.pdf_source_ids.get(item)
-                if source_row is not None and source_row.source.startswith("pdf:")
-                else f"statement:{period}:balance:{item}"
-            ) or f"statement:{period}:balance:{item}"
+            pdf_source = ctx.pdf_source_ids.get(metric_id) or ctx.pdf_source_ids.get(item)
+            source = pdf_source or f"statement:{period}:balance:{item}"
             registry.add(
                 MetricPoint(
-                    id=item,
+                    id=metric_id,
                     name=label,
                     value=balance_value,
                     unit=ctx.market_cap.currency.value,
                     period=period,
-                    formula_id=f"balance.{item}",
+                    formula_id=f"balance.{metric_id}",
                     source_fact_ids=(source,),
                     coverage="ok" if balance_value is not None else "missing",
                     display=(
@@ -490,6 +530,18 @@ def build(
                     display=f"{segment_value / Decimal('1000000'):,.2f}",
                 )
             )
+    if ctx.code.market.value == "HK" and ctx.market_cap.currency.value == "CNY":
+        _add(
+            registry,
+            "fx.cny_per_hkd",
+            "HKD/CNY 折算率",
+            ctx.settings.fx.cny_per_hkd,
+            unit="CNY/HKD",
+            formula_id="settings.fx.cny_per_hkd",
+            period=f"{latest}A" if latest is not None else "",
+            source=("settings.fx",),
+            display=str(ctx.settings.fx.cny_per_hkd),
+        )
     return registry
 
 

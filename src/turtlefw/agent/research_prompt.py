@@ -64,6 +64,10 @@ ownership_structure). Values that are numbers must use placeholders.
 Every claim and param must set `dimension` to exactly one of D1, D2, D3, D4,
 D5, D6. Never use THESIS, thesis, or another label as a dimension.
 Use claims for evidence-backed judgments. Keep claim_ids stable and semantic.
+For peer comparisons, cite at least three peer evidence items (or state the peer
+sample size explicitly); never generalise a peer claim from one company.
+For forecast claims, compare the vendor forecast with reported actual data when
+both are present, and use a neutral/low confidence when only the forecast exists.
 Also add thesis params when evidence supports them:
 - thesis.core: one-sentence thesis using placeholders (dimension D1);
 - thesis.catalysts: catalysts (dimension D3 or D5);
