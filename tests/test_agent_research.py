@@ -31,6 +31,7 @@ def test_research_prompt_covers_d1_to_d6():
     assert "claim_id" in ResearchAgent.SYSTEM
     assert "evidence[].id" in ResearchAgent.SYSTEM
     assert "Never write a raw number" in ResearchAgent.SYSTEM
+    assert "Simplified Chinese" in ResearchAgent.SYSTEM
     assert "final report" not in ResearchAgent.SYSTEM.lower()
 
 
@@ -55,6 +56,31 @@ def test_research_agent_retries_invalid_schema():
     document = ResearchAgent(llm).run({"code": "600887"}, retries=1)
     assert document.claims[0].claim_id == "D2.1"
     assert llm.calls == 2
+
+
+def test_research_agent_retries_english_output():
+    class Flaky:
+        def __init__(self):
+            self.calls = 0
+            self.feedback = ""
+
+        def complete(self, system, payload):
+            self.calls += 1
+            self.feedback = str(payload.get("quality_feedback", ""))
+            if self.calls == 1:
+                data = _valid_payload()
+                data["claims"][0]["statement"] = (
+                    "The company has a durable brand moat with stable pricing power "
+                    "across its core consumer categories."
+                )
+                return data
+            return _valid_payload()
+
+    llm = Flaky()
+    document = ResearchAgent(llm).run({"code": "600887"}, retries=1)
+    assert document.claims[0].statement.startswith("品牌")
+    assert llm.calls == 2
+    assert "Simplified Chinese" in llm.feedback
 
 
 def test_research_agent_retries_insufficient_quality():

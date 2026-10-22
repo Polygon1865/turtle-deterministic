@@ -54,6 +54,7 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
 - 新增 D1–D6 专用 system prompt：业务/护城河/外部/管理层/MD&A/控股。
 - 新增 `research-agent --snapshot --out`：用 LLM 生成 `research.json`，再由 `load_payload` 校验。
 - snapshot 有 `pdf_sections.json` / `data_pack.md` / `evidence.json` 时自动注入上下文。
+- 研究文本强制简体中文：system prompt 明确要求，`ResearchAgent` 还会检查 claim/param/decision 的自然语言字段；检测到整段英文时带反馈重试，仍不合格则拒绝该次研究输出，不把英文判断写入因子。
 - `agent` phase runner 可执行 `research=research-agent ...`。
 - 仍待补：真实 LLM 输出回归（当前以 `--research-response` 回放回归为主）、
   token/费用预算与硬上限。

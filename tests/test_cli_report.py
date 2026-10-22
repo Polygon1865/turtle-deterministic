@@ -1,0 +1,26 @@
+from pathlib import Path
+
+from turtlefw.cli import _fallback_data_pack
+
+
+def test_snapshot_pack_is_not_overwritten_by_stale_base(tmp_path: Path) -> None:
+    base = tmp_path / "00700.HK"
+    snapshot = base / "snapshot"
+    snapshot.mkdir(parents=True)
+    (base / "data_pack.md").write_text("stale pack", encoding="utf-8")
+    (snapshot / "data_pack.md").write_text("fresh pack", encoding="utf-8")
+
+    _fallback_data_pack(snapshot, base)
+
+    assert (snapshot / "data_pack.md").read_text(encoding="utf-8") == "fresh pack"
+
+
+def test_snapshot_pack_falls_back_only_when_missing(tmp_path: Path) -> None:
+    base = tmp_path / "600887.SH"
+    snapshot = base / "snapshot"
+    snapshot.mkdir(parents=True)
+    (base / "data_pack.md").write_text("legacy pack", encoding="utf-8")
+
+    _fallback_data_pack(snapshot, base)
+
+    assert (snapshot / "data_pack.md").read_text(encoding="utf-8") == "legacy pack"

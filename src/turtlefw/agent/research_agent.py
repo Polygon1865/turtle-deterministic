@@ -7,11 +7,37 @@ raises before any report is rendered.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any, Mapping, Protocol
 
 from ..research import ResearchDocument, load_payload
 from .research_prompt import SYSTEM_PROMPT
+
+_CJK = re.compile(r"[\u4e00-\u9fff]")
+_LATIN = re.compile(r"[A-Za-z]")
+
+
+def _looks_english(text: str) -> bool:
+    """True for prose that is effectively English, allowing ticker/company names."""
+    latin = len(_LATIN.findall(text))
+    cjk = len(_CJK.findall(text))
+    return latin >= 60 and cjk < 8
+
+
+def _language_error(document: ResearchDocument) -> str | None:
+    for claim in document.claims:
+        if _looks_english(claim.statement) or any(
+            _looks_english(item) for item in claim.unknowns
+        ):
+            return f"research text is not Simplified Chinese: {claim.claim_id}"
+    for param in document.params:
+        if len(param.value) >= 40 and _looks_english(param.value):
+            return f"research text is not Simplified Chinese: {param.param_id}"
+    for decision in document.decisions:
+        if _looks_english(decision.reason):
+            return f"research text is not Simplified Chinese: {decision.decision_id}"
+    return None
 
 
 class AgentError(Exception):
@@ -62,6 +88,18 @@ class ResearchAgent:
                 }
                 continue
             stats = quality(document)
+            language_error = _language_error(document)
+            if language_error:
+                last_error = AgentError(language_error)
+                current = {
+                    **current,
+                    "quality_feedback": (
+                        f"{language_error}. Rewrite all natural-language research "
+                        "fields in Simplified Chinese (zh-CN); keep only company "
+                        "names, tickers and proper nouns in English."
+                    ),
+                }
+                continue
             dimensions = len(stats["covered_dimensions"])
             if stats["claims"] >= min_claims and dimensions >= min_dimensions:
                 return document

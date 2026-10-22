@@ -197,17 +197,17 @@ def markdown_to_html(
             "@media (prefers-color-scheme:dark){:root{--paper:#171512;--card:#211e19;--fg:#eee9de;"
             "--muted:#a59d8e;--line:#3b352b;--accent:#e3a07d;--soft:#2b261f;--warn:#f0b27a;--warn-soft:#3b2a19}}",
             "*{box-sizing:border-box}",
-            "body{margin:0;background:var(--paper);color:var(--fg);font:14px/1.7 ui-sans-serif,-apple-system,"
+            "body{margin:0;background:var(--paper);color:var(--fg);font:15px/1.75 ui-sans-serif,-apple-system,"
             "'Segoe UI','Microsoft YaHei',sans-serif}",
             "a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}",
-            ".shell{max-width:1240px;margin:0 auto;padding:0 28px}",
+            ".shell{max-width:1280px;margin:0 auto;padding:0 28px}",
             ".top{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:18px 0;"
             "border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}",
             ".brand{display:flex;align-items:center;gap:10px;color:var(--fg);font-weight:800;letter-spacing:-.02em}",
             ".brand .mark{width:28px;height:28px;border-radius:8px;background:var(--fg);color:var(--paper);"
             "display:grid;place-items:center;font-size:13px}",
             ".back{font-size:12px;color:var(--muted)}",
-            ".hero{padding:34px 0 24px;border-bottom:1px solid var(--line)}",
+            ".hero{padding:38px 0 28px;border-bottom:1px solid var(--line)}",
             ".kicker{display:flex;gap:8px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:12px;"
             "letter-spacing:.04em;text-transform:uppercase;margin:0 0 14px}",
             ".badge{display:inline-flex;border-radius:5px;padding:2px 7px;background:var(--soft);"
@@ -215,40 +215,46 @@ def markdown_to_html(
             ".hero h1{font-family:'Iowan Old Style','Palatino Linotype',Georgia,serif;"
             "font-size:clamp(30px,4vw,50px);line-height:1.08;letter-spacing:-.035em;margin:0 0 12px;"
             "max-width:900px}",
-            ".lede{color:var(--muted);max-width:780px;margin:0;font-size:14px}",
+            ".lede{color:var(--muted);max-width:780px;margin:0;font-size:14px;line-height:1.65}",
+            ".reading-tip{margin:14px 0 0;color:var(--muted);font-size:12px;line-height:1.6;"
+            "max-width:780px;border-top:1px dashed var(--line);padding-top:10px}",
             ".research-banner{display:flex;gap:10px;align-items:flex-start;margin:18px 0 0;padding:12px 14px;"
             "border:1px solid color-mix(in srgb, var(--accent) 30%, var(--line));border-left:3px solid var(--accent);"
             "background:var(--soft);border-radius:4px;font-size:13px;color:var(--muted);max-width:780px}",
             ".research-tag{flex:0 0 auto;font:800 10px/1.6 ui-monospace,monospace;letter-spacing:.08em;"
             "color:var(--paper);background:var(--accent);border-radius:3px;padding:1px 6px}",
             ".research-banner strong{color:var(--fg)}",
-            ".layout{display:grid;grid-template-columns:minmax(0,1fr);gap:36px;padding:30px 0 56px}",
-            ".layout.with-toc{grid-template-columns:210px minmax(0,1fr)}",
+            ".layout{display:grid;grid-template-columns:minmax(0,1fr);gap:40px;padding:34px 0 64px}",
+            ".layout.with-toc{grid-template-columns:220px minmax(0,1fr)}",
             ".toc{position:sticky;top:20px;align-self:start;max-height:calc(100vh - 40px);overflow:auto;"
-            "padding:16px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card)}",
+            "padding:16px 14px;border:1px solid var(--line);border-radius:10px;background:var(--card)}",
             ".toc-title{font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--muted);"
-            "text-transform:uppercase;margin-bottom:8px}",
-            ".toc a{display:block;padding:5px 0;font-size:12px;color:var(--muted);line-height:1.35}",
+            "text-transform:uppercase;margin-bottom:9px}",
+            ".toc a{display:block;padding:5px 0;font-size:12.5px;color:var(--muted);line-height:1.4}",
             ".toc a:hover{color:var(--accent);text-decoration:none}",
             ".toc-l2{font-weight:700;color:var(--fg)!important}.toc-l3{padding-left:12px!important}",
-            ".report{min-width:0;max-width:900px}",
+            ".report{min-width:0;max-width:860px}",
             ".report>h1{display:none}",
-            "h2{font-family:'Iowan Old Style','Palatino Linotype',Georgia,serif;font-size:24px;line-height:1.25;"
-            "letter-spacing:-.02em;margin:2.2rem 0 .8rem;padding-bottom:.45rem;border-bottom:1px solid var(--line)}",
-            "h3{font-size:18px;line-height:1.3;margin:1.7rem 0 .5rem}",
-            "h4{font-size:15px;margin:1.2rem 0 .4rem}",
+            "h2{font-family:'Iowan Old Style','Palatino Linotype',Georgia,serif;font-size:26px;line-height:1.25;"
+            "letter-spacing:-.02em;margin:2.6rem 0 .85rem;padding-bottom:.45rem;border-bottom:1px solid var(--line);"
+            "scroll-margin-top:18px}",
+            "h3{font-size:19px;line-height:1.35;margin:1.9rem 0 .55rem;scroll-margin-top:18px}",
+            "h4{font-size:15.5px;margin:1.35rem 0 .45rem}",
             ".anchor{color:inherit}.anchor:hover{text-decoration:none;color:var(--accent)}",
-            "p{margin:.7rem 0}",
-            "ul{padding-left:1.2rem;margin:.7rem 0}",
-            ".table-wrap{overflow-x:auto;margin:1rem 0;border:1px solid var(--line);border-radius:10px;"
+            "p{margin:.85rem 0;line-height:1.8}",
+            "ul{padding-left:1.25rem;margin:.85rem 0}li{margin:.2rem 0}",
+            ".table-wrap{overflow-x:auto;margin:1.15rem 0;border:1px solid var(--line);border-radius:8px;"
             "background:var(--card)}",
-            "table{border-collapse:collapse;width:100%;font-size:13px;min-width:560px}",
-            "th,td{border-bottom:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}",
-            "th{background:var(--soft);font-size:11px;letter-spacing:.02em;color:var(--muted);"
-            "font-weight:800;white-space:nowrap}",
+            "table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:560px;"
+            "font-variant-numeric:tabular-nums}",
+            "th,td{border-bottom:1px solid var(--line);padding:10px 12px;text-align:left;vertical-align:top;"
+            "line-height:1.55}",
+            "th{position:sticky;top:0;z-index:1;background:var(--soft);font-size:11.5px;letter-spacing:.02em;"
+            "color:var(--muted);font-weight:800;white-space:nowrap}",
+            "tbody tr:nth-child(even){background:color-mix(in srgb,var(--soft) 38%,transparent)}",
             "tr:last-child td{border-bottom:0}",
-            "blockquote{margin:1rem 0;padding:10px 14px;border-left:3px solid var(--accent);"
-            "background:var(--soft);border-radius:0 8px 8px 0;color:var(--muted);font-size:13px}",
+            "blockquote{margin:1.1rem 0;padding:11px 15px;border-left:3px solid var(--accent);"
+            "background:var(--soft);border-radius:0 6px 6px 0;color:var(--muted);font-size:13.5px;line-height:1.7}",
             "code{font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--soft);"
             "padding:2px 5px;border-radius:4px}",
             ".chart{margin:1rem 0 1.5rem}.chart svg{width:100%;height:auto;border:1px solid var(--line);"
@@ -256,12 +262,16 @@ def markdown_to_html(
             ".footer{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;color:var(--muted);"
             "font-size:11px;padding:18px 0 36px;border-top:1px solid var(--line)}",
             "@media(max-width:900px){.layout.with-toc{grid-template-columns:1fr}.toc{position:static;"
-            "max-height:none;display:flex;flex-wrap:wrap;gap:4px 14px}.toc-title{width:100%}"
+            "max-height:220px;display:flex;flex-wrap:wrap;gap:4px 14px}.toc-title{width:100%}"
             ".toc a{padding:3px 0}.toc-l3{display:none}}",
-            "@media(max-width:640px){.shell{padding:0 16px}.hero{padding-top:22px}"
-            ".top{font-size:11px}.hero h1{font-size:30px}.report{max-width:none}}",
+            "@media(max-width:640px){.shell{padding:0 16px}.hero{padding-top:24px}"
+            ".top{font-size:11px}.hero h1{font-size:29px}.report{max-width:none}"
+            "body{font-size:14.5px}.reading-tip{font-size:11px}table{font-size:12.5px}"
+            "th,td{padding:8px 9px}}",
             "@media print{.top,.toc,.back{display:none}.layout{display:block;padding:0}"
-            "body{background:#fff;color:#000}.table-wrap{overflow:visible}}",
+            "body{background:#fff;color:#000;font-size:10.5pt}.table-wrap{overflow:visible}"
+            "h2{break-after:avoid;page-break-after:avoid}table{font-size:9pt}"
+            "thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}}",
             "</style></head><body>",
             '<div class="shell">',
             '<header class="top"><a class="brand" href="/"><span class="mark">T</span>Turtle Daily</a>'
@@ -270,7 +280,10 @@ def markdown_to_html(
             f'<span class="badge">{html.escape(code)}</span><span>{html.escape(meta_label)}</span>'
             f'<span>· {"研究判断由 LLM 生成" if has_research else "数字来自确定性指标与已冻结事实"}</span></div>'
             f"<h1>{_inline(display_title)}</h1>"
-            f'<p class="lede">{lede_text}</p>{research_banner}</section>',
+            f'<p class="lede">{lede_text}</p>'
+            '<p class="reading-tip">建议阅读顺序：结论 → 因子 4 → 估值与底价 → 数据问题。'
+            "左侧目录可跳转，表格可横向滚动。</p>"
+            f"{research_banner}</section>",
             f'<div class="{layout_class}">',
             toc,
             f'<article class="report">{chart}',

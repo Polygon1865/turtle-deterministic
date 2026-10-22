@@ -46,6 +46,11 @@ Hard rules:
 4. If a dimension lacks data, use judgment="unknown" and explain the gap in
    unknowns. Do not fabricate. If context.coverage marks a capability
    partial/missing, treat it as unavailable unless evidence exists.
+5. Every natural-language value MUST be written in Simplified Chinese
+   (zh-CN): claim.statement, claim.unknowns, param.label, textual param.value,
+   and decision.reason. Company names, tickers and unavoidable proper nouns may
+   stay in English, but do not return English paragraphs. Evidence quotes are
+   verbatim and exempt from translation.
 
 Cover D1-D6:
 - D1: business model, revenue mix, unit economics, capital intensity, cyclicality.

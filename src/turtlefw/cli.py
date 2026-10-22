@@ -2715,6 +2715,23 @@ def _finalize_cmd(
     return 0
 
 
+def _fallback_data_pack(snapshot_root: Path, base_dir: Path) -> None:
+    """Copy a data pack only when the snapshot did not generate one.
+
+    A same-day rerun can leave ``base_dir/data_pack.md`` from an older quote.
+    Never overwrite the freshly rendered snapshot pack with that stale file.
+    """
+    target = snapshot_root / "data_pack.md"
+    if target.is_file():
+        return
+    import shutil
+
+    candidates = [base_dir / "data_pack.md", *sorted(base_dir.glob("data_pack_*.md"))]
+    source = next((item for item in candidates if item.is_file()), None)
+    if source is not None and source.resolve() != target.resolve():
+        shutil.copyfile(source, target)
+
+
 def _report(
     raw_code: str,
     out: str | None,
@@ -3203,12 +3220,7 @@ def _report(
             shutil.copyfile(qual_path, snapshot_root / "qualitative.json")
         if research_file.is_file() and not (snapshot_root / "research.json").is_file():
             shutil.copyfile(research_file, snapshot_root / "research.json")
-        pack_candidates = [base_dir / "data_pack.md", *sorted(base_dir.glob("data_pack_*.md"))]
-        pack_source = next((item for item in pack_candidates if item.is_file()), None)
-        if pack_source is not None:
-            target_pack = snapshot_root / "data_pack.md"
-            if pack_source.resolve() != target_pack.resolve():
-                shutil.copyfile(pack_source, target_pack)
+        _fallback_data_pack(snapshot_root, base_dir)
         if pdf_numbers and Path(pdf_numbers).is_file():
             shutil.copyfile(pdf_numbers, snapshot_root / "reported_numbers.json")
         if evidence_path and Path(evidence_path).is_file():
