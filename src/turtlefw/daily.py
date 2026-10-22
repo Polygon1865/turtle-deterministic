@@ -446,6 +446,7 @@ def run_stock(
     research_rank = rank if research_rank is None else research_rank
     code_dir = paths.day_dir / code
     code_dir.mkdir(parents=True, exist_ok=True)
+    _clear_research_outputs(code_dir)
     log_path = code_dir / "pipeline.log"
     record: dict[str, Any] = {
         "code": code,

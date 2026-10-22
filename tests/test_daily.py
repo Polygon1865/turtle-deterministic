@@ -156,6 +156,31 @@ def test_run_stock_deterministic_writes_status(tmp_path: Path) -> None:
     assert "--with-research" not in commands[0]
 
 
+def test_run_stock_clears_stale_research_when_off(tmp_path: Path) -> None:
+    paths = _paths(tmp_path)
+    code_dir = paths.day_dir / "600887.SH"
+    code_dir.mkdir(parents=True)
+    (code_dir / "research.json").write_text("{}", encoding="utf-8")
+    (code_dir / "snapshot").mkdir()
+    (code_dir / "snapshot" / "research.json").write_text("{}", encoding="utf-8")
+    (code_dir / "snapshot" / "research_audit.json").write_text("{}", encoding="utf-8")
+
+    def fake(command: list[str], cwd: Path, timeout: int) -> CommandResult:
+        _write_success(code_dir)
+        return CommandResult(tuple(command), 0, "ok")
+
+    record = run_stock(
+        "600887.SH",
+        2,
+        paths,
+        DailyConfig(llm_top_n=1),
+        run_command=fake,
+    )
+    assert record["research"] == "off"
+    assert not (code_dir / "research.json").exists()
+    assert not (code_dir / "snapshot" / "research.json").exists()
+
+
 def test_run_stock_falls_back_when_research_fails(tmp_path: Path) -> None:
     paths = _paths(tmp_path)
     commands: list[list[str]] = []
