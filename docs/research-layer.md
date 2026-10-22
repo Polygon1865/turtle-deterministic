@@ -89,6 +89,25 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
 - 报告支持 `--html` 同时输出 HTML（D1–D6 章节/证据表可直接渲染）。
 - 仍待补：行业/竞对独立章节、claim 覆盖率统计。
 
+## Phase 7（完成）：research → qualitative bridge
+
+- `src/turtlefw/research_bridge.py` 把 evidence-backed D1–D6 claim 转成因子
+  1A/1B 使用的 `qualitative.json`：
+  - D1→understandability、D2→moat、D3→policy、D4→management、
+    D6→controller；D5 暂不映射。
+  - 只接受 `high`/`medium` 且至少一条可转换 evidence；`negative` 优先于
+    `positive`/`neutral`，低置信度和无证据 claim 不进入。
+  - `pdf://` evidence 保留；`data` evidence 允许无 URL；普通 web 仍要求
+    http(s)。
+- 人工 `qualitative.json` 的非 unknown 判断优先；unknown 可由 bridge 补齐。
+  bridge 后来源写为 `research_bridge` 或 `qualitative.json+research_bridge`。
+- `freeze()` / `finalize_research()` 写出 effective `qualitative.json`；
+  report 显示“因子 1A/1B 已由 research bridge 注入”；QA 增加
+  `research_bridge` 一致性检查；data pack 追加“定性判断来源”。
+- 因子 1A 的“商业模式未被验证”读取 `moat`，不再硬编码 unknown；
+  “看不懂”读取 `understandability`。D5（MD&A/前瞻信号）仍只作为研究文本，
+  不直接改变 veto。
+
 ## 红线
 
 1. 报告数字只能来自 Metric/DocumentFact。

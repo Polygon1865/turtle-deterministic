@@ -65,6 +65,8 @@ def score(labels: list[Label], root: Path | str | None = None) -> dict[str, Any]
     for label in labels:
         qpath = base / label.code / "qualitative.json"
         if not qpath.is_file():
+            qpath = base / label.code / "snapshot" / "qualitative.json"
+        if not qpath.is_file():
             missing.add(label.code)
             continue
         if label.code not in cache:

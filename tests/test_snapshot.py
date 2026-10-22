@@ -360,6 +360,10 @@ def test_research_section_is_rendered():
         assert "D2.1" in text
         assert "{{metric:r}}" not in text
         assert "https://example.com/a" in text
+        qualitative = json.loads((root / "qualitative.json").read_text(encoding="utf-8"))
+        assert qualitative["source"] == "research_bridge"
+        assert qualitative["modules"]["moat"]["judgment"] == "positive"
+        assert "research bridge" in text
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
@@ -434,6 +438,13 @@ def test_finalize_attaches_research_without_mutating_old_snapshot(tmp_path, monk
     assert target.is_dir()
     assert (target / "research.json").is_file()
     assert (target / "research_audit.json").is_file()
+    qualitative = json.loads(
+        (target / "qualitative.json").read_text(encoding="utf-8")
+    )
+    assert qualitative["source"] == "research_bridge"
+    assert qualitative["modules"]["moat"]["judgment"] == "positive"
+    pack_text = (target / "data_pack.md").read_text(encoding="utf-8")
+    assert "定性判断来源（research bridge）" in pack_text
     manifest = json.loads((target / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["research_audit_hash"]
     assert not (old / "research.json").exists()

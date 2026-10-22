@@ -25,7 +25,7 @@ MODULES: dict[str, str] = {
 
 JUDGMENTS = {"positive", "neutral", "negative", "unknown"}
 CONFIDENCE = {"high", "medium", "low"}
-SOURCE_TYPES = {"web", "document"}
+SOURCE_TYPES = {"web", "document", "pdf", "data"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +61,7 @@ class Judgment:
 class Qualitative:
     items: dict[str, Judgment] = field(default_factory=dict)
     discrepancies: tuple[Discrepancy, ...] = ()
+    source: str = ""
 
     def get(self, module: str) -> Judgment | None:
         return self.items.get(module)
@@ -122,7 +123,12 @@ def load(path: Path) -> Qualitative:
             quote = str(item.get("quote", "")).strip()
             source_type = str(item.get("source_type", "web")).lower()
             page = str(item.get("page", "")).strip()
-            if not url.startswith(("http://", "https://")):
+            if source_type == "pdf":
+                if not url.startswith("pdf://"):
+                    raise TurtleError(f"{module}: pdf evidence must use pdf://")
+            elif source_type == "data":
+                pass
+            elif not url.startswith(("http://", "https://")):
                 raise TurtleError(f"{module}: evidence url must start with http(s)")
             if not quote:
                 raise TurtleError(f"{module}: evidence quote is empty")
@@ -162,7 +168,48 @@ def load(path: Path) -> Qualitative:
                 source_rank=int(raw.get("source_rank", 0) or 0),
             )
         )
-    return Qualitative(items=items, discrepancies=tuple(discrepancies))
+    return Qualitative(
+        items=items,
+        discrepancies=tuple(discrepancies),
+        source=str(payload.get("source", "")),
+    )
+
+
+def to_dict(value: Qualitative) -> dict[str, object]:
+    """Serialize a qualitative object for a frozen snapshot."""
+    modules: dict[str, object] = {}
+    for key, item in value.items.items():
+        modules[key] = {
+            "judgment": item.judgment,
+            "confidence": item.confidence,
+            "evidence": [
+                {
+                    "url": evidence.url,
+                    "quote": evidence.quote,
+                    "source_type": evidence.source_type,
+                    "page": evidence.page,
+                }
+                for evidence in item.evidence
+            ],
+            "notes": item.notes,
+        }
+    payload: dict[str, object] = {
+        "modules": modules,
+        "discrepancies": [
+            {
+                "item": item.item,
+                "cli_value": item.cli_value,
+                "doc_value": item.doc_value,
+                "source": item.source,
+                "note": item.note,
+                "source_rank": item.source_rank,
+            }
+            for item in value.discrepancies
+        ],
+    }
+    if value.source:
+        payload["source"] = value.source
+    return payload
 
 
 def summary(q: Qualitative) -> list[tuple[str, str, str, int]]:

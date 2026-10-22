@@ -13,8 +13,17 @@ from ..config import Settings
 from ..data.coverage import coverage_markdown
 from ..data.protocol import StatementRow
 from ..facts import MetricPoint, MetricRegistry
-from ..metrics import cashflow, grids, report_returns, returns, statements, valuation
-from ..metrics import dividends as div_metrics
+from ..metrics import (
+    cashflow,
+    grids,
+    report_returns,
+    returns,
+    statements,
+    valuation,
+)
+from ..metrics import (
+    dividends as div_metrics,
+)
 from ..metrics.dividends import average_dps
 from ..pdf.hk_facts import extract as extract_hk_facts
 from ..types import Currency, DividendEvent, FetchIssue, Money, StockCode
@@ -44,6 +53,28 @@ def _week52(
     highs = [Decimal(str(r["high"])) for r in window if r.get("high") is not None]
     lows = [Decimal(str(r["low"])) for r in window if r.get("low") is not None]
     return (max(highs) if highs else None, min(lows) if lows else None)
+
+
+def _qualitative_section(qualitative: object) -> str:
+    from ..qualitative import MODULES, Qualitative
+
+    if not isinstance(qualitative, Qualitative) or not qualitative.items:
+        return ""
+    rows = ["| 模块 | 判断 | 置信度 | 证据数 | 说明 |", "|---|---|---|---|---|"]
+    for key, label in MODULES.items():
+        item = qualitative.items.get(key)
+        if item is None:
+            continue
+        rows.append(
+            f"| {label} | {item.judgment} | {item.confidence} | "
+            f"{len(item.evidence)} | {item.notes or qualitative.source or '—'} |"
+        )
+    source = qualitative.source or "qualitative.json"
+    return (
+        f"来源：`{source}`。以下判断进入因子 1A/1B；"
+        "研究参数和叙述文本不进入确定性估值。\n\n"
+        + "\n".join(rows)
+    )
 
 
 def render_data_pack(
@@ -78,6 +109,7 @@ def render_data_pack(
     fundamental_extras: Mapping[str, Any] | None = None,
     market_extras: Mapping[str, Any] | None = None,
     industry_peers: Sequence[Mapping[str, object]] | None = None,
+    qualitative: object | None = None,
 ) -> str:
     rows = apply_document_facts(list(rows), document_facts)
     decisions = decisions or {}
@@ -806,4 +838,11 @@ def render_data_pack(
     market_md = render_market(market_extras)
     if market_md:
         text += f"\n\n## {next_section}. 市场与宏观（Tushare）\n\n" + market_md
+        next_section += 1
+    qual_md = _qualitative_section(qualitative)
+    if qual_md:
+        text += (
+            f"\n\n## {next_section}. 定性判断来源（research bridge）\n\n"
+            + qual_md
+        )
     return text

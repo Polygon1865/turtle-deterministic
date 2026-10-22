@@ -14,6 +14,8 @@ from ..facts import file_hash
 from ..metrics import grids, statements
 from ..paths import output_root
 from ..pdf.fact_hash import pdf_facts_hash
+from ..qualitative import load as load_qualitative
+from ..qualitative import to_dict as qualitative_to_dict
 from ..research import engine_decisions, snapshot_audit
 from ..research import load as load_research
 from ..research import quality as research_quality
@@ -71,6 +73,20 @@ def finalize_research(
     if provenance.is_file():
         shutil.copyfile(provenance, target / "research_provenance.json")
 
+    human_path = target / "qualitative.json"
+    human = None
+    if human_path.is_file():
+        human = load_qualitative(human_path)
+    from ..research_bridge import bridge
+
+    effective, bridged = bridge(document, human)
+    if effective is not None and bridged:
+        human_path.write_text(
+            json.dumps(qualitative_to_dict(effective), ensure_ascii=False, indent=2)
+            + "\n",
+            encoding="utf-8",
+        )
+
     inputs, settings = snap.load(target)
     pdf_fact_hash = pdf_facts_hash(
         {
@@ -86,7 +102,11 @@ def finalize_research(
         inputs, settings, target, pdf_fact_hash=pdf_fact_hash
     ).snapshot_id
     pack_path = target / "data_pack.md"
-    if decisions:
+    qualitative = None
+    qpath = target / "qualitative.json"
+    if qpath.is_file():
+        qualitative = load_qualitative(qpath)
+    if decisions or bridged:
         code = StockCode.parse(inputs.code)
         currency = Currency(inputs.currency)
         pack_path.write_text(
@@ -121,6 +141,7 @@ def finalize_research(
                 fundamental_extras=inputs.fundamental_extras,
                 market_extras=inputs.market_extras,
                 industry_peers=inputs.industry_peers,
+                qualitative=qualitative,
             ),
             encoding="utf-8",
         )

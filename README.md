@@ -38,7 +38,7 @@ Turtle Framework 把链路拆开：
 ### 三条硬规则
 
 1. **报告数字只能来自 Python 指标、PDF/SEC fact，或明确标注的 vendor context。** vendor context（Tushare/Yahoo 补充基本面、市场、治理）必须同时出现在 data pack，不进入 `StatementRow` 或估值，也不伪装成 metric/fact。
-2. **LLM/DSH 只写 `research.json`，默认不改变数字；只有显式 `--allow-research-decisions` 才可从预计算 candidates 选择，且必须带 evidence。**
+2. **LLM/DSH 只写 `research.json`；evidence-backed D1–D6 可通过 research bridge 进入 1A/1B 定性判断，但不写数字；只有显式 `--allow-research-decisions` 才可从预计算 candidates 选择数值，且必须带 evidence。**
 3. **同一 snapshot 离线重渲染必须逐字节一致。**
 
 ---
@@ -55,6 +55,7 @@ Turtle Framework 把链路拆开：
 | 定性层 | evidence-backed JSON，非 unknown 必须有 URL + quote |
 | PDF-first | 章节定位、页级索引/deep context、审计数字、附注、页级 evidence |
 | D1–D6 Research | claims / params / decisions，claim-level audit |
+| Research bridge | D1/D2/D3/D4/D6 → 1A/1B 定性判断；负面优先、证据不足不进入 |
 | DSH 原生研究 | DSH 模型直接写 `research.json`，不需要项目 API key |
 | Snapshot | facts/config/research/metrics/report hash 冻结 |
 | QA | research/numeric/provenance/coverage 门控 |
@@ -554,7 +555,7 @@ src/turtlefw/
 当前基线：
 
 ```text
-535 tests passed
+544 tests passed
 ```
 
 CI：pytest + selected ruff + selected mypy，见

@@ -14,10 +14,8 @@ from typing import Any, Mapping, Sequence
 
 from ..config import Settings
 from ..data.protocol import StatementRow
-from ..metrics import cashflow
+from ..metrics import cashflow, grids, report_returns, returns, statements, valuation
 from ..metrics import dividends as div_metrics
-from ..metrics import grids, returns, statements, valuation
-from ..metrics import report_returns
 from ..qualitative import Qualitative
 from ..types import DividendEvent, Money, StockCode
 
@@ -309,12 +307,10 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
             )
         )
     for name in ("财务造假或重大违规前科", "看不懂", "商业模式未被验证", "控股股东重大负面信号"):
-        if name == "商业模式未被验证":
-            checks_1a.append(Check(name, "unknown", "需人工/LLM 判断"))
-            continue
         module = {
             "财务造假或重大违规前科": "fraud",
             "看不懂": "understandability",
+            "商业模式未被验证": "moat",
             "控股股东重大负面信号": "controller",
         }[name]
         checks_1a.append(

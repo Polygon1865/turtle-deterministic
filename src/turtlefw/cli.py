@@ -3097,6 +3097,14 @@ def _report(
                     load_research(research_file), allow=True
                 )
 
+            qualitative = None
+            if save_snapshot:
+                from .qualitative import load as load_qualitative
+
+                qpath = Path(save_snapshot) / "qualitative.json"
+                if qpath.is_file():
+                    qualitative = load_qualitative(qpath)
+
             pack_markdown = render_data_pack(
                 code,
                 inputs.rows,
@@ -3134,6 +3142,7 @@ def _report(
                 fundamental_extras=inputs.fundamental_extras,
                 market_extras=inputs.market_extras,
                 industry_peers=inputs.industry_peers,
+                qualitative=qualitative,
             )
             pack_path = Path(data_pack_out)
             pack_path.parent.mkdir(parents=True, exist_ok=True)

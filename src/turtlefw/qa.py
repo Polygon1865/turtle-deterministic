@@ -9,9 +9,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path
-
 from datetime import datetime
+from pathlib import Path
 
 from . import narrative
 from .facts import ReportManifest
@@ -98,6 +97,19 @@ def run_qa(code: str, root: Path | str | None = None, *, allow_missing_qualitati
                 f"{len(document.params)} params, "
                 f"{len(document.decisions)} decisions",
             )
+            if qpath.is_file():
+                from .research_bridge import bridge
+
+                _, bridged = bridge(document)
+                effective = load_qualitative(qpath)
+                _, remaining = bridge(document, effective)
+                add(
+                    "research_bridge",
+                    not remaining or "research_bridge" in effective.source,
+                    "no bridgeable claims"
+                    if not bridged
+                    else f"modules: {','.join(bridged)}",
+                )
         except Exception as exc:
             add("research", False, str(exc))
 

@@ -33,6 +33,7 @@ from ..metrics.dividends import average_dps
 from ..metrics.valuation import build_valuation
 from ..pdf.fact_hash import pdf_facts_hash
 from ..qualitative import load as load_qualitative
+from ..qualitative import to_dict as qualitative_to_dict
 from ..report.analysis import render_analysis
 from ..types import Currency, DividendEvent, FetchIssue, Money, StockCode
 from .pdf_facts import apply_document_facts
@@ -265,15 +266,28 @@ def freeze(
     payload = inputs_to_dict(inputs)
     config_text = settings.config_path.read_text(encoding="utf-8")
     (root / "config.toml").write_text(config_text, encoding="utf-8")
+    human_qualitative = None
     if qualitative_source is not None and Path(qualitative_source).is_file():
-        (root / "qualitative.json").write_text(
-            Path(qualitative_source).read_text(encoding="utf-8-sig"), encoding="utf-8"
-        )
+        text = Path(qualitative_source).read_text(encoding="utf-8-sig")
+        (root / "qualitative.json").write_text(text, encoding="utf-8")
+        human_qualitative = load_qualitative(root / "qualitative.json")
         payload["has_qualitative"] = True
     if research_source is not None and Path(research_source).is_file():
         (root / "research.json").write_text(
             Path(research_source).read_text(encoding="utf-8-sig"), encoding="utf-8"
         )
+        from ..research import load as load_research
+        from ..research_bridge import bridge
+
+        document = load_research(root / "research.json")
+        effective, bridged = bridge(document, human_qualitative)
+        if effective is not None and bridged:
+            (root / "qualitative.json").write_text(
+                json.dumps(qualitative_to_dict(effective), ensure_ascii=False, indent=2)
+                + "\n",
+                encoding="utf-8",
+            )
+            payload["has_qualitative"] = True
     (root / "inputs.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True, default=str),
         encoding="utf-8",
@@ -436,6 +450,10 @@ def render(
         from ..research import load as load_research
 
         research_document = load_research(research_candidate)
+    if research_document is not None:
+        from ..research_bridge import bridge
+
+        qualitative, _bridged = bridge(research_document, qualitative)
     decisions = (
         engine_decisions(
             research_document,

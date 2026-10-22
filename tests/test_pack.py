@@ -5,11 +5,12 @@ from turtlefw import demo
 from turtlefw.config import load_settings
 from turtlefw.data.protocol import StatementRow
 from turtlefw.numeric_audit import audit
+from turtlefw.qualitative import Evidence, Judgment, Qualitative
 from turtlefw.report.pack import render_data_pack
 from turtlefw.types import Currency, Money
 
 
-def render() -> str:
+def render(*, qualitative=None) -> str:
     return render_data_pack(
         demo.DEMO_CODE,
         demo.demo_rows(),
@@ -23,10 +24,35 @@ def render() -> str:
         shares=demo.DEMO_SHARES,
         rf_pct=demo.DEMO_RF,
         settings=load_settings(),
+        qualitative=qualitative,
     )
 
 
 class TestDataPack:
+    def test_qualitative_bridge_section_is_in_data_pack(self):
+        qualitative = Qualitative(
+            items={
+                "moat": Judgment(
+                    module="moat",
+                    judgment="positive",
+                    confidence="high",
+                    evidence=(
+                        Evidence(
+                            url="pdf://abc/p12",
+                            quote="原文",
+                            source_type="pdf",
+                        ),
+                    ),
+                    notes="research bridge D2: D2.1",
+                )
+            },
+            source="research_bridge",
+        )
+        text = render(qualitative=qualitative)
+        assert "定性判断来源（research bridge）" in text
+        assert "research bridge D2: D2.1" in text
+        assert "研究参数和叙述文本不进入确定性估值" in text
+
     def test_industry_peer_table_is_in_data_pack(self, tmp_path):
         text = render_data_pack(
             demo.DEMO_CODE,

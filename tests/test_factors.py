@@ -7,7 +7,7 @@ from turtlefw import demo
 from turtlefw.config import load_settings
 from turtlefw.factors.engine import FactorContext, final_verdict, run
 from turtlefw.metrics.valuation import build_valuation
-from turtlefw.qualitative import Judgment, Qualitative
+from turtlefw.qualitative import Evidence, Judgment, Qualitative
 from turtlefw.types import Currency, Money
 
 
@@ -142,6 +142,27 @@ class TestEngine:
         metrics = dict(results["4"].metrics)
         assert metrics["外推可信度"] in {"high", "medium", "low"}
         assert metrics["价值陷阱"].endswith("项")
+
+    def test_business_model_uses_moat(self):
+        qualitative = Qualitative(
+            items={
+                "moat": Judgment(
+                    module="moat",
+                    judgment="negative",
+                    confidence="high",
+                    evidence=(
+                        Evidence(
+                            url="pdf://abc/p10",
+                            quote="原文",
+                            source_type="pdf",
+                        ),
+                    ),
+                )
+            }
+        )
+        results = run(replace(context(), qualitative=qualitative))
+        check = {c.name: c for c in results["1A"].checks}["商业模式未被验证"]
+        assert check.status == "veto"
 
     def test_negative_moat_is_a_trap(self):
         qualitative = Qualitative(

@@ -404,11 +404,24 @@ def render_analysis(
             "原币为 HKD"
         )
     qual_note = ""
-    if research_sections and ctx.qualitative is None:
-        qual_note = (
-            "因子 1B 使用独立的 qualitative.json 证据；第十一节 research.json "
-            "不会自动映射到 1B。"
-        )
+    if research_sections:
+        source = ctx.qualitative.source if ctx.qualitative is not None else ""
+        if "research_bridge" in source:
+            qual_note = (
+                "因子 1A/1B 的定性判断已由 research bridge 注入："
+                "D1→可理解性、D2→护城河、D3→政策、D4→管理层、D6→控股结构；"
+                "负面判断优先，低置信度或无证据 claim 不进入。"
+            )
+        elif ctx.qualitative is not None:
+            qual_note = (
+                f"因子 1A/1B 使用 {source or 'qualitative.json'}；"
+                "research.json 未桥接，研究判断不改变因子结论。"
+            )
+        else:
+            qual_note = (
+                "research.json 存在，但没有可桥接的 D1–D6 判断；"
+                "1A/1B 保持 unknown，研究不改变因子结论。"
+            )
 
     context = {
         "code": str(ctx.code),
