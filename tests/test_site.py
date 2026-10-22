@@ -107,6 +107,44 @@ def test_build_site_renders_candidate_pool_and_report_enrichment(
     assert "只看深度" in index
 
 
+def test_build_site_does_not_call_failed_status_a_qa_pass(tmp_path: Path) -> None:
+    day_dir = tmp_path / "2026-10-22"
+    _make_code(day_dir, "601877.SH", qa="pass", name="姝ｆ嘲鐢靛櫒")
+    _make_code(day_dir, "600887.SH", qa="pass", name="浼婂埄")
+    (day_dir / "status.json").write_text(
+        json.dumps(
+            {
+                "stocks": [
+                    {
+                        "code": "601877.SH",
+                        "rank": 1,
+                        "status": "failed",
+                        "qa": "PASS",
+                        "error": "strict numeric gate",
+                    },
+                    {
+                        "code": "600887.SH",
+                        "rank": 2,
+                        "status": "ok",
+                        "qa": "PASS",
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    release = build_site(day_dir, tmp_path / "site")
+
+    health = (release / "health.txt").read_text(encoding="utf-8")
+    assert "status=partial" in health
+    assert "qa_pass=1" in health
+    assert "qa_fail=1" in health
+    index = (release / "index.html").read_text(encoding="utf-8")
+    assert "FAILED" in index
+    assert "strict numeric gate" in index
+
+
 def test_build_site_archives_prior_dates(tmp_path: Path) -> None:
     site = tmp_path / "site"
     first = tmp_path / "2026-10-21"

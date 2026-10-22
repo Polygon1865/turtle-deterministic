@@ -400,8 +400,8 @@ def _render_index(
                 market_rank=market_counts[market],
             )
         )
-    passed = sum(report.qa == "PASS" for report in normalized)
-    failed = sum(report.qa == "FAIL" for report in normalized)
+    passed = sum(report.status == "ok" and report.qa == "PASS" for report in normalized)
+    failed = len(normalized) - passed
     hk_count = sum(report.market == "HK" for report in normalized)
     a_count = len(normalized) - hk_count
     return template.render(
@@ -590,10 +590,10 @@ def build_site(
     )
     (release / "index.html").write_text(index, encoding="utf-8")
 
-    passed = sum(report.qa == "PASS" for report in reports)
-    failed = sum(report.qa == "FAIL" for report in reports)
+    passed = sum(report.status == "ok" and report.qa == "PASS" for report in reports)
+    failed = len(reports) - passed
     health = (
-        f"status={'ok' if failed == 0 else 'fail'}\n"
+        f"status={'ok' if failed == 0 else ('partial' if passed else 'fail')}\n"
         f"date={label}\n"
         f"trade_date={trade_date}\n"
         f"reports={len(reports)}\n"

@@ -202,8 +202,8 @@
     <div class="stats">
       <div class="stat"><b>{{ candidate_count }}</b><span>A 股候选池</span></div>
       <div class="stat"><b>{{ total }}</b><span>当日报告</span></div>
-      <div class="stat"><b class="status-ok">{{ passed }}</b><span>QA 通过</span></div>
-      <div class="stat"><b class="{{ 'status-bad' if failed else 'status-ok' }}">{{ failed }}</b><span>QA 失败</span></div>
+      <div class="stat"><b class="status-ok">{{ passed }}</b><span>通过</span></div>
+      <div class="stat"><b class="{{ 'status-bad' if failed else 'status-ok' }}">{{ failed }}</b><span>失败</span></div>
     </div>
   </section>
 
@@ -222,7 +222,11 @@
       {% endif %}
         <div class="card-top">
           <span class="rank">#{{ r.market_rank or r.rank or loop.index }}</span>
+          {% if r.status == 'failed' %}
+          <span class="badge status-bad" title="{{ r.error }}">FAILED</span>
+          {% else %}
           <span class="badge {{ 'status-ok' if r.qa == 'PASS' else ('status-warn' if r.qa == 'WARN' else 'status-bad') }}">{{ r.qa }}</span>
+          {% endif %}
         </div>
         <h3>{{ r.name or r.code }}</h3>
         <div class="ticker"><code>{{ r.code }}</code><span class="market-chip {{ 'hk' if r.market == 'HK' else '' }}">{{ r.market or 'A' }}</span>{% if r.industry %} · {{ r.industry }}{% endif %}</div>
@@ -262,7 +266,7 @@
             <td><span class="report-name">{{ r.name or r.code }}</span><br><code>{{ r.code }}</code></td>
             <td><span class="market-chip {{ 'hk' if r.market == 'HK' else '' }}">{{ r.market or 'A' }}</span></td>
             <td class="hide-mobile">{{ r.industry or '—' }}</td>
-            <td><span class="badge {{ 'status-ok' if r.qa == 'PASS' else ('status-warn' if r.qa == 'WARN' else 'status-bad') }}">{{ r.qa }}</span></td>
+            <td>{% if r.status == 'failed' %}<span class="badge status-bad" title="{{ r.error }}">FAILED</span>{% else %}<span class="badge {{ 'status-ok' if r.qa == 'PASS' else ('status-warn' if r.qa == 'WARN' else 'status-bad') }}">{{ r.qa }}</span>{% endif %}</td>
             <td class="hide-mobile">{{ 'LLM' if r.research == 'on' else '确定性' }}</td>
             <td class="num">{{ r.numeric_coverage or '—' }}</td>
             <td class="num hide-mobile">{{ r.margin or '—' }}</td>

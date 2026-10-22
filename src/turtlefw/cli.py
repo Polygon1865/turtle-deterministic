@@ -2732,6 +2732,28 @@ def _fallback_data_pack(snapshot_root: Path, base_dir: Path) -> None:
         shutil.copyfile(source, target)
 
 
+def _data_pack_targets(
+    data_pack_out: str | None,
+    save_snapshot: str | None,
+) -> list[Path]:
+    """Return every path that must receive the freshly rendered data pack.
+
+    A snapshot must be self-contained: numeric audit reads
+    ``snapshot/data_pack.md``.  A custom ``--data-pack-out`` must not suppress
+    that snapshot copy.
+    """
+    targets: list[Path] = []
+    if data_pack_out:
+        targets.append(Path(data_pack_out))
+    if save_snapshot:
+        snapshot_pack = Path(save_snapshot) / "data_pack.md"
+        if not any(
+            snapshot_pack.resolve() == target.resolve() for target in targets
+        ):
+            targets.append(snapshot_pack)
+    return targets
+
+
 def _report(
     raw_code: str,
     out: str | None,
@@ -3101,9 +3123,8 @@ def _report(
             if save_snapshot
             else None
         )
-        if save_snapshot and not data_pack_out:
-            data_pack_out = str(Path(save_snapshot) / "data_pack.md")
-        if data_pack_out:
+        pack_targets = _data_pack_targets(data_pack_out, save_snapshot)
+        if pack_targets:
             from .report.pack import render_data_pack
             from .research import engine_decisions
             from .research import load as load_research
@@ -3161,9 +3182,9 @@ def _report(
                 industry_peers=inputs.industry_peers,
                 qualitative=qualitative,
             )
-            pack_path = Path(data_pack_out)
-            pack_path.parent.mkdir(parents=True, exist_ok=True)
-            pack_path.write_bytes(pack_markdown.encode("utf-8"))
+            for target in pack_targets:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(pack_markdown.encode("utf-8"))
         metrics_out: dict[str, object] = {}
         markdown, verdict = snap.render(
             inputs,
