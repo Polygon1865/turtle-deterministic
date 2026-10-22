@@ -151,8 +151,13 @@ Task Scheduler 会显示失败。
 启动（仓库内脚本，幂等：8080 已在监听时直接退出）：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File C:\PyProject\turtle-framework\scripts\run_caddy.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\PyProject\turtle-framework\scripts\run_caddy.ps1 -Supervise
 ```
+
+`-Supervise` 让脚本在 Caddy 意外退出后隔几秒自动重启（死在 5 秒内的崩溃循环会
+退避 30 秒），适合登录项/常驻场景；不带 `-Supervise` 时跑一次就退出，适合手动
+排障。每次调用和每次退出都追加一行到 `logs/caddy-launch.log`（含时间、PID、
+no-op/重启原因），所以“到底是谁拉起/拉没拉起来”可以直接查这个文件。
 
 Caddy 的 stderr 追加到 `logs/caddy.log`。Caddy 是隧道的**唯一原点**：它没起来时
 cloudflared 服务仍然是 Running、隧道也有 connector，但
@@ -171,8 +176,34 @@ Caddy 必须自启，否则重启或注销后站点只剩 502。现成做法：�
 `scripts/startup/turtle-caddy.vbs` 复制进
 `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\`（删除即停用，无需
 管理员）；或管理员用 `nssm`/Windows 服务包装。不要把它绑定到 `0.0.0.0`。
-隧道是 Windows 服务而 Caddy 是登录项时，**开机不登录 = 站点 502**，两者的
-启动方式要保持一致。
+`turtle-caddy.vbs` 带 `-Supervise`，Caddy 崩溃会在几秒内被拉起，登录会话内的
+抖动不需要人工干预。隧道同样用登录项 `scripts/startup/turtle-tunnel.vbs`
+（见下节），两者都随登录启动、不依赖管理员；代价是**开机不登录 = 站点不可达**
+（Access 之后报 1033），要 7×24 就得把两者都改成 systemprofile 配置下的
+LocalSystem 服务。
+
+第二道兜底在 `scripts/run_daily.ps1`：每天 19:00 的流水线在构建前检查 8080，
+没在监听就用 `-Supervise` 拉起 Caddy。所以“某天 Caddy 死了”最多撑到下一次
+流水线，再叠加登录项的作用域（登录会话内崩溃会由 supervisor 立刻重启）。
+
+验证“自启真的生效”不要只看端口，按这个顺序查 `logs/caddy-launch.log`：
+
+```powershell
+Get-Content C:\PyProject\turtle-framework\logs\caddy-launch.log -Tail 20
+netstat -ano | findstr :8080        # 应有 LISTENING
+curl http://127.0.0.1:8080/health.txt
+```
+
+日志里应能看到 `start (supervise=True)`；如果只有 `no-op: ... already listening`，
+说明当时已有实例在服务（幂等守卫），不是失败。
+
+两个容易踩的坑：
+
+- `caddy stop` 会向全局 admin API（`localhost:2019`）发停止指令，**直接干掉正在
+  服务的那个实例**。排障时不要拿它当“重启”用；用 `run_caddy.ps1` 的幂等启动。
+  测试别的 Caddyfile 时给它单独配 `admin localhost:20xx`，别占用 2019。
+- `caddy start` 在 Windows 上“子进程仍挂在当前终端”，关窗口即杀 Caddy，不适合
+  隐藏窗口/计划任务；要后台常驻就用本仓库的 `run_caddy.ps1`。
 
 ## Cloudflare Tunnel
 
@@ -202,41 +233,52 @@ ingress:
   - service: http_status:404
 ```
 
-安装为 Windows 服务：
+### 本机现状（2026-10-22）：服务不可用，改用登录项
 
-```powershell
-cloudflared service install
+`cloudflared service install` 写出来的服务 binPath 只有 exe 本身：
+
+```
+BINARY_PATH_NAME : C:\Tools\cloudflared\cloudflared.exe
 ```
 
-注意：服务以 `LocalSystem` 运行时读取的是
-`C:\Windows\System32\config\systemprofile\.cloudflared\config.yml`，
-不是当前用户的 `%USERPROFILE%\.cloudflared\config.yml`。若只配置了用户目录，
-服务会显示 Running，但隧道没有 connector；Access 登录后会得到 **Error 1033**。
+服务以 `LocalSystem` 运行，因此读的是
+`C:\Windows\System32\config\systemprofile\.cloudflared\config.yml`，而不是当前
+用户的 `%USERPROFILE%\.cloudflared\config.yml`。只配置了用户目录时，服务在
+SCM 里显示 `RUNNING`，却没有 connector（2026-10-22 见过 PID 已消失、SCM 仍报
+`4 RUNNING` 的僵尸状态），Access 登录后得到 **Error 1033**。排障时不要以
+`Get-Service` 的 Running 为准，要看进程和日志。
 
-两种修正方式：
-
-1. 管理员把用户配置和凭据复制到 `systemprofile` 下，再重启服务；
-2. 不用服务，改用当前用户的登录任务：
-
-```powershell
-# scripts/run_tunnel.ps1 使用用户 config 启动 turtle-daily
-Register-ScheduledTask -TaskName "Turtle Tunnel" `
-  -Action (New-ScheduledTaskAction -Execute "powershell.exe" `
-    -Argument '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\PyProject\turtle-framework\scripts\run_tunnel.ps1"') `
-  -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME) `
-  -Settings (New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew) `
-  -User $env:USERNAME -Force
-Start-ScheduledTask -TaskName "Turtle Tunnel"
-```
-
-验证：
+零管理员的做法（本机采用）：登录项 + `run_tunnel.ps1`。
 
 ```powershell
-cloudflared tunnel info turtle-daily
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\PyProject\turtle-framework\scripts\run_tunnel.ps1 -Supervise
 ```
 
-必须看到 `CONNECTOR ID` 行；没有 connector 就是 1033 的根因。登录任务需要用户
-保持登录（锁屏可以），注销后隧道会停止。
+- 幂等：任何名为 `cloudflared` 的进程已在运行时会写
+  `no-op: cloudflared already running (pid N)` 并退出，登录项、手工双击、服务
+  不会互相打架；
+- `-Supervise`：连接器退出后自动重连（秒退的崩溃循环退避 30 秒）；
+- 启动/退出记录在 `logs\tunnel-launch.log`，cloudflared 自身日志追加到
+  `logs\cloudflared.log`（cmd 重定向保持 UTF-8；不要用 `Tee-Object`，PS 5.1
+  会写成 UTF-16）。
+
+自启：把 `scripts/startup/turtle-tunnel.vbs` 复制进
+`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\`。注销后隧道停止，
+锁屏不受影响。
+
+验证“隧道真的连上”只看进程和日志，不看服务状态：
+
+```powershell
+Get-Process cloudflared | Select-Object Id,StartTime
+Get-Content C:\PyProject\turtle-framework\logs\cloudflared.log -Tail 20
+# 期望：precheck complete hard_fail=false + 多行 Registered tunnel connection
+```
+
+如果要恢复成系统服务（开机不登录也在线）：管理员把用户配置和凭据复制到
+`C:\Windows\System32\config\systemprofile\.cloudflared\`，再重启 `Cloudflared`
+服务；然后删掉 Startup 里的 `turtle-tunnel.vbs`（否则只是多一个会被 guard
+挡掉的登录项）。`cloudflared tunnel info <name>` 需要 `cert.pem`，本机只有
+credentials file，所以用日志里的 `Registered tunnel connection` 判断。
 
 ## Cloudflare Access
 
