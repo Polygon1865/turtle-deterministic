@@ -43,13 +43,92 @@ def _market(code: str) -> str:
 
 def _toc_html(headings: list[tuple[int, str, str]]) -> str:
     links = "".join(
-        f'<a class="toc-l{level}" href="#{anchor}">{html.escape(text)}</a>'
+        f'<a class="toc-l{level}" data-panel="{_panel_for(text)}" href="#{anchor}">{html.escape(text)}</a>'
         for level, text, anchor in headings
         if level == 2
     )
     if not links:
         return ""
     return f'<nav class="toc" aria-label="目录"><div class="toc-title">目录</div>{links}</nav>'
+
+
+_PANEL_LABELS = (
+    ("decision", "决策"),
+    ("factors", "因子"),
+    ("research", "研究"),
+    ("appendix", "附录"),
+)
+_REPORT_TABS = (
+    '<nav class="report-tabs" aria-label="报告视图">'
+    + "".join(
+        f'<button type="button" data-panel-tab="{key}" aria-selected="false">{label}</button>'
+        for key, label in _PANEL_LABELS
+    )
+    + "</nav>"
+)
+_REPORT_SCRIPT = """<script>
+(function () {
+  var article = document.querySelector("article.report");
+  if (!article) return;
+  var tabs = Array.prototype.slice.call(article.querySelectorAll("[data-panel-tab]"));
+  var nodes = Array.prototype.slice.call(article.childNodes);
+  var keys = ["decision", "factors", "research", "appendix"];
+  var panels = {};
+  keys.forEach(function (key) {
+    var panel = document.createElement("div");
+    panel.className = "report-panel";
+    panel.setAttribute("data-panel-view", key);
+    article.appendChild(panel);
+    panels[key] = panel;
+  });
+  var anchors = Array.prototype.slice.call(article.querySelectorAll(":scope > h2[data-panel], :scope > details[data-panel]"));
+  if (anchors.length < 2) {
+    tabs.forEach(function (tab) { tab.hidden = true; });
+    return;
+  }
+  var current = null;
+  nodes.forEach(function (node) {
+    if (node.nodeType === 1 && (node.matches("h2[data-panel]") || node.matches("details[data-panel]"))) {
+      current = node.getAttribute("data-panel");
+    }
+    if (current && panels[current]) panels[current].appendChild(node);
+  });
+  function activate(key) {
+    keys.forEach(function (name) {
+      if (panels[name]) panels[name].classList.toggle("active", name === key);
+    });
+    tabs.forEach(function (tab) {
+      tab.setAttribute("aria-selected", String(tab.getAttribute("data-panel-tab") === key));
+    });
+  }
+  tabs.forEach(function (tab) {
+    tab.addEventListener("click", function () { activate(tab.getAttribute("data-panel-tab")); });
+  });
+  Array.prototype.slice.call(document.querySelectorAll(".toc a[data-panel]")).forEach(function (link) {
+    link.addEventListener("click", function (event) {
+      var target = document.getElementById(link.getAttribute("href").slice(1));
+      if (!target) return;
+      activate(link.getAttribute("data-panel"));
+      if (target.tagName === "DETAILS") target.open = true;
+      window.requestAnimationFrame(function () { target.scrollIntoView({ behavior: "smooth", block: "start" }); });
+      event.preventDefault();
+    });
+  });
+  activate("decision");
+  var initial = new URLSearchParams(window.location.search).get("view");
+  if (initial && panels[initial]) activate(initial);
+})();
+</script>"""
+
+
+def _panel_for(text: str) -> str:
+    if text.startswith(("一、结论", "六、因子 4", "七、估值指标与底价", "九、投资论点卡")):
+        return "decision"
+    if text.startswith(("二、因子 1A", "三、因子 1B", "四、因子 2", "五、因子 3")):
+        return "factors"
+    if text.startswith(("行业分类", "研究摘要", "十一、研究判断")):
+        return "research"
+    return "appendix"
 
 
 _FOLD_HEADINGS = {"证据索引", "定性证据", "数字交叉验证", "研究参数"}
@@ -234,9 +313,11 @@ def markdown_to_html(
                 close_fold()
             anchor = f"sec-{len(headings) + 1}"
             headings.append((level, text, anchor))
+            panel = _panel_for(text) if level == 2 else ""
+            panel_attr = f' data-panel="{panel}"' if panel else ""
             if level == 2 and _fold_h2(text):
                 body.append(
-                    f'<details class="fold section-fold" id="{anchor}"><summary>'
+                    f'<details class="fold section-fold" id="{anchor}"{panel_attr}><summary>'
                     f"<strong>{_inline(text)}</strong> "
                     '<span class="fold-hint">展开</span></summary>'
                 )
@@ -251,7 +332,7 @@ def markdown_to_html(
                 in_fold = True
                 continue
             body.append(
-                f'<h{level} id="{anchor}"><a class="anchor" href="#{anchor}">'
+                f'<h{level} id="{anchor}"{panel_attr}><a class="anchor" href="#{anchor}">'
                 f"{_inline(text)}</a></h{level}>"
             )
             continue
@@ -317,6 +398,7 @@ def markdown_to_html(
             "<!DOCTYPE html>",
             '<html lang="zh-CN"><head><meta charset="utf-8">',
             '<meta name="viewport" content="width=device-width, initial-scale=1">',
+            '<script>document.documentElement.classList.add("js");</script>',
             f"<title>{html.escape(display_title)} · Turtle Daily</title>",
             "<style>",
             ":root{--paper:#f3f0e8;--card:#fbf8f1;--fg:#1f1d18;--muted:#6e675b;--line:#d8d0c0;"
@@ -384,6 +466,14 @@ def markdown_to_html(
             ".toc-l2{font-weight:700;color:var(--fg)!important}.toc-l3{padding-left:12px!important}",
             ".report{min-width:0;max-width:860px}",
             ".report>h1{display:none}",
+            ".report-tabs{display:none;gap:5px;flex-wrap:wrap;margin:0 0 26px;padding:0 0 12px;"
+            "border-bottom:1px solid var(--line)}",
+            ".js .report-tabs{display:flex}",
+            ".report-tabs button{appearance:none;border:1px solid var(--line);background:var(--card);"
+            "color:var(--muted);border-radius:999px;padding:6px 15px;font:700 12px/1.4 ui-sans-serif,sans-serif;"
+            "letter-spacing:.02em;cursor:pointer}",
+            ".report-tabs button[aria-selected='true']{background:var(--fg);color:var(--paper);border-color:var(--fg)}",
+            ".report-panel{display:block}.js .report-panel{display:none}.js .report-panel.active{display:block}",
             "h2{font-family:'Iowan Old Style','Palatino Linotype',Georgia,serif;font-size:26px;line-height:1.25;"
             "letter-spacing:-.02em;margin:2.6rem 0 .85rem;padding-bottom:.45rem;border-bottom:1px solid var(--line);"
             "scroll-margin-top:18px}",
@@ -411,13 +501,13 @@ def markdown_to_html(
             "border-radius:10px;background:var(--card)}",
             ".footer{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;color:var(--muted);"
             "font-size:11px;padding:18px 0 36px;border-top:1px solid var(--line)}",
-            "@media(max-width:900px){.layout.with-toc{grid-template-columns:1fr}.toc{position:static;"
-            "max-height:220px;display:flex;flex-wrap:wrap;gap:4px 14px}.toc-title{width:100%}"
-            ".toc a{padding:3px 0}.toc-l3{display:none}.quickread{grid-template-columns:1fr}}",
+            "@media(max-width:900px){.layout.with-toc{grid-template-columns:1fr}.toc{display:none}"
+            ".quickread{grid-template-columns:1fr}}",
             "@media(max-width:640px){.shell{padding:0 16px}.hero{padding-top:24px}"
             ".top{font-size:11px}.hero h1{font-size:29px}.report{max-width:none}"
             "body{font-size:14.5px}.reading-tip{font-size:11px}table{font-size:12.5px}"
-            "th,td{padding:8px 9px}.quickread{padding:15px}.qr-grid{grid-template-columns:1fr 1fr}}",
+            "th,td{padding:8px 9px}.quickread{padding:15px}.qr-grid{grid-template-columns:1fr 1fr}"
+            ".report-tabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:10px}}",
             "@media print{.top,.toc,.back{display:none}.layout{display:block;padding:0}"
             "body{background:#fff;color:#000;font-size:10.5pt}.table-wrap{overflow:visible}"
             "h2{break-after:avoid;page-break-after:avoid}table{font-size:9pt}"
@@ -436,11 +526,12 @@ def markdown_to_html(
             f"{research_banner}{quick}</section>",
             f'<div class="{layout_class}">',
             toc,
-            f'<article class="report">{chart}',
+            f'<article class="report">{chart}{_REPORT_TABS}',
             *body,
             "</article></div>",
             '<footer class="footer"><span>Generated by turtle-framework · deterministic numbers</span>'
             f"<span>{html.escape(code)} · 仅供研究，不构成投资建议</span></footer>",
+            _REPORT_SCRIPT,
             "</div></body></html>",
         ]
     )

@@ -25,8 +25,23 @@ def test_list_and_blockquote():
 
 def test_script_is_escaped():
     html = markdown_to_html("<script>alert(1)</script>")
-    assert "<script>" not in html
+    assert "<script>alert(1)</script>" not in html
     assert "&lt;script&gt;" in html
+
+
+def test_report_has_panel_tabs():
+    html = markdown_to_html(
+        "# 正丹股份（300641.SZ）\n\n## 一、结论\n\n"
+        "**观察** — 估值或数据仍待确认\n\n"
+        "## 六、因子 4：估值与安全边际\n\n| 项目 | 数值 |\n|---|---|\n| R | 4.42% |\n\n"
+        "## 十一、研究判断（D1–D6，证据驱动）\n\n- claims：3"
+    )
+    assert 'class="report-tabs"' in html
+    assert 'data-panel-tab="decision"' in html
+    assert 'data-panel-tab="appendix"' in html
+    assert 'data-panel="decision"' in html
+    assert 'data-panel="research"' in html
+    assert 'data-panel-view' in html
 
 
 def test_report_shell_has_toc_and_scrollable_table():

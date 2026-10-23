@@ -173,9 +173,9 @@ HTML 报告若同目录存在 `inputs.json`/`metrics.json`，会自动内嵌“�
 SVG 图；没有这两个文件时仍输出纯文本 HTML。图表只做展示，不参与估值或报告数字。
 `turtle html --input report.md --pdf report.pdf` 可在本机有 Edge/Chrome 时直接导出 PDF；
 `TURTLE_BROWSER` 可指定浏览器路径，未安装时返回明确错误而不影响 HTML。
-HTML 报告外壳面向长报告阅读：顶部决策摘要卡、左侧一级目录、阅读顺序提示、更宽行距、
-可横向滚动的表格、折叠的证据/数据问题/补充基本面附录、移动端目录与打印分页；这些只改展示，
-不改 Markdown 和数字。
+HTML 报告外壳面向长报告阅读：顶部决策摘要卡、决策/因子/研究/附录视图切换、左侧一级目录、
+阅读顺序提示、更宽行距、可横向滚动的表格、折叠的证据/数据问题/补充基本面附录、移动端目录与打印分页；
+这些只改展示，不改 Markdown 和数字。
 
 `run` 的产物：
 
@@ -558,7 +558,7 @@ src/turtlefw/
 当前基线：
 
 ```text
-551 tests passed
+552 tests passed
 ```
 
 CI：pytest + selected ruff + selected mypy，见
