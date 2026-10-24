@@ -306,8 +306,8 @@ turtle sec-audit --snapshot .runs\AAPL.US\snapshot --ticker AAPL
 
 `scripts/daily_pipeline.py` 把 `screen`、逐票 `run`、QA、静态站点和发布串成一条
 可定时执行的流水线；默认从 A 股全市场筛出 100 个候选、对前 20 名逐只生成确定性报告，
-并追加 20 只港股观察清单（前 3 只启用 LLM 研究）。A 股 LLM 研究默认关闭；
-需要时用 `--llm-top N` 只对前 N 只启用，失败会自动回退。港股清单当前避开
+并追加 20 只港股观察清单。生产任务对 40 只（A 20 + HK 20）全部尝试 LLM 研究；
+可用 `--llm-top N` / `--hk-llm-top N` 只对前 N 只启用，失败会自动回退。港股清单当前避开
 美元报表公司；项目只支持 CNY/HKD 报表币种，遇到 USD 报表会显式失败而不是伪造折算。
 
 ```powershell
@@ -558,7 +558,7 @@ src/turtlefw/
 当前基线：
 
 ```text
-552 tests passed
+553 tests passed
 ```
 
 CI：pytest + selected ruff + selected mypy，见

@@ -389,3 +389,10 @@ def test_load_config_and_unknown_key(tmp_path: Path) -> None:
     path.write_text("top_n = 3\nunknown = true\n", encoding="utf-8")
     with pytest.raises(DailyError, match="unknown config keys"):
         load_config(path)
+
+
+def test_production_config_attempts_llm_for_all_reports() -> None:
+    root = Path(__file__).resolve().parents[1]
+    config = load_config(root / "configs" / "daily.toml")
+    assert (config.top_n, config.llm_top_n) == (20, 20)
+    assert (config.hk_limit, config.hk_llm_top_n) == (20, 20)

@@ -2,7 +2,7 @@
 # Paths are supplied by scripts/run_daily.ps1; keep this file policy-only.
 
 top_n = 20
-llm_top_n = 0
+llm_top_n = 20
 fast_limit = 100
 deep_limit = 30
 
@@ -16,7 +16,7 @@ hk_codes = [
   "02388.HK", "00016.HK", "00001.HK", "02020.HK", "01211.HK",
 ]
 hk_limit = 20
-hk_llm_top_n = 3
+hk_llm_top_n = 20
 
 # Leave rf empty to let the provider decide. Set a decimal string for a fixed
 # risk-free rate, e.g. rf = "2.0".

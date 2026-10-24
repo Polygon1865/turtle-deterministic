@@ -2,8 +2,9 @@
 
 目标不是“再跑一个脚本”，而是让一台普通 Windows 电脑每天自动产出可访问的
 A 股 + 港股研究报告，并且失败时按配置保留上一版站点或发布部分结果。默认策略是：
-**A 股全市场筛出 100 个候选，对前 20 名逐只生成确定性报告；另加 20 只港股观察清单，
-其中前 3 只启用 LLM 研究**。A 股 LLM 研究默认关闭，需要时用 `--llm-top N` 只对前 N 只启用。
+**A 股全市场筛出 100 个候选，对前 20 名逐只生成确定性报告；另加 20 只港股观察清单。
+生产任务对 40 只（A 20 + HK 20）全部尝试 LLM 研究**；可用 `--llm-top N` /
+`--hk-llm-top N` 调低预算，失败会自动回退确定性报告。
 
 ## 架构
 
@@ -103,12 +104,12 @@ logs/
 
 ```toml
 top_n = 20
-llm_top_n = 0
+llm_top_n = 20
 fast_limit = 100
 deep_limit = 30
 markets = ["A", "HK"]
 hk_limit = 20
-hk_llm_top_n = 3
+hk_llm_top_n = 20
 rf = ""
 research_max_input_tokens = 60000
 research_retries = 1
@@ -123,10 +124,10 @@ publish_partial = true
 - `top_n`：A 股从深度排名中取前 N 只逐票生成报告（默认 20）；
 - `markets`：启用的市场，A 走全市场 screen，HK 走观察清单；可只填 `["A"]`；
 - `hk_limit`：港股观察清单最多运行几只（默认 20）；
-- `hk_llm_top_n`：港股前 N 只启用 LLM 研究（默认 3），与 A 股预算独立；
+- `hk_llm_top_n`：港股前 N 只启用 LLM 研究（默认 20），与 A 股预算独立；
 - 港股清单当前避开美元报表公司（如汇丰、友邦）；项目只支持 CNY/HKD 报表币种，
   遇到 USD 报表会在逐票 `run` 阶段失败并记录，不做伪造折算；
-- `llm_top_n`：A 股前 N 只调用 `--with-research`；默认 0，全部确定性；
+- `llm_top_n`：A 股前 N 只调用 `--with-research`；默认 20，全部尝试；
 - `research_retries`：LLM 输出校验失败时的重试次数（默认 1）；仍失败则回退确定性；
 - `rf`：留空使用 provider；固定值用字符串，例如 `"2.0"`；
 - `refresh_market`：每日绕过 7 天行情缓存；
@@ -137,7 +138,7 @@ publish_partial = true
 创建每天 19:00 的任务（或收盘后你的固定时间）：
 
 - 程序：`powershell.exe`
-- 参数：`-NoProfile -ExecutionPolicy Bypass -File "C:\PyProject\turtle-framework\scripts\run_daily.ps1" --llm-top 10`
+- 参数：`-NoProfile -ExecutionPolicy Bypass -File "C:\PyProject\turtle-framework\scripts\run_daily.ps1" --llm-top 20 --hk-llm-top 20`
 - 起始于：`C:\PyProject\turtle-framework`
 - 勾选“只在用户登录时运行”；脚本会回退读取该用户的 LLM 环境变量。
   若必须无人值守，需把变量放到系统环境或改用凭据存储；
@@ -338,7 +339,7 @@ credentials file，所以用日志里的 `Registered tunnel connection` 判断�
 
 - 恢复交易日检测，跑完整前 20；
 - 删掉一只股票的 PDF，确认“无 PDF 不阻塞”；
-- 临时移除 LLM key，确认前 3 只回退确定性且站点仍发布；
+- 临时移除 LLM key，确认前 20 A + 20 HK 全部回退确定性且站点仍发布；
 - 记录耗时、失败率和磁盘占用。
 
 ## 发布与回滚
