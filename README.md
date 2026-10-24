@@ -306,12 +306,12 @@ turtle sec-audit --snapshot .runs\AAPL.US\snapshot --ticker AAPL
 
 `scripts/daily_pipeline.py` 把 `screen`、逐票 `run`、QA、静态站点和发布串成一条
 可定时执行的流水线；默认从 A 股全市场筛出 100 个候选、对前 20 名逐只生成确定性报告，
-并追加 20 只港股观察清单。生产任务对 40 只（A 20 + HK 20）全部尝试 LLM 研究；
-可用 `--llm-top N` / `--hk-llm-top N` 只对前 N 只启用，失败会自动回退。港股清单当前避开
+并追加 20 只港股全市场筛选结果。生产任务对 40 只（A 20 + HK 20）全部尝试 LLM 研究；
+可用 `--llm-top N` / `--hk-llm-top N` 只对前 N 只启用，失败会自动回退。港股筛选会避开
 美元报表公司；项目只支持 CNY/HKD 报表币种，遇到 USD 报表会显式失败而不是伪造折算。
 
 ```powershell
-# 100 A 股候选 → 前 20 报告 + 20 港股观察：screen + 逐票分析 + 站点
+# 100 A 股候选 → 前 20 报告 + 20 港股全市场筛选：screen + 逐票分析 + 站点
 .\.venv\Scripts\python.exe scripts\daily_pipeline.py
 
 # 不跑 screen，用 3 只股票验收
@@ -323,7 +323,7 @@ turtle sec-audit --snapshot .runs\AAPL.US\snapshot --ticker AAPL
 Task Scheduler、Caddy、Cloudflare Tunnel/Access、3 天验收和回滚步骤见
 [docs/daily-server.md](docs/daily-server.md)；站点信息架构与后续视觉方案见
 [docs/site-design.md](docs/site-design.md)。站点首页现已提供“今日概览 + 优先看 +
-20 份 A 股报告 + 20 份港股报告 + 100 候选池”，支持日期 tab、A/港股市场 tab、
+20 份 A 股报告 + 20 份港股报告 + 100 A 股候选 / 20 港股候选”，支持日期 tab、A/港股市场 tab、
 搜索、通道筛选和排序；候选 CSV 随 release 发布。每日结果按日期归档，页面顶部日期
 tab 可切换历史，`site/current` 只指向最新版本。报告页会明确标记“LLM 研究”或
 “确定性报告”，避免把含 LLM 研究的报告误读为纯确定性报告。
@@ -558,7 +558,7 @@ src/turtlefw/
 当前基线：
 
 ```text
-553 tests passed
+565 tests passed
 ```
 
 CI：pytest + selected ruff + selected mypy，见

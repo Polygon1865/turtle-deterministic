@@ -188,6 +188,26 @@ def test_build_site_archives_prior_dates(tmp_path: Path) -> None:
     assert "days=2" in (release / "health.txt").read_text(encoding="utf-8")
 
 
+def test_build_site_includes_hk_screen_candidates(tmp_path: Path) -> None:
+    day_dir = tmp_path / "2026-10-23"
+    _make_code(day_dir, "00700.HK", qa="pass", name="腾讯控股")
+    (day_dir / "ranking.csv").write_text(
+        "code,name\n600887.SH,伊利\n", encoding="utf-8"
+    )
+    (day_dir / "ranking_hk.csv").write_text(
+        "code,name,roe,pe,pb,score,turnover,verdict\n"
+        "00700.HK,腾讯控股,22.4,18.2,4.1,88.5,120000000,入选\n",
+        encoding="utf-8",
+    )
+    release = build_site(day_dir, tmp_path / "site")
+    assert (release / "ranking_hk.csv").is_file()
+    index = (release / "index.html").read_text(encoding="utf-8")
+    assert "港股全市场筛选 1" in index
+    assert "00700.HK" in index
+    assert 'data-market="HK"' in index
+    assert "ranking_hk.csv" in index
+
+
 def test_build_site_rejects_empty_day(tmp_path: Path) -> None:
     day_dir = tmp_path / "empty"
     day_dir.mkdir()

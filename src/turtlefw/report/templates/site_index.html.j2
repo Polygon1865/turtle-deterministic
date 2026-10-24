@@ -197,10 +197,10 @@
     <div>
       <p class="eyebrow">{{ day }}{% if trade_date %} · 数据日 {{ trade_date }}{% endif %}</p>
       <h1>{% if day == (tabs|first).date %}今日研究终端{% else %}{{ day }} 研究存档{% endif %}</h1>
-      <p class="lede">A 股候选池 + 港股观察清单，逐票生成确定性报告；港股按研究预算优先进入 LLM。</p>
+      <p class="lede">A 股候选池 + 港股全市场筛选，逐票生成确定性报告；港股按研究预算优先进入 LLM。</p>
     </div>
     <div class="stats">
-      <div class="stat"><b>{{ candidate_count }}</b><span>A 股候选池</span></div>
+      <div class="stat"><b>{{ candidate_count }}</b><span>候选池</span></div>
       <div class="stat"><b>{{ total }}</b><span>当日报告</span></div>
       <div class="stat"><b class="status-ok">{{ passed }}</b><span>通过</span></div>
       <div class="stat"><b class="{{ 'status-bad' if failed else 'status-ok' }}">{{ failed }}</b><span>失败</span></div>
@@ -281,10 +281,10 @@
     {% endif %}
   </section>
 
-  <section id="candidates" data-market-section="A">
+  <section id="candidates">
     <div class="section-head">
-      <h2>A 股候选池 {{ candidate_count }}</h2>
-      <span class="section-note">快速筛选结果 · 港股使用观察清单，不参与 A 股排名</span>
+      <h2>候选池 {{ candidate_count }}</h2>
+      <span class="section-note">A 股快速筛选 {{ a_candidate_count }} · 港股全市场筛选 {{ hk_candidate_count }}</span>
     </div>
     {% if candidates %}
     <div class="toolbar">
@@ -305,19 +305,20 @@
     <div class="table-wrap">
       <table id="candidate-table">
         <thead>
-          <tr><th>#</th><th>标的</th><th class="hide-mobile">通道</th><th>ROE</th><th class="hide-mobile">派息率</th><th>R%</th><th>GG%</th><th class="hide-mobile">II%</th><th>安全边际</th><th>深度结论</th></tr>
+          <tr><th>#</th><th>标的</th><th>市场</th><th class="hide-mobile">通道</th><th>ROE</th><th>PE</th><th class="hide-mobile">PB</th><th>R%</th><th>GG%</th><th>安全边际</th><th>结论</th></tr>
         </thead>
         <tbody>
         {% for c in candidates %}
-          <tr data-rank="{{ c.rank }}" data-search="{{ (c.code ~ ' ' ~ c.name)|lower }}" data-channel="{{ c.channel }}" data-deep="{{ '1' if c.deep else '0' }}" data-margin="{{ c.margin }}">
-            <td class="num">{{ c.rank }}</td>
+          <tr data-rank="{{ c.rank }}" data-market="{{ c.market }}" data-search="{{ (c.code ~ ' ' ~ c.name)|lower }}" data-channel="{{ c.channel }}" data-deep="{{ '1' if c.deep else '0' }}" data-margin="{{ c.margin }}" title="得分 {{ c.score or '—' }} · 成交额 {{ c.turnover or '—' }}">
+            <td class="num">{{ c.market_rank or c.rank }}</td>
             <td><span class="report-name">{{ c.name or '—' }}</span><br><code>{{ c.code }}</code></td>
+            <td><span class="market-chip {{ 'hk' if c.market == 'HK' else 'a' }}">{{ c.market }}</span></td>
             <td class="hide-mobile">{{ c.channel or '—' }}</td>
             <td class="num">{{ c.roe or '—' }}</td>
-            <td class="num hide-mobile">{{ c.payout or '—' }}</td>
+            <td class="num">{{ c.pe or '—' }}</td>
+            <td class="num hide-mobile">{{ c.pb or '—' }}</td>
             <td class="num">{{ c.r or '—' }}</td>
             <td class="num">{{ c.gg or '—' }}</td>
-            <td class="num hide-mobile">{{ c.ii or '—' }}</td>
             <td class="num">{{ c.margin or '—' }}</td>
             <td class="verdict {{ 'failed' if '失败' in c.verdict else '' }}">{{ c.verdict or ('深度分析' if c.deep else '未深度') }}</td>
           </tr>
@@ -332,7 +333,7 @@
 
   <footer>
     <span>生成于 {{ generated_at }} · {{ day }}</span>
-    <span><a href="{{ ranking_href }}">ranking.csv</a> · <a href="{{ deep_href }}">ranking_deep.csv</a> · <a href="{{ health_href }}">health.txt</a></span>
+    <span><a href="{{ ranking_href }}">ranking.csv</a> · <a href="{{ deep_href }}">ranking_deep.csv</a>{% if ranking_hk_href %} · <a href="{{ ranking_hk_href }}">ranking_hk.csv</a>{% endif %} · <a href="{{ health_href }}">health.txt</a></span>
   </footer>
 </main>
 
@@ -342,7 +343,6 @@
   var reportRows = Array.prototype.slice.call(document.querySelectorAll("#report-table tbody tr"));
   var cards = Array.prototype.slice.call(document.querySelectorAll("[data-market-card]"));
   var reportsTitle = document.getElementById("reports-title");
-  var candidateSection = document.getElementById("candidates");
   var topSection = document.getElementById("top-picks");
   var currentMarket = "ALL";
 
@@ -368,13 +368,15 @@
       });
       topSection.hidden = !anyCard;
     }
-    if (candidateSection) {
-      candidateSection.hidden = market === "HK";
-    }
     if (reportsTitle) {
       var label = market === "ALL" ? "" : (market === "A" ? "A 股 " : "港股 ");
       reportsTitle.textContent = "今日 " + label + visible + " 份报告";
     }
+    if (market !== "ALL" && channel) {
+      channel.value = "";
+      if (deepOnly) deepOnly.checked = false;
+    }
+    if (search && channel && deepOnly && count) apply();
   }
 
   tabs.forEach(function (tab) {
@@ -398,7 +400,8 @@
     var onlyDeep = deepOnly.checked;
     var visible = 0;
     rows.forEach(function (row) {
-      var ok = (!query || row.dataset.search.indexOf(query) !== -1) &&
+      var ok = (currentMarket === "ALL" || row.dataset.market === currentMarket) &&
+        (!query || row.dataset.search.indexOf(query) !== -1) &&
         (!selected || row.dataset.channel === selected) &&
         (!onlyDeep || row.dataset.deep === "1");
       row.hidden = !ok;
@@ -428,6 +431,7 @@
   channel.addEventListener("change", apply);
   deepOnly.addEventListener("change", apply);
   sort.addEventListener("change", reorder);
+  apply();
 })();
 </script>
 </body>

@@ -94,7 +94,7 @@ class DailyConfig:
     fast_limit: int = 100
     deep_limit: int = 30
     markets: tuple[str, ...] = ("A",)
-    hk_codes: tuple[str, ...] = HK_DEFAULT_CODES
+    hk_codes: tuple[str, ...] = ()
     hk_limit: int = 20
     hk_llm_top_n: int = 3
     rf: str | None = None
@@ -242,6 +242,24 @@ def _news_code_key(row: dict[str, str]) -> str | None:
         if text:
             return text
     return None
+
+
+def _ranking_names(path: Path) -> dict[str, str]:
+    """Best-effort code→name map for a manually supplied code list."""
+    if not path.is_file():
+        return {}
+    try:
+        with path.open("r", encoding="utf-8-sig", newline="") as handle:
+            rows = csv.DictReader(handle)
+            return {
+                str(row.get("code") or row.get("ts_code") or ""): str(
+                    row.get("name") or ""
+                )
+                for row in rows
+                if (row.get("code") or row.get("ts_code"))
+            }
+    except (OSError, csv.Error):
+        return {}
 
 
 def parse_ranking(path: Path, *, limit: int) -> list[dict[str, str]]:
@@ -569,13 +587,7 @@ def run_stock(
 
 
 def _hk_ranking(config: DailyConfig) -> list[dict[str, str]]:
-    """Return the configured HK watchlist in display order.
-
-    HK does not have an A-share style market-wide fast screen in this project:
-    there is no batch ``hk_income`` endpoint, so screening would require one
-    request per stock.  The daily flow therefore uses a curated watchlist and
-    still runs the full deterministic + optional research pipeline per stock.
-    """
+    """Return a manually configured HK watchlist in display order."""
 
     codes = tuple(dict.fromkeys(_validate_code(code) for code in config.hk_codes))
     return [
@@ -586,6 +598,59 @@ def _hk_ranking(config: DailyConfig) -> list[dict[str, str]]:
         }
         for code in codes[: config.hk_limit]
     ]
+
+
+def build_hk_screen_command(
+    paths: DailyPaths, config: DailyConfig, trade_date: str
+) -> list[str]:
+    command = _python_command(
+        paths.day_dir,
+        *(["--refresh-market"] if config.refresh_market else []),
+        "screen",
+    )
+    command.extend(
+        [
+            "--market",
+            "HK",
+            "--fast",
+            "--fast-limit",
+            str(config.hk_limit),
+            "--api-interval",
+            str(config.api_interval),
+            "--csv",
+            str(paths.day_dir / "ranking_hk.csv"),
+        ]
+    )
+    if trade_date:
+        command.extend(["--as-of", trade_date])
+    return command
+
+
+def _screen_hk(
+    paths: DailyPaths,
+    config: DailyConfig,
+    trade_date: str,
+    *,
+    run_command: CommandRunner,
+) -> tuple[bool, str, list[dict[str, str]]]:
+    paths.day_dir.mkdir(parents=True, exist_ok=True)
+    result = run_command(
+        build_hk_screen_command(paths, config, trade_date),
+        Path(config.project_root),
+        config.screen_timeout_seconds,
+    )
+    if not result.ok:
+        return False, _tail(result.stderr or result.stdout), []
+    parsed_date = extract_trade_date(result.stdout) or trade_date
+    if trade_date and parsed_date != trade_date and not config.allow_stale:
+        return False, f"HK screen did not reach trade date {trade_date}", []
+    try:
+        rows = parse_ranking(paths.day_dir / "ranking_hk.csv", limit=config.hk_limit)
+    except DailyError as exc:
+        return False, str(exc), []
+    for row in rows:
+        row["market"] = "HK"
+    return True, parsed_date, rows
 
 
 def _screen(
@@ -645,6 +710,26 @@ def run_daily(
     }
 
     with daily_lock(paths.lock_path):
+        # The Windows task runs every calendar day.  Do not let a weekend run
+        # sit in the trade-date retry loop for 90 minutes; a manual run can
+        # still opt in with --allow-stale.
+        if (
+            paths.day.weekday() >= 5
+            and not config.allow_stale
+            and not codes
+            and not skip_screen
+        ):
+            status.update(
+                {
+                    "screen": "skipped",
+                    "site": None,
+                    "ok": True,
+                    "skipped": "weekend",
+                    "finished_at": datetime.now().isoformat(timespec="seconds"),
+                }
+            )
+            _write_json(paths.status_path, status)
+            return status
         markets = {str(item).upper() for item in config.markets}
         if not markets or not markets <= {"A", "HK"}:
             raise DailyError(f"unsupported markets: {config.markets!r}")
@@ -659,15 +744,22 @@ def run_daily(
             )
             if not selected_codes:
                 raise DailyError("--skip-screen requires at least one --code")
+            selected_a = [code for code in selected_codes if not code.endswith(".HK")]
+            selected_hk = [code for code in selected_codes if code.endswith(".HK")]
+            selected_codes = selected_a[: config.top_n] + selected_hk[: config.hk_limit]
+            if not selected_codes:
+                raise DailyError("--skip-screen selected no codes for configured markets")
             ranking = []
             research_counts = {"A": 0, "HK": 0}
-            for index, code in enumerate(selected_codes[: config.top_n]):
+            names = _ranking_names(paths.day_dir / "ranking_deep.csv")
+            names.update(_ranking_names(paths.day_dir / "ranking_hk.csv"))
+            for index, code in enumerate(selected_codes):
                 market = "HK" if code.endswith(".HK") else "A"
                 research_counts[market] += 1
                 ranking.append(
                     {
                         "code": code,
-                        "name": HK_DEFAULT_NAMES.get(code, ""),
+                        "name": names.get(code, HK_DEFAULT_NAMES.get(code, "")),
                         "rank": str(index + 1),
                         "research_rank": str(research_counts[market]),
                         "market": market,
@@ -700,7 +792,26 @@ def run_daily(
                 status["trade_date"] = expected_trade_date(paths.day)
 
             if "HK" in markets:
-                hk_entries = _hk_ranking(config)
+                if config.hk_codes:
+                    hk_entries = _hk_ranking(config)
+                else:
+                    status["hk_screen"] = "running"
+                    _write_json(paths.status_path, status)
+                    hk_ok, hk_detail, hk_entries = _screen_hk(
+                        paths,
+                        config,
+                        status.get("trade_date") or expected_trade_date(paths.day),
+                        run_command=run_command,
+                    )
+                    status["hk_screen"] = "ok" if hk_ok else "failed"
+                    if not hk_ok:
+                        status["error"] = hk_detail
+                        status["finished_at"] = datetime.now().isoformat(
+                            timespec="seconds"
+                        )
+                        _write_json(paths.status_path, status)
+                        _notify(config, status)
+                        return status
                 start = len(ranking) + 1
                 for index, entry in enumerate(hk_entries):
                     entry = dict(entry)

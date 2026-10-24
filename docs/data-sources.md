@@ -11,6 +11,7 @@ v2 HEAD：`c61419c9fb5458595c0e44458ea5798dab501d92`（README 写 v2.0-beta）�
 | A 股 | 质押 | Tushare `pledge_stat` |
 | A 股 | 定性 | PDF-first + WebSearch |
 | 港股 | 三表 | Tushare `hk_income` / `hk_balancesheet` / `hk_cashflow` |
+| 港股 | 全市场筛选 | Tushare `hk_basic` + `hk_daily` + 逐票 `hk_fina_indicator`；`hk_daily` 限 1 次/小时，限流时 Yahoo 日线快照回退并标注 source |
 | 港股 | 行情/股东 | yfinance，`hk_daily` fallback |
 | 港股 | 母公司 | 不提供（v2: HKFRS 不拆母公司） |
 | 港股 | 回购/质押 | 占位符 |

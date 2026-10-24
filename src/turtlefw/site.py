@@ -55,8 +55,10 @@ class SiteReport:
 @dataclass(frozen=True)
 class Candidate:
     rank: int
-    code: str
+    market_rank: int = 0
+    code: str = ""
     name: str = ""
+    market: str = "A"
     channel: str = ""
     roe: str = ""
     payout: str = ""
@@ -64,6 +66,10 @@ class Candidate:
     gg: str = ""
     ii: str = ""
     margin: str = ""
+    pe: str = ""
+    pb: str = ""
+    score: str = ""
+    turnover: str = ""
     verdict: str = ""
     deep: bool = False
 
@@ -225,6 +231,15 @@ def _percent(value: str) -> str:
         return value
 
 
+def _number(value: str) -> str:
+    if not value:
+        return ""
+    try:
+        return f"{float(value):,.2f}"
+    except ValueError:
+        return value
+
+
 def collect_candidates(day_dir: Path) -> list[Candidate]:
     """Read the 100-row fast ranking and join the 20-row deep verdicts."""
 
@@ -252,6 +267,7 @@ def collect_candidates(day_dir: Path) -> list[Candidate]:
                 rank=index,
                 code=code,
                 name=_row_value(row, "name"),
+                market="A",
                 channel=_row_value(row, "channel"),
                 roe=_percent(_row_value(row, "roe")),
                 payout=_percent(_row_value(row, "payout")),
@@ -265,6 +281,29 @@ def collect_candidates(day_dir: Path) -> list[Candidate]:
                 deep=bool(deep_row),
             )
         )
+    hk_path = day_dir / "ranking_hk.csv"
+    if hk_path.is_file():
+        with hk_path.open(encoding="utf-8-sig", newline="") as handle:
+            for row in csv.DictReader(handle):
+                code = _row_value(row, "code", "ts_code")
+                if not code:
+                    continue
+                candidates.append(
+                    Candidate(
+                        rank=len(candidates) + 1,
+                        code=code,
+                        name=_row_value(row, "name"),
+                        market="HK",
+                        channel=_row_value(row, "channel") or "HK",
+                        roe=_percent(_row_value(row, "roe")),
+                        pe=_number(_row_value(row, "pe")),
+                        pb=_number(_row_value(row, "pb")),
+                        score=_number(_row_value(row, "score")),
+                        turnover=_number(_row_value(row, "turnover")),
+                        verdict=_row_value(row, "verdict"),
+                        deep=True,
+                    )
+                )
     return candidates
 
 
@@ -376,6 +415,7 @@ def _render_index(
     ranking_href: str,
     deep_href: str,
     health_href: str,
+    ranking_hk_href: str = "",
 ) -> str:
     environment = Environment(
         loader=FileSystemLoader(str(TEMPLATE_DIR)),
@@ -404,6 +444,14 @@ def _render_index(
     failed = len(normalized) - passed
     hk_count = sum(report.market == "HK" for report in normalized)
     a_count = len(normalized) - hk_count
+    candidate_counts: dict[str, int] = {}
+    normalized_candidates: list[Candidate] = []
+    for candidate in candidates:
+        candidate_counts[candidate.market] = candidate_counts.get(candidate.market, 0) + 1
+        normalized_candidates.append(
+            replace(candidate, market_rank=candidate_counts[candidate.market])
+        )
+    candidates = normalized_candidates
     return template.render(
         day=day,
         trade_date=trade_date,
@@ -413,6 +461,8 @@ def _render_index(
         generated_at=generated_at,
         total=len(normalized),
         candidate_count=len(candidates),
+        a_candidate_count=sum(candidate.market == "A" for candidate in candidates),
+        hk_candidate_count=sum(candidate.market == "HK" for candidate in candidates),
         a_count=a_count,
         hk_count=hk_count,
         passed=passed,
@@ -422,6 +472,7 @@ def _render_index(
         ranking_href=ranking_href,
         deep_href=deep_href,
         health_href=health_href,
+        ranking_hk_href=ranking_hk_href,
     )
 
 
@@ -431,8 +482,10 @@ def _candidate_from_payload(payload: dict[str, Any]) -> Candidate | None:
         return None
     return Candidate(
         rank=int(payload.get("rank") or 0),
+        market_rank=int(payload.get("market_rank") or 0),
         code=code,
         name=str(payload.get("name") or ""),
+        market=str(payload.get("market") or ("HK" if code.endswith(".HK") else "A")),
         channel=str(payload.get("channel") or ""),
         roe=str(payload.get("roe") or ""),
         payout=str(payload.get("payout") or ""),
@@ -440,6 +493,10 @@ def _candidate_from_payload(payload: dict[str, Any]) -> Candidate | None:
         gg=str(payload.get("gg") or ""),
         ii=str(payload.get("ii") or ""),
         margin=str(payload.get("margin") or ""),
+        pe=str(payload.get("pe") or ""),
+        pb=str(payload.get("pb") or ""),
+        score=str(payload.get("score") or ""),
+        turnover=str(payload.get("turnover") or ""),
         verdict=str(payload.get("verdict") or ""),
         deep=bool(payload.get("deep")),
     )
@@ -496,7 +553,7 @@ def build_site(
                 or ("HK" if report.code.endswith(".HK") else "A"),
             )
         )
-    for ranking_name in ("ranking.csv", "ranking_deep.csv"):
+    for ranking_name in ("ranking.csv", "ranking_deep.csv", "ranking_hk.csv"):
         ranking = day_dir / ranking_name
         if ranking.is_file():
             shutil.copyfile(ranking, release / ranking_name)
@@ -541,7 +598,7 @@ def build_site(
                     or ("HK" if report.code.endswith(".HK") else "A"),
                 )
             )
-        for ranking_name in ("ranking.csv", "ranking_deep.csv"):
+        for ranking_name in ("ranking.csv", "ranking_deep.csv", "ranking_hk.csv"):
             ranking = prior / ranking_name
             if ranking.is_file():
                 (archive / prior_key).mkdir(parents=True, exist_ok=True)
@@ -571,6 +628,11 @@ def build_site(
             tabs=_tabs(dates, date_key, root=False),
             ranking_href=f"../../archive/{date_key}/ranking.csv",
             deep_href=f"../../archive/{date_key}/ranking_deep.csv",
+            ranking_hk_href=(
+                f"../../archive/{date_key}/ranking_hk.csv"
+                if (release / "archive" / date_key / "ranking_hk.csv").is_file()
+                else ""
+            ),
             health_href="../../health.txt",
         )
         (page_dir / "index.html").write_text(index, encoding="utf-8")
@@ -586,6 +648,11 @@ def build_site(
         tabs=_tabs(dates, latest, root=True),
         ranking_href=f"archive/{latest}/ranking.csv",
         deep_href=f"archive/{latest}/ranking_deep.csv",
+        ranking_hk_href=(
+            f"archive/{latest}/ranking_hk.csv"
+            if (release / "archive" / latest / "ranking_hk.csv").is_file()
+            else ""
+        ),
         health_href="health.txt",
     )
     (release / "index.html").write_text(index, encoding="utf-8")

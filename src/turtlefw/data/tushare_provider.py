@@ -85,9 +85,13 @@ A_INDICATOR_FIELDS = (
     "debt_to_assets,ocf_to_or,eps,bps"
 )
 HK_INDICATOR_FIELDS = (
-    "ts_code,end_date,ann_date,roe_avg,gross_profit_ratio,net_profit_ratio,"
-    "debt_asset_ratio,ocf_sales,basic_eps,bps"
+    "ts_code,name,end_date,report_type,currency,roe_avg,gross_profit_ratio,"
+    "net_profit_ratio,debt_asset_ratio,ocf_sales,basic_eps,bps,operate_income,"
+    "holder_profit,operate_income_yoy,holder_profit_yoy,total_parent_equity,"
+    "pe_ttm,pb_ttm,total_market_cap,dps_hkd,fiscal_year"
 )
+HK_BASIC_FIELDS = "ts_code,name,fullname,market,list_date,delist_date,curr_type"
+HK_DAILY_FIELDS = "ts_code,trade_date,close,pre_close,vol,amount"
 US_INDICATOR_FIELDS = (
     "ts_code,end_date,roe_avg,gross_profit_ratio,net_profit_ratio,"
     "debt_asset_ratio,basic_eps"
@@ -203,6 +207,10 @@ class TushareProvider:
         self._hk_daily: dict[str, list[dict]] = {}
         self._hk_failed: set[str] = set()
         self._hk_yf: dict[str, tuple[list[dict], dict]] = {}
+        self._hk_universe_cache: list[dict] | None = None
+        self._hk_market_cache: dict[str, list[dict]] = {}
+        self._hk_market_source = "tushare:hk_daily"
+        self._hk_indicator_cache: dict[str, dict | None] = {}
         self._us_yf: dict[str, Any] = {}
         self._dividend_map: dict[str, pd.DataFrame] | None = None
 
@@ -217,6 +225,10 @@ class TushareProvider:
     @property
     def issues(self) -> tuple[FetchIssue, ...]:
         return tuple(self._issues)
+
+    @property
+    def hk_market_source(self) -> str:
+        return self._hk_market_source
 
     def _client(self):
         """One Tushare client per thread; the shared session is not thread-safe."""
@@ -308,6 +320,140 @@ class TushareProvider:
         if code is not None:
             params["ts_code"] = str(code)
         return self._safe("stock_basic", **params).to_dict("records")
+
+    def hk_universe(self) -> list[dict]:
+        """All currently listed HK equities.
+
+        This is a reference snapshot, cached for the process; the daily screen
+        still asks for the latest trade-date snapshot separately.
+        """
+        if self._hk_universe_cache is not None:
+            return list(self._hk_universe_cache)
+        frame = self._safe("hk_basic", list_status="L", fields=HK_BASIC_FIELDS)
+        rows = frame.to_dict("records") if not frame.empty else []
+        self._hk_universe_cache = rows
+        return list(rows)
+
+    def hk_market_snapshot(
+        self, trade_date: str, *, allow_yfinance: bool = True
+    ) -> list[dict]:
+        """One-day market-wide HK quote snapshot.
+
+        Tushare limits ``hk_daily`` to one request per hour for a trade date;
+        callers should fetch exactly one date and reuse the returned rows.  If
+        that endpoint is rate-limited, Yahoo Finance is used as an explicitly
+        labelled fallback so one screen does not block the daily pipeline.
+        """
+        key = str(trade_date)
+        if key in self._hk_market_cache:
+            return list(self._hk_market_cache[key])
+        frame = self._safe("hk_daily", trade_date=key, fields=HK_DAILY_FIELDS)
+        rows = frame.to_dict("records") if not frame.empty else []
+        if rows:
+            self._hk_market_source = "tushare:hk_daily"
+        elif allow_yfinance:
+            rows = self._yf_hk_market_snapshot(key)
+            if rows:
+                self._hk_market_source = "yfinance:hk_daily"
+        self._hk_market_cache[key] = rows
+        return list(rows)
+
+    def _yf_hk_market_snapshot(self, trade_date: str) -> list[dict]:
+        """Best-effort HK quote snapshot from Yahoo Finance.
+
+        The fallback deliberately returns only OHLC/volume rows; the screen still
+        uses Tushare for the universe and financial indicators.  Failures are
+        recorded as a fetch issue instead of being hidden.
+        """
+        try:
+            import yfinance as yf
+        except Exception as exc:  # pragma: no cover - optional dependency
+            self._issues.append(FetchIssue("yfinance", "*", f"not installed: {exc}"))
+            return []
+        tickers: dict[str, str] = {}
+        for item in self.hk_universe():
+            code = str(item.get("ts_code") or "").strip()
+            prefix = code.split(".", 1)[0]
+            if not prefix.isdigit():
+                continue
+            tickers[f"{int(prefix):04d}.HK"] = code
+        rows: list[dict] = []
+        symbols = sorted(tickers)
+        for start in range(0, len(symbols), 200):
+            batch = symbols[start : start + 200]
+            try:
+                frame = yf.download(
+                    batch,
+                    period="5d",
+                    interval="1d",
+                    group_by="ticker",
+                    progress=False,
+                    threads=True,
+                    auto_adjust=False,
+                )
+            except Exception as exc:
+                self._issues.append(FetchIssue("yfinance", "hk_daily", str(exc)))
+                continue
+            if frame is None or frame.empty:
+                continue
+            for ticker in batch:
+                try:
+                    sub = frame[ticker]
+                except (KeyError, TypeError):
+                    continue
+                if sub.empty:
+                    continue
+                close = sub["Close"].dropna()
+                volume = sub["Volume"].dropna()
+                if close.empty or volume.empty:
+                    continue
+                price = float(close.iloc[-1])
+                shares = float(volume.iloc[-1])
+                if price <= 0 or shares <= 0:
+                    continue
+                rows.append(
+                    {
+                        "ts_code": tickers[ticker],
+                        "trade_date": trade_date,
+                        "close": price,
+                        "vol": shares,
+                        "amount": price * shares,
+                    }
+                )
+        if rows:
+            self._issues.append(
+                FetchIssue(
+                    "hk_daily",
+                    "*",
+                    "Tushare hk_daily unavailable/limited; used yfinance fallback",
+                    retryable=True,
+                )
+            )
+        return rows
+
+    def hk_indicator(self, code: StockCode, *, period: str | None = None) -> dict | None:
+        """Latest HK financial indicator row for a listing.
+
+        Unlike A-share ``fina_indicator_vip`` there is no batch endpoint, so
+        this is deliberately per-listing and cached for screening.
+        """
+        key = f"{code}|{period or ''}"
+        if key in self._hk_indicator_cache:
+            return self._hk_indicator_cache[key]
+        params: dict[str, Any] = {
+            "ts_code": str(code),
+            "fields": HK_INDICATOR_FIELDS,
+        }
+        if period:
+            params["period"] = period
+        frame = self._safe("hk_fina_indicator", **params)
+        row: dict | None = None
+        if not frame.empty:
+            records = frame.to_dict("records")
+            records.sort(key=lambda item: str(item.get("end_date") or ""), reverse=True)
+            row = records[0]
+        self._hk_indicator_cache[key] = row
+        return row
 
     def _yf_hk(self, code: StockCode) -> tuple[list[dict], dict]:
         """Yahoo Finance quote + daily history for HK listings (cached)."""

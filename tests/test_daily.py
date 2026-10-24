@@ -13,6 +13,7 @@ from turtlefw.daily import (
     DailyConfig,
     DailyError,
     DailyPaths,
+    build_hk_screen_command,
     build_screen_command,
     daily_lock,
     extract_trade_date,
@@ -109,6 +110,18 @@ def test_screen_command_contains_global_refresh(tmp_path: Path) -> None:
     assert "--refresh-market" in command
     assert command[-4:] == ["--workers", "2", "--api-interval", "0.35"]
     assert "--fast-limit" in command
+
+
+def test_hk_screen_command_uses_market_wide_screen(tmp_path: Path) -> None:
+    paths = _paths(tmp_path)
+    command = build_hk_screen_command(
+        paths, DailyConfig(hk_limit=7, refresh_market=True), "20261023"
+    )
+    assert "--market" in command
+    assert command[command.index("--market") + 1] == "HK"
+    assert command[command.index("--fast-limit") + 1] == "7"
+    assert command[command.index("--as-of") + 1] == "20261023"
+    assert command[command.index("--csv") + 1].endswith("ranking_hk.csv")
 
 
 def test_screen_retries_until_expected_trade_date(tmp_path: Path) -> None:
@@ -245,6 +258,78 @@ def test_run_daily_without_screen(tmp_path: Path) -> None:
     assert len(result["stocks"]) == 2
     assert paths.status_path.is_file()
     assert not paths.lock_path.exists()
+
+
+def test_run_daily_skips_weekend_without_allow_stale(tmp_path: Path) -> None:
+    paths = DailyPaths(
+        day=date(2026, 10, 24),
+        runs_root=tmp_path / "runs",
+        site_root=tmp_path / "site",
+        pdf_root=tmp_path / "pdfs",
+    )
+
+    def fail_if_called(command: list[str], cwd: Path, timeout: int) -> CommandResult:
+        raise AssertionError(f"weekend should not invoke {command}")
+
+    result = run_daily(
+        paths,
+        DailyConfig(),
+        publish=False,
+        run_command=fail_if_called,
+    )
+    assert result["ok"] is True
+    assert result["skipped"] == "weekend"
+    assert result["stocks"] == []
+    assert paths.status_path.is_file()
+
+
+def test_run_daily_skip_screen_limits_each_market(tmp_path: Path) -> None:
+    paths = _paths(tmp_path)
+
+    def fake(command: list[str], cwd: Path, timeout: int) -> CommandResult:
+        code = command[command.index("run") + 1]
+        _write_success(paths.day_dir / code)
+        return CommandResult(tuple(command), 0, "ok")
+
+    result = run_daily(
+        paths,
+        DailyConfig(markets=("A", "HK"), top_n=1, hk_limit=1, llm_top_n=0),
+        codes=["600887.SH", "000858.SZ", "00700.HK", "09988.HK"],
+        skip_screen=True,
+        publish=False,
+        run_command=fake,
+        sleep=lambda seconds: None,
+    )
+    assert [row["code"] for row in result["stocks"]] == ["600887.SH", "00700.HK"]
+
+
+def test_skip_screen_reads_names_from_rankings(tmp_path: Path) -> None:
+    paths = _paths(tmp_path)
+    paths.day_dir.mkdir(parents=True)
+    (paths.day_dir / "ranking_deep.csv").write_text(
+        "ts_code,name\n600887.SH,伊利股份\n", encoding="utf-8-sig"
+    )
+    (paths.day_dir / "ranking_hk.csv").write_text(
+        "ts_code,name\n00700.HK,腾讯控股\n", encoding="utf-8-sig"
+    )
+
+    def fake(command: list[str], cwd: Path, timeout: int) -> CommandResult:
+        code = command[command.index("run") + 1]
+        _write_success(paths.day_dir / code)
+        return CommandResult(tuple(command), 0, "ok")
+
+    result = run_daily(
+        paths,
+        DailyConfig(
+            markets=("A", "HK"), top_n=1, hk_limit=1, llm_top_n=0
+        ),
+        codes=["600887.SH", "00700.HK"],
+        skip_screen=True,
+        publish=False,
+        run_command=fake,
+        sleep=lambda seconds: None,
+    )
+    assert [row["name"] for row in result["stocks"]] == ["伊利股份", "腾讯控股"]
 
 
 def test_daily_lock_rejects_overlapping_run(tmp_path: Path) -> None:

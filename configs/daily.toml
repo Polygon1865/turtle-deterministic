@@ -6,15 +6,12 @@ llm_top_n = 20
 fast_limit = 100
 deep_limit = 30
 
-# A-share uses the fast/deep screen; HK uses a curated watchlist because
-# Tushare has no market-wide HK financial batch endpoint.
+# A-share uses the fast/deep screen. HK starts from the whole listed market:
+# cheap price/turnover/listing-age filter, then one annual indicator per
+# survivor, then a quality/valuation ranking. Set hk_codes explicitly only for
+# a manual watchlist override; an empty list means market-wide screen.
 markets = ["A", "HK"]
-hk_codes = [
-  "00700.HK", "09988.HK", "03690.HK", "01810.HK", "00941.HK",
-  "01024.HK", "02318.HK", "02382.HK", "00388.HK", "09618.HK",
-  "00883.HK", "00939.HK", "01398.HK", "03988.HK", "02628.HK",
-  "02388.HK", "00016.HK", "00001.HK", "02020.HK", "01211.HK",
-]
+hk_codes = []
 hk_limit = 20
 hk_llm_top_n = 20
 

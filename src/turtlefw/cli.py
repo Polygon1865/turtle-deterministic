@@ -3338,6 +3338,7 @@ def _screen(
     deep: int = 0,
     api_interval: float = 0.35,
     as_of: str | None = None,
+    market: str = "A",
 ) -> int:
     from .data.tushare_provider import TushareProvider
     from .data.universe import listed_as_of
@@ -3346,6 +3347,37 @@ def _screen(
 
     settings = load_settings()
     provider = TushareProvider(get_token(), min_interval=api_interval)
+
+    if market == "HK":
+        from .screener.hk import HkScreenError, screen_hk, write_ranking
+
+        trade_date = (as_of or "").replace("-", "") or provider.latest_trade_date()
+        try:
+            rows = screen_hk(
+                provider,
+                trade_date=trade_date,
+                limit=fast_limit,
+                candidate_limit=0,
+            )
+        except HkScreenError as exc:
+            print(f"港股 screen 失败：{exc}", file=sys.stderr)
+            for issue in provider.issues:
+                print(f"  {issue}", file=sys.stderr)
+            return 2
+        print(f"交易日: {trade_date}")
+        print("\n=== 港股全市场 screen（质量/流动性） ===")
+        for row in rows:
+            print(
+                f"{row.rank:>3}  {row.code:<10} {row.name[:12]:<14} "
+                f"ROE {row.roe:>6}%  净利率 {row.net_margin:>6}%  "
+                f"PE {row.pe if row.pe is not None else '-'}  "
+                f"PB {row.pb if row.pb is not None else '-'}"
+            )
+        if csv_path:
+            write_ranking(Path(csv_path), rows)
+            print(f"\n已导出 {Path(csv_path).resolve()}")
+        return 0
+
     universe = provider.stock_basic()
     if as_of:
         seen: set[str] = set()
@@ -3511,6 +3543,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--api-interval", type=float, default=0.35, help="API 最小间隔秒数（默认 0.35）"
     )
     screen.add_argument("--as-of", default=None, help="筛选日期 YYYY-MM-DD（仅上市日期过滤）")
+    screen.add_argument(
+        "--market", choices=["A", "HK"], default="A", help="筛选市场（默认 A）"
+    )
 
     pack = sub.add_parser("pack", help="生成 Markdown 数据包")
     pack.add_argument("code", help="股票代码，如 600887")
@@ -3971,6 +4006,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.deep,
                 args.api_interval,
                 args.as_of,
+                args.market,
             )
         if args.command == "golden":
             return _golden_cmd(args.init, args.codes, args.score, args.threshold)
