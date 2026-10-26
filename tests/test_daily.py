@@ -312,6 +312,7 @@ def test_classify_research_failure_codes() -> None:
         == "placeholder"
     )
     assert classify_research_failure("numeric gate 未通过：coverage=0.9994") == "numeric_gate"
+    assert classify_research_failure("未通过：research_provenance") == "provenance"
     assert classify_research_failure("LLM unavailable") == "llm_error"
 
 

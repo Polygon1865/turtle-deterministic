@@ -496,6 +496,8 @@ def classify_research_failure(text: str) -> str:
         return "timeout"
     if "language" in lowered or "simplified chinese" in lowered:
         return "language"
+    if "provenance" in lowered:
+        return "provenance"
     if "quality" in lowered or "claims" in lowered:
         return "quality"
     if "api key" in lowered or "model" in lowered or "http" in lowered or "llm" in lowered:

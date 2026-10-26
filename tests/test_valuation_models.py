@@ -1,6 +1,11 @@
 from decimal import Decimal
 
 from turtlefw.metrics import valuation_models as vm
+from turtlefw.metrics.valuation import ten_year_low
+
+
+def test_ten_year_low_ignores_nan() -> None:
+    assert ten_year_low([Decimal("10"), Decimal("NaN"), Decimal("8")]) == Decimal("8")
 
 
 class TestWacc:
@@ -61,7 +66,11 @@ class TestDcf:
 
 class TestOtherModels:
     def test_ddm(self):
-        assert vm.ddm(dps=Decimal("5"), ke_pct=Decimal("10"), growth_pct=Decimal("0")) == Decimal("50")
+        assert vm.ddm(
+            dps=Decimal("5"),
+            ke_pct=Decimal("10"),
+            growth_pct=Decimal("0"),
+        ) == Decimal("50")
 
     def test_ddm_invalid(self):
         assert vm.ddm(dps=Decimal("5"), ke_pct=Decimal("5"), growth_pct=Decimal("5")) is None

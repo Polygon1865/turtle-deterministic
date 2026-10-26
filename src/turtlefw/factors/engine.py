@@ -432,9 +432,14 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
     traps = sum(1 for c in trap_checks if c.status == "veto")
 
     price = ctx.price
+    valid_closes = [
+        value for value in ctx.closes if value is not None and value.is_finite()
+    ]
     percentile = (
-        Decimal(sum(1 for v in ctx.closes if v < price)) / Decimal(len(ctx.closes)) * Decimal("100")
-        if price is not None and ctx.closes
+        Decimal(sum(1 for value in valid_closes if value < price))
+        / Decimal(len(valid_closes))
+        * Decimal("100")
+        if price is not None and valid_closes
         else None
     )
     target = (

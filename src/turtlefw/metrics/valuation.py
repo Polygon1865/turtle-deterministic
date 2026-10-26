@@ -29,7 +29,11 @@ def book_value_per_share(equity: Decimal, shares: Decimal) -> Decimal | None:
 
 
 def ten_year_low(closes: Iterable[Decimal]) -> Decimal | None:
-    values = [value for value in closes if value is not None and value > 0]
+    values = [
+        value
+        for value in closes
+        if value is not None and value.is_finite() and value > 0
+    ]
     return min(values) if values else None
 
 

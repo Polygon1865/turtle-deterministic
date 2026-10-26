@@ -559,7 +559,7 @@ src/turtlefw/
 当前基线：
 
 ```text
-572 tests passed
+573 tests passed
 ```
 
 CI：pytest + selected ruff + selected mypy，见

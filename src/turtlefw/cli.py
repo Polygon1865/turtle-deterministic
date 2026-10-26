@@ -2548,22 +2548,6 @@ def _run_cmd(
             return rc
 
         model_name = research_model or os.environ.get("TURTLE_LLM_MODEL", "")
-        prov_rc = _research_provenance_cmd(
-            str(base / "research.json"),
-            str(staging),
-            "turtle-research-agent",
-            model_name or ("replay" if research_response else ""),
-            str(base / "research_provenance.json"),
-            None,
-            elapsed_seconds=elapsed,
-            mode="agent" if not research_response else "replay",
-            retries=research_retries,
-            usage_path=str(base / "research.usage.json"),
-        )
-        if prov_rc != 0:
-            _cleanup()
-            print(f"run 在 research provenance 阶段失败：{prov_rc}", file=sys.stderr)
-            return prov_rc
 
         from .report.finalize import FinalizeError, finalize_research
 
@@ -2589,6 +2573,25 @@ def _run_cmd(
         pack_source = snapshot / "data_pack.md"
         if pack_source.is_file():
             shutil.copyfile(pack_source, base / "data_pack.md")
+        research_source = snapshot / "research.json"
+        if not research_source.is_file():
+            research_source = base / "research.json"
+        prov_rc = _research_provenance_cmd(
+            str(research_source),
+            str(snapshot),
+            "turtle-research-agent",
+            model_name or ("replay" if research_response else ""),
+            str(base / "research_provenance.json"),
+            None,
+            elapsed_seconds=elapsed,
+            mode="agent" if not research_response else "replay",
+            retries=research_retries,
+            usage_path=str(base / "research.usage.json"),
+        )
+        if prov_rc != 0:
+            _cleanup()
+            print(f"run 在 research provenance 阶段失败：{prov_rc}", file=sys.stderr)
+            return prov_rc
         _cleanup()
         # finalize wrote run_state against the temporary snapshot directory;
         # point it at the renamed snapshot before _run_cmd finalizes artifacts.
@@ -3370,12 +3373,12 @@ def _screen(
             return 2
         print(f"交易日: {trade_date}")
         print("\n=== 港股全市场 screen（质量/流动性） ===")
-        for row in rows:
+        for hk_row in rows:
             print(
-                f"{row.rank:>3}  {row.code:<10} {row.name[:12]:<14} "
-                f"ROE {row.roe:>6}%  净利率 {row.net_margin:>6}%  "
-                f"PE {row.pe if row.pe is not None else '-'}  "
-                f"PB {row.pb if row.pb is not None else '-'}"
+                f"{hk_row.rank:>3}  {hk_row.code:<10} {hk_row.name[:12]:<14} "
+                f"ROE {hk_row.roe:>6}%  净利率 {hk_row.net_margin:>6}%  "
+                f"PE {hk_row.pe if hk_row.pe is not None else '-'}  "
+                f"PB {hk_row.pb if hk_row.pb is not None else '-'}"
             )
         if csv_path:
             write_ranking(Path(csv_path), rows)
@@ -3385,13 +3388,13 @@ def _screen(
     universe = provider.stock_basic()
     if as_of:
         seen: set[str] = set()
-        combined: list[dict] = []
+        combined: list[dict[str, object]] = []
         for status in ("L", "D", "P"):
-            for row in provider.stock_basic(list_status=status):
-                code_key = str(row.get("ts_code", ""))
+            for stock_row in provider.stock_basic(list_status=status):
+                code_key = str(stock_row.get("ts_code", ""))
                 if code_key and code_key not in seen:
                     seen.add(code_key)
-                    combined.append(row)
+                    combined.append(stock_row)
         universe = listed_as_of(combined, as_of)
         print(
             f"筛选日期 {as_of}：上市状态/日行情使用该日快照；tier1 日频指标为 PIT。",

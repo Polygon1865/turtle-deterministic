@@ -596,7 +596,9 @@ def render(
                 for item in payload.get("document_facts", []):
                     fact_id = str(item.get("id", ""))
                     if fact_id:
-                        fact_map[fact_id] = f"{item.get('value', '')} {item.get('unit', '')}".strip()
+                        value = item.get("value", "")
+                        unit = item.get("unit", "")
+                        fact_map[fact_id] = f"{value} {unit}".strip()
             evidence = Path(snapshot_dir) / "evidence.json"
             if evidence.is_file():
                 payload = json.loads(evidence.read_text(encoding="utf-8-sig"))
