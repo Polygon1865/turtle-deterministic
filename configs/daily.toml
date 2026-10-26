@@ -13,6 +13,7 @@ deep_limit = 30
 markets = ["A", "HK"]
 hk_codes = []
 hk_limit = 20
+hk_candidate_limit = 100
 hk_llm_top_n = 20
 
 # Leave rf empty to let the provider decide. Set a decimal string for a fixed
@@ -25,6 +26,8 @@ research_retries = 1
 screen_attempts = 3
 retry_seconds = 1800
 workers = 1
+report_workers = 4
+resume = true
 api_interval = 0.35
 stock_timeout_seconds = 1800
 screen_timeout_seconds = 1800

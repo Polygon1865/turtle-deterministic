@@ -145,10 +145,35 @@ def test_build_site_does_not_call_failed_status_a_qa_pass(tmp_path: Path) -> Non
     assert "strict numeric gate" in index
 
 
+def test_build_site_reports_llm_fallback_reason(tmp_path: Path) -> None:
+    day_dir = tmp_path / "2026-10-26"
+    _make_code(day_dir, "600729.SH", qa="pass", name="重百集团")
+    (day_dir / "status.json").write_text(
+        '{"screen_source":"tushare:hk_daily","stocks":[{"code":"600729.SH",'
+        '"name":"重百集团","rank":1,"status":"ok","qa":"PASS","research":"fallback",'
+        '"research_reason":"LLM 研究未采用（json_invalid），已回退确定性报告",'
+        '"numeric_coverage":"1.0"}]}',
+        encoding="utf-8",
+    )
+    release = build_site(day_dir, tmp_path / "site")
+    health = (release / "health.txt").read_text(encoding="utf-8")
+    assert "llm_on=0" in health
+    assert "llm_fallback=1" in health
+    assert "llm_off=0" in health
+    assert "screen_source=tushare:hk_daily" in health
+    index = (release / "index.html").read_text(encoding="utf-8")
+    assert "LLM 研究回退" in index
+    assert "json_invalid" in index
+    assert "未启用 LLM 研究" not in index
+
+
 def test_build_site_archives_prior_dates(tmp_path: Path) -> None:
     site = tmp_path / "site"
     first = tmp_path / "2026-10-21"
     _make_code(first, "600887.SH", qa="pass", name="伊利")
+    (first / "600887.SH" / "analysis_report.html").write_text(
+        '<html><a href="/">返回</a></html>', encoding="utf-8"
+    )
     (first / "status.json").write_text(
         json.dumps({"date": "2026-10-21", "trade_date": "20261021", "stocks": []}),
         encoding="utf-8",
@@ -170,6 +195,10 @@ def test_build_site_archives_prior_dates(tmp_path: Path) -> None:
     release = build_site(second, site)
 
     assert (release / "archive" / "2026-10-21" / "600887.SH.html").is_file()
+    archived_report = (release / "archive" / "2026-10-21" / "600887.SH.html").read_text(
+        encoding="utf-8"
+    )
+    assert 'href="../../day/2026-10-21/index.html"' in archived_report
     historical = (release / "day" / "2026-10-21" / "index.html").read_text(
         encoding="utf-8"
     )

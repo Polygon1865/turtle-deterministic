@@ -31,8 +31,13 @@ Task Scheduler 19:00
   切换时按市场过滤报告并隐藏 A 股候选池；
 - 含 LLM 研究的报告页显示“LLM 研究 + 确定性数字”，确定性报告显示
   “确定性报告”，避免把两者混淆；
-- 全部股票失败或站点构建失败时 `site/current` 保持旧版本；部分失败按
-  `publish_partial` 配置处理；
+- 每次运行生成 `status.json`，并原样归档到
+  `attempts/<attempt_id>/status.json`；`attempt_id` 同时写入 status，手动重跑不会
+  覆盖历史尝试；
+- 运行状态会记录 `trade_date`、`as_of`、`screen_source` 和 `llm_usage`；
+  站点 `health.txt` 同步输出数据源与 LLM 统计；
+- 全部股票失败或站点构建失败时 `site/current` 保持旧版本；部分失败是否发布由
+  `publish_partial` 控制；
 - Caddy 只监听 `127.0.0.1`，公网入口只经过 Cloudflare Access。
 
 ## 目录
@@ -88,8 +93,10 @@ logs/
 
 `run --with-research` 需要 LLM key；没有 key 时只跑确定性报告。`--llm-top 0`
 可以在验收阶段完全关闭 LLM。LLM 输出校验失败会按 `research_retries`（默认 1）
-重试；仍失败则删除该股票残留的 research 产物，回退确定性报告，并在
-`status.json` 的 `research_error` 记录原因。
+重试；仍失败则把失败产物保留到 `research_failed/`，写入
+`research_reason_code`/`research_reason`，清理活动 research 后回退确定性报告。
+站点把这种状态显示为“回退”，不再伪装成“未启用”；`health.txt` 同时统计
+`llm_on/llm_fallback/llm_off`，避免 40/40 QA PASS 掩盖研究失败。
 
 `screen` 输出会带 `交易日: YYYYMMDD`。pipeline 要求它等于当天，否则每 30 分钟
 重试，最多 3 次；仍不匹配则失败并保留旧站点。周六/周日且未显式传
@@ -111,27 +118,33 @@ fast_limit = 100
 deep_limit = 30
 markets = ["A", "HK"]
 hk_limit = 20
+hk_candidate_limit = 100
 hk_llm_top_n = 20
 rf = ""
 research_max_input_tokens = 60000
 research_retries = 1
 screen_attempts = 3
 retry_seconds = 1800
+report_workers = 4
+resume = true
 refresh_market = true
 publish_partial = true
 ```
 
-- `fast_limit`：快速筛选后保留的候选数（默认 100，写入 `ranking.csv`）；
-- `deep_limit`：进入深度分析的候选数（默认 30，写入 `ranking_deep.csv`；比 `top_n` 多留失败缓冲）；
+- `fast_limit`：A 股快速筛选后保留的候选数（默认 100，写入 `ranking.csv`）；
+- `deep_limit`：进入 A 股深度分析的候选数（默认 30，写入 `ranking_deep.csv`；比 `top_n` 多留失败缓冲）；
 - `top_n`：A 股从深度排名中取前 N 只逐票生成报告（默认 20）；
 - `markets`：启用的市场，A/HK 都走全市场 screen；可只填 `["A"]`；
-- `hk_limit`：港股全市场筛选后运行几只（默认 20）；
+- `hk_candidate_limit`：港股全市场筛选写入 `ranking_hk.csv` 的候选数（默认 100）；
+- `hk_limit`：港股候选池中实际生成报告的只数（默认 20）；
 - `hk_llm_top_n`：港股前 N 只启用 LLM 研究（默认 20），与 A 股预算独立；
 - `hk_codes`：可选手工覆盖清单；留空 `[]` 时走全市场筛选，填代码时只跑清单；
 - 港股筛选会避开美元报表公司（如汇丰、友邦）；项目只支持 CNY/HKD 报表币种，
   遇到 USD 报表会在逐票 `run` 阶段失败并记录，不做伪造折算；
 - `llm_top_n`：A 股前 N 只调用 `--with-research`；默认 20，全部尝试；
 - `research_retries`：LLM 输出校验失败时的重试次数（默认 1）；仍失败则回退确定性；
+- `report_workers`：逐票报告并发数（默认 1；生产 4）；
+- `resume`：同日重跑时跳过 `status=ok` 且报告已存在的股票（默认 false；生产 true）；
 - `rf`：留空使用 provider；固定值用字符串，例如 `"2.0"`；
 - `refresh_market`：每日绕过 7 天行情缓存；
 - `screen_attempts/retry_seconds`：交易日未更新时的重试策略。

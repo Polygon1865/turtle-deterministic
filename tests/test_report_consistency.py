@@ -142,6 +142,19 @@ class TestMetricRegistry:
         text, _ = render()
         assert "未包含 LLM 定性判断" not in text
 
+    def test_research_note_replaces_empty_section(self):
+        ctx, results = make_context()
+        text = render_analysis(
+            ctx,
+            results,
+            settings=load_settings(),
+            snapshot_id="test",
+            rf_source="test",
+            research_note="LLM 研究未采用（json_invalid），已回退确定性报告",
+        )
+        assert "LLM 研究未采用（json_invalid）" in text
+        assert "未提供 `research.json`" not in text
+
     def test_ttm_data_basis_is_visible(self):
         ctx, results = make_context()
         ttm_ctx = replace(

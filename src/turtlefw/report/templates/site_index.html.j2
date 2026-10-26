@@ -231,7 +231,7 @@
         <h3>{{ r.name or r.code }}</h3>
         <div class="ticker"><code>{{ r.code }}</code><span class="market-chip {{ 'hk' if r.market == 'HK' else '' }}">{{ r.market or 'A' }}</span>{% if r.industry %} · {{ r.industry }}{% endif %}</div>
         <p class="thesis">
-          {% if r.thesis %}{{ r.thesis }}{% elif r.research == 'on' %}LLM 研究已完成，正文见报告。{% else %}确定性报告；未启用 LLM 研究。{% endif %}
+          {% if r.thesis %}{{ r.thesis }}{% elif r.research == 'on' %}LLM 研究已完成，正文见报告。{% elif r.research == 'fallback' %}LLM 研究回退：{{ r.research_reason or '未通过预检' }}。{% else %}确定性报告；未启用 LLM 研究。{% endif %}
         </p>
         <dl>
           <div><dt>安全边际</dt><dd>{{ r.margin or '—' }}</dd></div>
@@ -267,7 +267,7 @@
             <td><span class="market-chip {{ 'hk' if r.market == 'HK' else '' }}">{{ r.market or 'A' }}</span></td>
             <td class="hide-mobile">{{ r.industry or '—' }}</td>
             <td>{% if r.status == 'failed' %}<span class="badge status-bad" title="{{ r.error }}">FAILED</span>{% else %}<span class="badge {{ 'status-ok' if r.qa == 'PASS' else ('status-warn' if r.qa == 'WARN' else 'status-bad') }}">{{ r.qa }}</span>{% endif %}</td>
-            <td class="hide-mobile">{{ 'LLM' if r.research == 'on' else '确定性' }}</td>
+            <td class="hide-mobile">{% if r.research == 'on' %}<span class="badge status-ok">LLM</span>{% elif r.research == 'fallback' %}<span class="badge status-warn" title="{{ r.research_reason }}">回退</span>{% else %}确定性{% endif %}</td>
             <td class="num">{{ r.numeric_coverage or '—' }}</td>
             <td class="num hide-mobile">{{ r.margin or '—' }}</td>
             <td>{% if r.report_href %}<a href="{{ r.report_href }}">打开</a>{% else %}<span class="muted">—</span>{% endif %}</td>
@@ -332,7 +332,7 @@
   </section>
 
   <footer>
-    <span>生成于 {{ generated_at }} · {{ day }}</span>
+    <span>生成于 {{ generated_at }} · {{ day }}{% if screen_source %} · 数据源 {{ screen_source }}{% endif %}</span>
     <span><a href="{{ ranking_href }}">ranking.csv</a> · <a href="{{ deep_href }}">ranking_deep.csv</a>{% if ranking_hk_href %} · <a href="{{ ranking_hk_href }}">ranking_hk.csv</a>{% endif %} · <a href="{{ health_href }}">health.txt</a></span>
   </footer>
 </main>

@@ -16,9 +16,18 @@ from ..paths import output_root
 from ..pdf.fact_hash import pdf_facts_hash
 from ..qualitative import load as load_qualitative
 from ..qualitative import to_dict as qualitative_to_dict
-from ..research import engine_decisions, snapshot_audit
+from ..research import (
+    engine_decisions,
+    normalize_document_placeholders,
+    snapshot_audit,
+)
 from ..research import load as load_research
-from ..research import quality as research_quality
+from ..research import (
+    quality as research_quality,
+)
+from ..research import (
+    to_payload as research_to_payload,
+)
 from ..types import Currency, Money, StockCode
 from . import snapshot as snap
 from .html import convert_file
@@ -55,6 +64,7 @@ def finalize_research(
         raise FinalizeError(f"out 已存在：{target}")
 
     document = load_research(research_file)
+    document, _unresolved = normalize_document_placeholders(document)
     quality = research_quality(document)
     covered = quality["covered_dimensions"]
     if len(document.claims) < min_claims:
@@ -68,7 +78,10 @@ def finalize_research(
     decisions = engine_decisions(document, allow=allow_research_decisions)
 
     shutil.copytree(source, target)
-    (target / "research.json").write_bytes(research_file.read_bytes())
+    (target / "research.json").write_text(
+        json.dumps(research_to_payload(document), ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     provenance = research_file.with_name("research_provenance.json")
     if provenance.is_file():
         shutil.copyfile(provenance, target / "research_provenance.json")

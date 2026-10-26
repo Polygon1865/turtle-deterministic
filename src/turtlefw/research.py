@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -234,6 +234,104 @@ class ResearchDocument:
     evidence: dict[str, dict[str, object]]
     params: tuple[ResearchParam, ...] = ()
     decisions: tuple[ResearchDecision, ...] = ()
+
+
+_METRIC_ALIASES = {
+    "payout_spread": "policy.payout_spread",
+    "floor_divergence": "floor.divergence",
+    "floor_premium_veto": "policy.floor_premium_veto",
+    "payout.mean": "payout.mean",
+}
+
+
+def canonical_metric_id(key: str, allowed: Iterable[str] = ()) -> str:
+    """Resolve a common LLM shorthand to a registered metric id.
+
+    LLMs sometimes emit ``{{metric:payout_spread}}`` instead of the registered
+    ``policy.payout_spread``.  This is a narrow compatibility layer, not a
+    numeric fallback: unresolved ids are still reported to the caller.
+    """
+
+    clean = str(key).strip().strip("?").strip()
+    aliases = set(allowed)
+    if clean in aliases:
+        return clean
+    alias = _METRIC_ALIASES.get(clean)
+    if alias and (not aliases or alias in aliases):
+        return alias
+    suffix = [item for item in aliases if item.rsplit(".", 1)[-1] == clean]
+    if len(suffix) == 1:
+        return suffix[0]
+    underscored = [item for item in aliases if item.replace(".", "_") == clean]
+    if len(underscored) == 1:
+        return underscored[0]
+    return alias or clean
+
+
+def normalize_placeholders(text: str, allowed: Iterable[str] = ()) -> str:
+    """Normalize metric placeholders; leave facts and unknown ids untouched."""
+
+    allowed_ids = tuple(dict.fromkeys(str(item) for item in allowed))
+
+    def replace_match(match: re.Match[str]) -> str:
+        kind, raw = match.group(1), match.group(2)
+        if kind != "metric":
+            return match.group(0)
+        return "{{metric:" + canonical_metric_id(raw, allowed_ids) + "}}"
+
+    return _PLACEHOLDER.sub(replace_match, text)
+
+
+def normalize_document_placeholders(
+    document: ResearchDocument,
+    allowed: Iterable[str] = (),
+) -> tuple[ResearchDocument, tuple[str, ...]]:
+    """Normalize aliases in claims/params/decisions and report unresolved ids."""
+
+    allowed_ids = set(str(item) for item in allowed)
+
+    def convert(text: str) -> str:
+        return normalize_placeholders(text, allowed_ids)
+
+    claims = tuple(
+        replace(
+            claim,
+            statement=convert(claim.statement),
+            unknowns=tuple(convert(item) for item in claim.unknowns),
+        )
+        for claim in document.claims
+    )
+    params = tuple(replace(param, value=convert(param.value)) for param in document.params)
+    decisions = tuple(
+        replace(
+            decision,
+            metric_id=canonical_metric_id(decision.metric_id, allowed_ids),
+            reason=convert(decision.reason),
+        )
+        for decision in document.decisions
+    )
+    normalized = replace(
+        document,
+        claims=claims,
+        params=params,
+        decisions=decisions,
+    )
+    unresolved: list[str] = []
+    if allowed_ids:
+        texts = [
+            *(claim.statement for claim in normalized.claims),
+            *(param.value for param in normalized.params),
+            *(decision.reason for decision in normalized.decisions),
+        ]
+        for text in texts:
+            for match in _PLACEHOLDER.finditer(text):
+                if match.group(1) != "metric":
+                    continue
+                key = match.group(2).strip()
+                if key not in allowed_ids:
+                    unresolved.append(key)
+    return normalized, tuple(dict.fromkeys(unresolved))
+
 
 
 def _raw_numbers(text: str) -> list[str]:

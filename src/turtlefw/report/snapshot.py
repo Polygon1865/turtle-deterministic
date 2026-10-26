@@ -96,6 +96,7 @@ class ReportInputs:
     fundamental_extras: dict[str, Any] = field(default_factory=dict)
     industry_name: str = ""
     market_extras: dict[str, Any] = field(default_factory=dict)
+    research_note: str = ""
 
 
 def inputs_to_dict(inputs: ReportInputs) -> dict[str, Any]:
@@ -168,6 +169,7 @@ def inputs_to_dict(inputs: ReportInputs) -> dict[str, Any]:
         "fundamental_extras": inputs.fundamental_extras,
         "industry_name": inputs.industry_name,
         "market_extras": inputs.market_extras,
+        "research_note": inputs.research_note,
     }
 
 
@@ -250,6 +252,7 @@ def inputs_from_dict(payload: dict[str, Any]) -> ReportInputs:
         fundamental_extras=dict(payload.get("fundamental_extras") or {}),
         industry_name=str(payload.get("industry_name", "")),
         market_extras=dict(payload.get("market_extras") or {}),
+        research_note=str(payload.get("research_note", "")),
     )
 
 
@@ -629,6 +632,15 @@ def render(
                 if isinstance(value, dict) and value.get("display")
             }
         )
+        from ..research import normalize_document_placeholders
+
+        research_document, unresolved = normalize_document_placeholders(
+            research_document, metric_map
+        )
+        if unresolved:
+            raise ValueError(
+                "unresolved metric placeholders: " + ", ".join(unresolved)
+            )
         research_md = render_markdown(research_document, metric_map, fact_map)
         section_map = render_dimensions(research_document, metric_map, fact_map)
         research_sections = [
@@ -654,6 +666,7 @@ def render(
         research_meta_md=research_meta_md,
         research_summary_md=research_summary_md,
         research_thesis_md=research_thesis_md,
+        research_note=inputs.research_note,
         metrics_out=metrics_out,
         resolved_md=resolve_markdown(inputs.resolved_facts),
         document_facts=inputs.document_facts,

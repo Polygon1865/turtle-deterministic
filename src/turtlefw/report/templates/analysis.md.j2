@@ -153,6 +153,8 @@
 {% endfor %}
 {% elif research_md %}
 {{ research_md }}
+{% elif research_note %}
+> {{ research_note }}
 {% else %}
 未提供 `research.json`；本节为空，不影响确定性结论。
 {% endif %}

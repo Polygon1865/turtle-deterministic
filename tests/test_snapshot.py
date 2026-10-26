@@ -531,6 +531,7 @@ def test_snapshot_carries_extras_and_manifest_hash(tmp_path):
         fundamental_extras=extras,
         industry_name="食品饮料",
         market_extras=market,
+        research_note="LLM 研究未采用（json_invalid），已回退确定性报告",
         industry_peers=[
             {
                 "code": "600519.SH",
@@ -544,6 +545,7 @@ def test_snapshot_carries_extras_and_manifest_hash(tmp_path):
     assert loaded.fundamental_extras == extras
     assert loaded.industry_name == "食品饮料"
     assert loaded.market_extras == market
+    assert loaded.research_note.startswith("LLM 研究未采用")
     assert loaded.industry_peers == inputs.industry_peers
 
     manifest = build_manifest(inputs, settings, tmp_path)

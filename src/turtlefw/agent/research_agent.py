@@ -11,7 +11,11 @@ import re
 from dataclasses import dataclass
 from typing import Any, Mapping, Protocol
 
-from ..research import ResearchDocument, load_payload
+from ..research import (
+    ResearchDocument,
+    load_payload,
+    normalize_document_placeholders,
+)
 from .research_prompt import SYSTEM_PROMPT
 
 _CJK = re.compile(r"[\u4e00-\u9fff]")
@@ -85,6 +89,21 @@ class ResearchAgent:
                 current = {
                     **current,
                     "quality_feedback": f"invalid research output: {exc}",
+                }
+                continue
+            metrics = current.get("metrics")
+            allowed = tuple(metrics) if isinstance(metrics, Mapping) else ()
+            document, unresolved = normalize_document_placeholders(document, allowed)
+            if unresolved:
+                last_error = AgentError(
+                    "unresolved metric placeholders: " + ", ".join(unresolved)
+                )
+                current = {
+                    **current,
+                    "quality_feedback": (
+                        f"{last_error}. Use only metric ids present in the "
+                        "provided metrics object, e.g. {{metric:policy.payout_spread}}."
+                    ),
                 }
                 continue
             stats = quality(document)

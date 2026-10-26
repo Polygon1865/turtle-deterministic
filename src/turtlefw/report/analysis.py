@@ -86,6 +86,7 @@ def render_analysis(
     fundamental_extras: Mapping[str, Any] | None = None,
     industry_name: str = "",
     market_extras: Mapping[str, Any] | None = None,
+    research_note: str = "",
 ) -> str:
     verdict, reason = final_verdict(results)
     rows = ctx.rows
@@ -434,6 +435,7 @@ def render_analysis(
         "research_meta_md": research_meta_md,
         "research_summary_md": research_summary_md,
         "research_thesis_md": research_thesis_md,
+        "research_note": research_note,
         "resolved_md": resolved_md,
         "snapshot_id": snapshot_id,
         "verdict": verdict,

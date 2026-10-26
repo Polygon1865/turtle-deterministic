@@ -323,10 +323,11 @@ turtle sec-audit --snapshot .runs\AAPL.US\snapshot --ticker AAPL
 Task Scheduler、Caddy、Cloudflare Tunnel/Access、3 天验收和回滚步骤见
 [docs/daily-server.md](docs/daily-server.md)；站点信息架构与后续视觉方案见
 [docs/site-design.md](docs/site-design.md)。站点首页现已提供“今日概览 + 优先看 +
-20 份 A 股报告 + 20 份港股报告 + 100 A 股候选 / 20 港股候选”，支持日期 tab、A/港股市场 tab、
+20 份 A 股报告 + 20 份港股报告 + 100 A 股候选 / 100 港股候选”，支持日期 tab、A/港股市场 tab、
 搜索、通道筛选和排序；候选 CSV 随 release 发布。每日结果按日期归档，页面顶部日期
 tab 可切换历史，`site/current` 只指向最新版本。报告页会明确标记“LLM 研究”或
-“确定性报告”，避免把含 LLM 研究的报告误读为纯确定性报告。
+“确定性报告”，避免把含 LLM 研究的报告误读为纯确定性报告。LLM 失败会在站点标为
+“回退”并给出原因码；`health.txt` 同时统计 `llm_on/llm_fallback/llm_off`。
 
 ---
 
@@ -558,7 +559,7 @@ src/turtlefw/
 当前基线：
 
 ```text
-565 tests passed
+572 tests passed
 ```
 
 CI：pytest + selected ruff + selected mypy，见

@@ -15,6 +15,7 @@ from turtlefw.daily import (
     DailyPaths,
     build_hk_screen_command,
     build_screen_command,
+    classify_research_failure,
     daily_lock,
     extract_trade_date,
     load_config,
@@ -115,11 +116,13 @@ def test_screen_command_contains_global_refresh(tmp_path: Path) -> None:
 def test_hk_screen_command_uses_market_wide_screen(tmp_path: Path) -> None:
     paths = _paths(tmp_path)
     command = build_hk_screen_command(
-        paths, DailyConfig(hk_limit=7, refresh_market=True), "20261023"
+        paths,
+        DailyConfig(hk_limit=7, hk_candidate_limit=100, refresh_market=True),
+        "20261023",
     )
     assert "--market" in command
     assert command[command.index("--market") + 1] == "HK"
-    assert command[command.index("--fast-limit") + 1] == "7"
+    assert command[command.index("--fast-limit") + 1] == "100"
     assert command[command.index("--as-of") + 1] == "20261023"
     assert command[command.index("--csv") + 1].endswith("ranking_hk.csv")
 
@@ -228,6 +231,10 @@ def test_run_stock_falls_back_when_research_fails(tmp_path: Path) -> None:
     assert record["status"] == "ok"
     assert record["research"] == "fallback"
     assert record["research_error"] == "LLM unavailable"
+    assert record["research_reason_code"] == "llm_error"
+    assert record["research_reason"]
+    assert record["research_failed"]
+    assert (code_dir / "research_failed" / "research.json").is_file()
     assert not (code_dir / "research.json").exists()
     assert not (code_dir / "research_provenance.json").exists()
     assert not (code_dir / "snapshot" / "research.json").exists()
@@ -235,6 +242,7 @@ def test_run_stock_falls_back_when_research_fails(tmp_path: Path) -> None:
     assert "--with-research" in commands[0]
     assert "--research-retries" in commands[0]
     assert "--with-research" not in commands[1]
+    assert "--research-note" in commands[1]
 
 
 def test_run_daily_without_screen(tmp_path: Path) -> None:
@@ -258,6 +266,53 @@ def test_run_daily_without_screen(tmp_path: Path) -> None:
     assert len(result["stocks"]) == 2
     assert paths.status_path.is_file()
     assert not paths.lock_path.exists()
+
+
+def test_run_daily_resumes_completed_stocks_and_keeps_attempt(tmp_path: Path) -> None:
+    paths = _paths(tmp_path)
+    paths.day_dir.mkdir(parents=True)
+    report = paths.day_dir / "600887.SH" / "analysis_report.md"
+    report.parent.mkdir(parents=True)
+    report.write_text("# report\n", encoding="utf-8")
+    paths.status_path.write_text(
+        '{"stocks":[{"code":"600887.SH","rank":1,"status":"ok","qa":"PASS",'
+        '"research":"off"},{"code":"000858.SZ","rank":2,"status":"failed",'
+        '"qa":"FAIL","research":"off"}]}',
+        encoding="utf-8",
+    )
+    commands: list[list[str]] = []
+
+    def fake(command: list[str], cwd: Path, timeout: int) -> CommandResult:
+        commands.append(list(command))
+        code = command[command.index("run") + 1]
+        _write_success(paths.day_dir / code)
+        return CommandResult(tuple(command), 0, "ok")
+
+    result = run_daily(
+        paths,
+        DailyConfig(top_n=2, resume=True),
+        codes=["600887.SH", "000858.SZ"],
+        skip_screen=True,
+        publish=False,
+        run_command=fake,
+        sleep=lambda seconds: None,
+    )
+    assert result["ok"] is True
+    assert result["resumed"] == 1
+    assert len(commands) == 1
+    assert len(result["stocks"]) == 2
+    attempt = paths.day_dir / "attempts" / result["attempt_id"] / "status.json"
+    assert attempt.is_file()
+
+
+def test_classify_research_failure_codes() -> None:
+    assert classify_research_failure("LLM response is not valid JSON") == "json_invalid"
+    assert (
+        classify_research_failure("unresolved placeholder {{metric:x}}")
+        == "placeholder"
+    )
+    assert classify_research_failure("numeric gate 未通过：coverage=0.9994") == "numeric_gate"
+    assert classify_research_failure("LLM unavailable") == "llm_error"
 
 
 def test_run_daily_skips_weekend_without_allow_stale(tmp_path: Path) -> None:

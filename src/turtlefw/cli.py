@@ -2385,6 +2385,7 @@ def _run_cmd(
     research_api_key: str | None = None,
     pdf_index: str | None = None,
     research_max_input_tokens: int | None = None,
+    research_note: str = "",
 ) -> int:
     """One command: fetch once -> optional research -> pack/report -> QA."""
     import os
@@ -2631,6 +2632,7 @@ def _run_cmd(
             footnotes,
             pdf_sections,
             allow_research_decisions,
+            research_note=research_note,
         )
         if rc != 0:
             print(f"run 在 report 阶段失败：{rc}", file=sys.stderr)
@@ -2776,6 +2778,7 @@ def _report(
     footnotes_path: str | None = None,
     pdf_sections_path: str | None = None,
     allow_research_decisions: bool = False,
+    research_note: str = "",
 ) -> int:
     from .data.tushare_provider import TushareProvider
     from .metrics import statements
@@ -3036,6 +3039,7 @@ def _report(
             fact_rows=list(pdf_payload.get("fact_rows", [])),
             dps_fact=pdf_payload.get("dps"),
         )
+        inputs.research_note = research_note
         extras, extras_error = _load_fundamental_extras(provider, code)
         inputs.fundamental_extras = extras
         inputs.industry_name = _industry_name(extras)
@@ -3586,6 +3590,7 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("--save-snapshot", default=None, help="把报告输入冻结到目录")
     report.add_argument("--snapshot", default=None, help="从冻结的 snapshot 目录离线渲染")
     report.add_argument("--research", default=None, help="D1-D6 research.json 路径")
+    report.add_argument("--research-note", default="", help="研究回退说明")
     report.add_argument("--as-of", default=None, help="近似 PIT 日期（YYYY-MM-DD）")
     report.add_argument("--ttm", action="store_true", help="用最新 interim 构造 TTM 年度行")
     report.add_argument("--pit", action="store_true", help="从本地 PIT 库读取 as-of 财务")
@@ -3613,6 +3618,11 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--footnotes", default=None, help="footnotes.json")
     run.add_argument("--pdf-sections", default=None, help="pdf_sections.json")
     run.add_argument("--research", default=None, help="research.json（可选）")
+    run.add_argument(
+        "--research-note",
+        default="",
+        help="写入报告第十一节的回退说明（如 LLM 研究未采用）",
+    )
     run.add_argument(
         "--with-research",
         action="store_true",
@@ -3988,6 +3998,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.research_api_key,
                 args.pdf_index,
                 args.research_max_input_tokens,
+                args.research_note,
             )
         if args.command == "analyze":
             return _demo_analyze() if args.demo else _live_analyze(
@@ -4098,6 +4109,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.evidence,
                 args.html,
                 args.allow_research_decisions,
+                research_note=args.research_note,
             )
         if args.command == "valuation":
             return _valuation(

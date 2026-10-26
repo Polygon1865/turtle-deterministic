@@ -12,6 +12,7 @@ import csv
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -96,6 +97,7 @@ class DailyConfig:
     markets: tuple[str, ...] = ("A",)
     hk_codes: tuple[str, ...] = ()
     hk_limit: int = 20
+    hk_candidate_limit: int = 100
     hk_llm_top_n: int = 3
     rf: str | None = None
     rf_source: str = ""
@@ -104,12 +106,14 @@ class DailyConfig:
     screen_attempts: int = 3
     retry_seconds: int = 1_800
     workers: int = 1
+    report_workers: int = 1
     api_interval: float = 0.35
     stock_timeout_seconds: int = 1_800
     screen_timeout_seconds: int = 1_800
     refresh_market: bool = True
     allow_stale: bool = False
     publish_partial: bool = True
+    resume: bool = False
     project_root: str = "."
 
 
@@ -447,6 +451,18 @@ def daily_lock(path: Path, *, stale_after_seconds: int = 6 * 3600) -> Iterator[N
             pass
 
 
+def _archive_attempt(paths: DailyPaths, status: dict[str, Any]) -> None:
+    attempt_id = str(status.get("attempt_id") or "")
+    if not attempt_id or not paths.status_path.is_file():
+        return
+    attempt_dir = paths.day_dir / "attempts" / attempt_id
+    try:
+        attempt_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(paths.status_path, attempt_dir / "status.json")
+    except OSError:
+        return
+
+
 def _notify(config: DailyConfig, payload: dict[str, Any]) -> None:
     webhook = os.environ.get("TURTLE_NOTIFY_WEBHOOK", "").strip()
     if not webhook:
@@ -464,6 +480,60 @@ def _notify(config: DailyConfig, payload: dict[str, Any]) -> None:
     except (OSError, urllib.error.URLError):
         # Notification failure must never invalidate a completed pipeline.
         return
+
+
+def classify_research_failure(text: str) -> str:
+    """Map an LLM/finalize error to a stable, displayable reason code."""
+
+    lowered = text.lower()
+    if "not valid json" in lowered or "json output" in lowered:
+        return "json_invalid"
+    if "unresolved placeholder" in lowered or "unresolved metric" in lowered:
+        return "placeholder"
+    if "numeric gate" in lowered or "coverage" in lowered:
+        return "numeric_gate"
+    if "timeout" in lowered or "timed out" in lowered:
+        return "timeout"
+    if "language" in lowered or "simplified chinese" in lowered:
+        return "language"
+    if "quality" in lowered or "claims" in lowered:
+        return "quality"
+    if "api key" in lowered or "model" in lowered or "http" in lowered or "llm" in lowered:
+        return "llm_error"
+    return "research_error"
+
+
+def _preserve_failed_research(code_dir: Path, error: str, reason: str) -> Path:
+    """Keep failed LLM artifacts before the deterministic fallback deletes them."""
+
+    target = code_dir / "research_failed"
+    target.mkdir(parents=True, exist_ok=True)
+    copied: list[str] = []
+    for relative in (
+        "research.json",
+        "research.usage.json",
+        "research_audit.json",
+        "research_provenance.json",
+        "snapshot/research.json",
+        "snapshot/research.usage.json",
+        "snapshot/research_audit.json",
+    ):
+        source = code_dir / relative
+        if not source.is_file():
+            continue
+        destination = target / relative.replace("/", "_")
+        shutil.copyfile(source, destination)
+        copied.append(str(destination))
+    payload = {
+        "reason": reason,
+        "error": error,
+        "files": copied,
+        "captured_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    (target / "failure.json").write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    return target
 
 
 def run_stock(
@@ -494,7 +564,10 @@ def run_stock(
         "status": "failed",
         "qa": "UNKNOWN",
         "research": "off",
+        "research_reason": "",
+        "research_reason_code": "",
         "research_error": "",
+        "research_failed": "",
         "pdf": "none",
         "pdf_error": "",
         "snapshot_id": "",
@@ -529,10 +602,8 @@ def run_stock(
         if market == "HK"
         else rank <= config.llm_top_n
     )
-    if wants_research:
-        record["research"] = "attempted"
 
-    def command(with_research: bool) -> list[str]:
+    def command(with_research: bool, note: str = "") -> list[str]:
         args = _python_command(paths.day_dir, "run", code, "--strict")
         if config.rf:
             args.extend(["--rf", config.rf])
@@ -550,6 +621,8 @@ def run_stock(
                     str(config.research_retries),
                 ]
             )
+        elif note:
+            args.extend(["--research-note", note])
         return args
 
     result = run_command(
@@ -557,11 +630,21 @@ def run_stock(
     )
     _append_log(log_path, "run", result)
     if wants_research and not result.ok:
+        error = _tail(result.stderr or result.stdout)
+        reason = classify_research_failure(error)
         record["research"] = "fallback"
-        record["research_error"] = _tail(result.stderr or result.stdout)
+        record["research_reason_code"] = reason
+        record["research_reason"] = (
+            f"LLM 研究未采用（{reason}），已回退确定性报告"
+        )
+        record["research_error"] = error
+        failed_dir = _preserve_failed_research(code_dir, error, reason)
+        record["research_failed"] = str(failed_dir)
         _clear_research_outputs(code_dir)
         result = run_command(
-            command(False), Path(config.project_root), config.stock_timeout_seconds
+            command(False, record["research_reason"]),
+            Path(config.project_root),
+            config.stock_timeout_seconds,
         )
         _append_log(log_path, "run-fallback", result)
     elif wants_research:
@@ -572,6 +655,19 @@ def run_stock(
     record["qa"] = qa_status(qa_path)
     record["snapshot_id"], record["numeric_coverage"] = _manifest_summary(manifest_path)
     record["elapsed_seconds"] = round(time.monotonic() - started, 2)
+    for usage_path in (
+        code_dir / "research.usage.json",
+        code_dir / "snapshot" / "research.usage.json",
+    ):
+        if not usage_path.is_file():
+            continue
+        try:
+            usage = json.loads(usage_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(usage, dict):
+            record["research_usage"] = usage
+        break
     if result.returncode != 0:
         record["error"] = _tail(result.stderr or result.stdout)
     elif record["qa"] == "FAIL":
@@ -614,7 +710,7 @@ def build_hk_screen_command(
             "HK",
             "--fast",
             "--fast-limit",
-            str(config.hk_limit),
+            str(config.hk_candidate_limit),
             "--api-interval",
             str(config.api_interval),
             "--csv",
@@ -645,7 +741,9 @@ def _screen_hk(
     if trade_date and parsed_date != trade_date and not config.allow_stale:
         return False, f"HK screen did not reach trade date {trade_date}", []
     try:
-        rows = parse_ranking(paths.day_dir / "ranking_hk.csv", limit=config.hk_limit)
+        rows = parse_ranking(
+            paths.day_dir / "ranking_hk.csv", limit=config.hk_candidate_limit
+        )
     except DailyError as exc:
         return False, str(exc), []
     for row in rows:
@@ -683,6 +781,18 @@ def _screen(
     return False, f"screen did not reach trade date {expected}", []
 
 
+def _ranking_source(path: Path) -> str:
+    if not path.is_file():
+        return ""
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            source = str(row.get("source") or "").strip()
+            if source:
+                return source
+    return ""
+
+
 def run_daily(
     paths: DailyPaths,
     config: DailyConfig | None = None,
@@ -698,16 +808,29 @@ def run_daily(
     config = config or DailyConfig()
     paths.day_dir.mkdir(parents=True, exist_ok=True)
     started_at = datetime.now().isoformat(timespec="seconds")
+    attempt_id = datetime.now().strftime("%Y%m%dT%H%M%S")
     status: dict[str, Any] = {
         "date": paths.day.isoformat(),
+        "attempt_id": attempt_id,
         "started_at": started_at,
         "finished_at": "",
         "trade_date": "",
+        "as_of": paths.day.isoformat(),
+        "screen_source": "",
         "screen": "skipped" if skip_screen else "pending",
         "stocks": [],
         "site": None,
+        "llm_usage": {},
         "ok": False,
     }
+    if config.resume and paths.status_path.is_file():
+        try:
+            prior = json.loads(paths.status_path.read_text(encoding="utf-8"))
+            prior_stocks = prior.get("stocks")
+            if isinstance(prior_stocks, list):
+                status["stocks"] = [row for row in prior_stocks if isinstance(row, dict)]
+        except (OSError, json.JSONDecodeError):
+            status["stocks"] = []
 
     with daily_lock(paths.lock_path):
         # The Windows task runs every calendar day.  Do not let a weekend run
@@ -729,6 +852,7 @@ def run_daily(
                 }
             )
             _write_json(paths.status_path, status)
+            _archive_attempt(paths, status)
             return status
         markets = {str(item).upper() for item in config.markets}
         if not markets or not markets <= {"A", "HK"}:
@@ -766,6 +890,11 @@ def run_daily(
                     }
                 )
             status["trade_date"] = expected_trade_date(paths.day)
+            status["screen_source"] = (
+                _ranking_source(paths.day_dir / "ranking_deep.csv")
+                or _ranking_source(paths.day_dir / "ranking_hk.csv")
+                or "manual:codes"
+            )
         else:
             ranking = []
             if "A" in markets:
@@ -780,6 +909,7 @@ def run_daily(
                     status["error"] = detail
                     status["finished_at"] = datetime.now().isoformat(timespec="seconds")
                     _write_json(paths.status_path, status)
+                    _archive_attempt(paths, status)
                     _notify(config, status)
                     return status
                 for entry in screened:
@@ -787,6 +917,9 @@ def run_daily(
                     entry["market"] = "A"
                     entry["research_rank"] = entry.get("rank", "")
                     ranking.append(entry)
+                status["screen_source"] = _ranking_source(
+                    paths.day_dir / "ranking_deep.csv"
+                ) or "tushare:screen"
             else:
                 status["screen"] = "skipped"
                 status["trade_date"] = expected_trade_date(paths.day)
@@ -810,28 +943,78 @@ def run_daily(
                             timespec="seconds"
                         )
                         _write_json(paths.status_path, status)
+                        _archive_attempt(paths, status)
                         _notify(config, status)
                         return status
                 start = len(ranking) + 1
-                for index, entry in enumerate(hk_entries):
+                for index, entry in enumerate(hk_entries[: config.hk_limit]):
                     entry = dict(entry)
                     entry["rank"] = str(start + index)
                     entry["research_rank"] = str(index + 1)
                     ranking.append(entry)
+                hk_source = _ranking_source(paths.day_dir / "ranking_hk.csv")
+                if hk_source:
+                    status["screen_source"] = (
+                        f"{status['screen_source']}; {hk_source}"
+                        if status["screen_source"]
+                        else hk_source
+                    )
 
-        for entry in ranking:
-            record = run_stock(
-                entry["code"],
-                int(entry["rank"]),
-                paths,
-                config,
-                run_command=run_command,
-                market=str(entry.get("market", "A")),
-                research_rank=int(entry.get("research_rank", entry["rank"])),
-            )
+        completed: set[str] = set()
+        for row in status["stocks"]:
+            if row.get("status") != "ok":
+                continue
+            code = str(row.get("code"))
+            code_dir = paths.day_dir / code
+            if (code_dir / "analysis_report.md").is_file() or (
+                code_dir / "analysis_report.html"
+            ).is_file():
+                completed.add(code)
+        status["stocks"] = [
+            row for row in status["stocks"] if str(row.get("code")) in completed
+        ]
+        pending = [entry for entry in ranking if str(entry["code"]) not in completed]
+        status["resumed"] = len(ranking) - len(pending)
+
+        def run_one(entry: dict[str, str]) -> dict[str, Any]:
+            try:
+                record = run_stock(
+                    entry["code"],
+                    int(entry["rank"]),
+                    paths,
+                    config,
+                    run_command=run_command,
+                    market=str(entry.get("market", "A")),
+                    research_rank=int(entry.get("research_rank", entry["rank"])),
+                )
+            except Exception as exc:  # noqa: BLE001
+                record = {
+                    "code": entry["code"],
+                    "rank": entry["rank"],
+                    "market": entry.get("market", "A"),
+                    "status": "failed",
+                    "qa": "UNKNOWN",
+                    "error": _tail(f"{type(exc).__name__}: {exc}"),
+                    "research": "off",
+                }
             record["name"] = entry.get("name", "")
-            status["stocks"].append(record)
-            _write_json(paths.status_path, status)
+            return record
+
+        if config.report_workers > 1 and len(pending) > 1:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+
+            with ThreadPoolExecutor(max_workers=config.report_workers) as pool:
+                futures = {pool.submit(run_one, entry): entry for entry in pending}
+                for future in as_completed(futures):
+                    status["stocks"].append(future.result())
+                    status["stocks"].sort(key=lambda row: int(row.get("rank", 0)))
+                    _write_json(paths.status_path, status)
+        else:
+            for entry in pending:
+                status["stocks"].append(run_one(entry))
+                status["stocks"].sort(key=lambda row: int(row.get("rank", 0)))
+                _write_json(paths.status_path, status)
+        status["stocks"].sort(key=lambda row: int(row.get("rank", 0)))
 
         reports = [row for row in status["stocks"] if row["status"] == "ok"]
         failed_stocks = [row for row in status["stocks"] if row["status"] != "ok"]
@@ -858,9 +1041,28 @@ def run_daily(
             status["site"] = "skipped: no successful stock"
 
     failed = [row for row in status["stocks"] if row["status"] != "ok"]
+    usage_rows = [
+        row.get("research_usage")
+        for row in status["stocks"]
+        if isinstance(row.get("research_usage"), dict)
+    ]
+    status["llm_usage"] = {
+        "reports_with_usage": len(usage_rows),
+        "input_tokens": sum(
+            int(row.get("estimated_input_tokens") or 0)
+            for row in usage_rows
+            if isinstance(row, dict)
+        ),
+        "max_input_tokens": sum(
+            int(row.get("max_input_tokens") or 0)
+            for row in usage_rows
+            if isinstance(row, dict)
+        ),
+    }
     status["ok"] = bool(status["stocks"]) and not failed
     status["finished_at"] = datetime.now().isoformat(timespec="seconds")
     _write_json(paths.status_path, status)
+    _archive_attempt(paths, status)
     _notify(config, status)
     return status
 

@@ -56,12 +56,13 @@ class OpenAICompatibleLLM:
     model: str
     api_key: str
     transport: Transport | None = None
+    json_mode: bool = True
 
     def complete(self, system: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
         if not self.api_key:
             raise AgentError("LLM API key is not configured")
         transport = self.transport or UrllibTransport()
-        request = {
+        request: dict[str, Any] = {
             "model": self.model,
             "temperature": 0.2,
             "messages": [
@@ -72,6 +73,8 @@ class OpenAICompatibleLLM:
                 },
             ],
         }
+        if self.json_mode:
+            request["response_format"] = {"type": "json_object"}
         response = transport.post(
             self.base_url.rstrip("/") + "/chat/completions",
             {
@@ -86,10 +89,22 @@ class OpenAICompatibleLLM:
             raise AgentError("LLM response missing choices[0].message.content") from exc
         if isinstance(content, Mapping):
             return dict(content)
+        text = str(content).strip()
+        if text.startswith("```"):
+            text = text.removeprefix("```json").removeprefix("```").strip()
+            if text.endswith("```"):
+                text = text[:-3].strip()
         try:
-            parsed = json.loads(str(content))
+            parsed = json.loads(text)
         except json.JSONDecodeError as exc:
-            raise AgentError("LLM response is not valid JSON") from exc
+            start, end = text.find("{"), text.rfind("}")
+            if start >= 0 and end > start:
+                try:
+                    parsed = json.loads(text[start : end + 1])
+                except json.JSONDecodeError:
+                    raise AgentError("LLM response is not valid JSON") from exc
+            else:
+                raise AgentError("LLM response is not valid JSON") from exc
         if not isinstance(parsed, dict):
             raise AgentError("LLM response must be a JSON object")
         return parsed

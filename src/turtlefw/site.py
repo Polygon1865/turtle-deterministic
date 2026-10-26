@@ -35,6 +35,7 @@ class SiteReport:
     status: str = "unknown"
     qa: str = "UNKNOWN"
     research: str = "off"
+    research_reason: str = ""
     pdf: str = "none"
     snapshot_id: str = ""
     numeric_coverage: str = ""
@@ -154,6 +155,7 @@ def _report_from_dir(code_dir: Path) -> SiteReport:
         status=status,
         qa=qa,
         research="on" if research_path.is_file() else "off",
+        research_reason="",
         snapshot_id=snapshot_id,
         numeric_coverage=coverage,
         report_href=f"{quote(code_dir.name)}.html" if report_path.is_file() else "",
@@ -194,6 +196,7 @@ def collect_reports(day_dir: Path) -> list[SiteReport]:
                     status=str(row.get("status") or "failed"),
                     qa=qa,
                     research=str(row.get("research") or "off"),
+                    research_reason=str(row.get("research_reason") or ""),
                     pdf=str(row.get("pdf") or "none"),
                     snapshot_id=str(row.get("snapshot_id") or ""),
                     numeric_coverage=str(row.get("numeric_coverage") or ""),
@@ -326,6 +329,7 @@ def _report_from_payload(payload: dict[str, Any]) -> SiteReport | None:
         "status": str(payload.get("status") or "failed"),
         "qa": str(payload.get("qa") or "UNKNOWN"),
         "research": str(payload.get("research") or "off"),
+        "research_reason": str(payload.get("research_reason") or ""),
         "pdf": str(payload.get("pdf") or "none"),
         "snapshot_id": str(payload.get("snapshot_id") or ""),
         "numeric_coverage": str(payload.get("numeric_coverage") or ""),
@@ -416,6 +420,7 @@ def _render_index(
     deep_href: str,
     health_href: str,
     ranking_hk_href: str = "",
+    screen_source: str = "",
 ) -> str:
     environment = Environment(
         loader=FileSystemLoader(str(TEMPLATE_DIR)),
@@ -473,6 +478,7 @@ def _render_index(
         deep_href=deep_href,
         health_href=health_href,
         ranking_hk_href=ranking_hk_href,
+        screen_source=screen_source,
     )
 
 
@@ -502,6 +508,20 @@ def _candidate_from_payload(payload: dict[str, Any]) -> Candidate | None:
     )
 
 
+def _copy_report_html(source: Path, destination: Path, back_href: str) -> None:
+    text = source.read_text(encoding="utf-8")
+    for pattern in (
+        r'href="/"',
+        r'href="(?:\.\./)*day/[^"]+/index\.html"',
+    ):
+        replaced, count = re.subn(pattern, f'href="{back_href}"', text)
+        if count:
+            text = replaced
+            break
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(text, encoding="utf-8")
+
+
 def build_site(
     day_dir: Path,
     site_root: Path,
@@ -520,6 +540,7 @@ def build_site(
         raise ValueError(f"no reports to publish: {day_dir}")
     status = _load_json(day_dir / "status.json")
     trade_date = str(status.get("trade_date") or "")
+    screen_source = str(status.get("screen_source") or "")
     label = date_label or day_dir.name
     day_key = _date_key(label)
     release = site_root / "releases" / label
@@ -539,9 +560,14 @@ def build_site(
         source = day_dir / report.code / "analysis_report.html"
         destination = archive / day_key / f"{report.code}.html"
         if source.is_file():
-            shutil.copyfile(source, release / f"{report.code}.html")
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(source, destination)
+            _copy_report_html(
+                source, release / f"{report.code}.html", f"day/{day_key}/index.html"
+            )
+            _copy_report_html(
+                source,
+                destination,
+                f"../../day/{day_key}/index.html",
+            )
             href = f"archive/{day_key}/{quote(report.code)}.html"
         else:
             href = ""
@@ -587,8 +613,11 @@ def build_site(
             href = ""
             if source.is_file():
                 destination = archive / prior_key / f"{report.code}.html"
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(source, destination)
+                _copy_report_html(
+                    source,
+                    destination,
+                    f"../../day/{prior_key}/index.html",
+                )
                 href = f"archive/{prior_key}/{quote(report.code)}.html"
             page_reports.append(
                 replace(
@@ -654,11 +683,16 @@ def build_site(
             else ""
         ),
         health_href="health.txt",
+        screen_source=screen_source,
     )
     (release / "index.html").write_text(index, encoding="utf-8")
 
     passed = sum(report.status == "ok" and report.qa == "PASS" for report in reports)
     failed = len(reports) - passed
+    llm_on = sum(1 for report in reports if report.research == "on")
+    llm_fallback = sum(1 for report in reports if report.research == "fallback")
+    llm_off = len(reports) - llm_on - llm_fallback
+    status_path = day_dir / "status.json"
     health = (
         f"status={'ok' if failed == 0 else ('partial' if passed else 'fail')}\n"
         f"date={label}\n"
@@ -668,10 +702,13 @@ def build_site(
         f"days={len(dates)}\n"
         f"qa_pass={passed}\n"
         f"qa_fail={failed}\n"
+        f"llm_on={llm_on}\n"
+        f"llm_fallback={llm_fallback}\n"
+        f"llm_off={llm_off}\n"
+        f"screen_source={screen_source}\n"
         f"generated_at={generated_at}\n"
     )
     (release / "health.txt").write_text(health, encoding="utf-8")
-    status_path = day_dir / "status.json"
     if status_path.is_file():
         shutil.copyfile(status_path, release / "status.json")
     site_data = {
