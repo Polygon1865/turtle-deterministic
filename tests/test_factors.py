@@ -164,6 +164,28 @@ class TestEngine:
         check = {c.name: c for c in results["1A"].checks}["商业模式未被验证"]
         assert check.status == "veto"
 
+    def test_neutral_moat_is_explicit_not_missing(self):
+        qualitative = Qualitative(
+            items={
+                "moat": Judgment(
+                    module="moat",
+                    judgment="neutral",
+                    confidence="medium",
+                    evidence=(),
+                )
+            }
+        )
+        results = run(replace(context(), qualitative=qualitative))
+        check = {c.name: c for c in results["1A"].checks}["商业模式未被验证"]
+        assert check.status == "pass"
+        assert check.detail.startswith("中性（未形成明确结论")
+
+    def test_missing_moat_is_unverified_not_missing_research(self):
+        results = run(context())
+        check = {c.name: c for c in results["1A"].checks}["商业模式未被验证"]
+        assert check.status == "unknown"
+        assert check.detail == "未验证（无可用证据）"
+
     def test_negative_moat_is_a_trap(self):
         qualitative = Qualitative(
             items={
