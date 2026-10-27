@@ -80,6 +80,32 @@ def test_bridge_ignores_low_confidence_and_unknown():
     assert modules == ()
 
 
+def test_payout_claim_does_not_set_management():
+    doc = _doc(
+        _claim("D4.payout_consistency", "D4", "negative", confidence="medium"),
+        evidence={
+            "e1": {
+                "source_type": "data",
+                "quote": "支付率交叉核对：相对差 30.09% > 15%",
+            }
+        },
+    )
+    result, modules = bridge(doc)
+    assert result is None
+    assert modules == ()
+
+
+def test_management_claim_sets_management():
+    doc = _doc(
+        _claim("D4.management_tenure", "D4", "negative", confidence="medium"),
+        evidence={"e1": {"source_type": "data", "quote": "核心管理层频繁变动"}},
+    )
+    result, modules = bridge(doc)
+    assert result is not None
+    assert modules == ("management",)
+    assert result.get("management").judgment == "negative"  # type: ignore[union-attr]
+
+
 def test_bridge_keeps_human_judgement_and_fills_unknown():
     human = Qualitative(
         items={
@@ -115,3 +141,27 @@ def test_bridge_skips_claims_without_evidence():
     result, modules = bridge(doc)
     assert result is None
     assert modules == ()
+
+
+def test_bridge_rebuilds_derived_base_instead_of_freezing_old_result():
+    doc = _doc(
+        _claim("D4.1", "D4", "positive"),
+        evidence={"e1": {"source_type": "data", "quote": "指标"}},
+    )
+    derived = Qualitative(
+        items={
+            "management": Judgment(
+                module="management",
+                judgment="negative",
+                confidence="high",
+                evidence=(Evidence(url="internal:old", quote="旧结论"),),
+            )
+        },
+        source="research_bridge",
+    )
+    result, modules = bridge(doc, derived)
+    assert result is not None
+    assert result.get("management") is not None
+    assert result.get("management").judgment == "positive"  # type: ignore[union-attr]
+    assert modules == ("management",)
+    assert result.source == "research_bridge"

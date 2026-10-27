@@ -300,10 +300,16 @@ def run_qa(code: str, root: Path | str | None = None, *, allow_missing_qualitati
                 if isinstance(quality, dict)
                 else 0
             )
+            coverage = (
+                float(quality.get("claim_coverage", 0.0))
+                if isinstance(quality, dict)
+                else 0.0
+            )
             add(
                 "research_quality",
                 claims >= 1 and dimensions >= 1,
-                f"claims={claims} dimensions={dimensions}",
+                f"claims={claims} dimensions={dimensions} "
+                f"coverage={coverage:.1%}",
             )
         except Exception as exc:
             add("research_refs", False, str(exc))

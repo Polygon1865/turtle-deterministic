@@ -21,6 +21,20 @@ DIMENSION_MODULES: dict[str, str] = {
 
 _CONFIDENCE_RANK = {"high": 0, "medium": 1, "low": 2}
 _JUDGMENT_RANK = {"negative": 0, "positive": 1, "neutral": 2}
+_D4_NON_MANAGEMENT = ("payout", "buyback", "capital_allocation", "dividend")
+
+
+def _claim_in_scope(dimension: str, claim_id: str) -> bool:
+    """Keep capital-allocation claims out of the management judgement.
+
+    A payout or buyback deviation is useful input for factor 4, but it is not
+    sufficient evidence that management destroys value.  Management stays
+    unknown unless a management/governance claim is available.
+    """
+    if dimension != "D4":
+        return True
+    lowered = claim_id.lower()
+    return not any(token in lowered for token in _D4_NON_MANAGEMENT)
 
 
 def _source_type(raw: dict[str, object]) -> str:
@@ -124,6 +138,10 @@ def bridge(
     """Return an effective qualitative object and the bridged module names."""
     if document is None:
         return base, ()
+    if base is not None and base.source == "research_bridge":
+        # A prior bridge result is derived data, not a human override. Rebuild it
+        # from the current research document so filter/semantic fixes take effect.
+        base = None
 
     items = dict(base.items) if base is not None else {}
     added: list[str] = []
@@ -131,7 +149,12 @@ def bridge(
         existing = items.get(module)
         if existing is not None and existing.judgment != "unknown":
             continue
-        claims = [claim for claim in document.claims if claim.dimension == dimension]
+        claims = [
+            claim
+            for claim in document.claims
+            if claim.dimension == dimension
+            and _claim_in_scope(dimension, claim.claim_id)
+        ]
         result = _aggregate(document, claims)
         if result is None:
             continue

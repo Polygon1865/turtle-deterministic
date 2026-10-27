@@ -32,6 +32,45 @@ _YEAR = re.compile(r"^(19|20)\d{2}$")
 _PLACEHOLDER = re.compile(r"\{\{(metric|fact):([^}]+)\}\}")
 _QUOTE_LIMIT = 400
 _PARTIAL_NUMBER = re.compile(r"\d[\d,.]*$")
+_TABLE_RULE = re.compile(r"^:?-{2,}:?$")
+
+
+def _display_quote(text: str, limit: int = 280) -> str:
+    """Turn a raw data-table quote into a readable one-line excerpt."""
+    chunks: list[str] = []
+    for raw in str(text).splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith("|"):
+            cells = [cell.strip() for cell in line.strip("|").split("|")]
+            if all(cell and _TABLE_RULE.match(cell) for cell in cells):
+                continue
+            line = " · ".join(cell for cell in cells if cell)
+        if line:
+            chunks.append(line)
+    flat = re.sub(r"\s+", " ", " / ".join(chunks)).strip()
+    return _clip_quote(flat, limit)
+
+
+def _evidence_label(item: Mapping[str, object]) -> str:
+    """Use a human label for evidence; never expose internal: ids."""
+    source_type = str(item.get("source_type", "web") or "web").lower()
+    url = str(item.get("url", "") or "").strip()
+    title = str(item.get("title", "") or "").strip()
+    page = str(item.get("page", "") or "").strip()
+    if source_type == "pdf":
+        label = "年报 PDF" if not url else url
+    elif source_type == "data":
+        label = title or "数据包"
+    elif url.startswith(("http://", "https://")):
+        label = url
+    else:
+        label = title or source_type or "证据"
+    if page and page not in label:
+        label = f"{label} · 第 {page} 页"
+    return label
+
 
 
 def render_markdown(
@@ -74,11 +113,12 @@ def render_markdown(
                 evidence = document.evidence.get(evidence_id)
                 if not evidence:
                     continue
-                source = str(evidence.get("url", ""))
-                page = str(evidence.get("page", ""))
-                quote = str(evidence.get("quote", ""))
-                label = f"{source} {page}".strip()
-                lines.append(f"  - 证据：{label} — “{quote}”")
+                label = _evidence_label(evidence)
+                quote = _display_quote(str(evidence.get("quote", "")), 240)
+                if not quote:
+                    continue
+                lines.append(f"  - 证据：{label}")
+                lines.append(f"    > {quote}")
             if claim.unknowns:
                 lines.append(f"  - 未验证：{'、'.join(claim.unknowns)}")
     if document.params:
@@ -152,8 +192,10 @@ def quality(document: ResearchDocument) -> dict[str, Any]:
         if claim.judgment != "unknown" and claim.evidence_ids
     )
     non_unknown = len(document.claims) - unknown
+    total = len(document.claims)
+    claim_coverage = evidence_backed / total if total else 1.0
     return {
-        "claims": len(document.claims),
+        "claims": total,
         "dimensions": dimensions,
         "covered_dimensions": [key for key, count in dimensions.items() if count],
         "unknown": unknown,
@@ -161,6 +203,10 @@ def quality(document: ResearchDocument) -> dict[str, Any]:
         "evidence_ratio": (
             round(evidence_backed / non_unknown, 4) if non_unknown else 1.0
         ),
+        "claim_coverage": round(claim_coverage, 4),
+        "claim_coverage_pct": round(claim_coverage * 100, 1),
+        "unknown_ratio": round(unknown / total, 4) if total else 0.0,
+        "unknown_ratio_pct": round(unknown / total * 100, 1) if total else 0.0,
         "params": len(document.params),
         "decisions": len(document.decisions),
         "evidence": len(document.evidence),
@@ -474,11 +520,19 @@ def audit(
 
 
 def coverage_markdown(document: ResearchDocument) -> str:
-    unknown = sum(1 for claim in document.claims if claim.judgment == "unknown")
+    all_claims = document.claims
+    unknown = sum(1 for claim in all_claims if claim.judgment == "unknown")
+    backed = sum(
+        1
+        for claim in all_claims
+        if claim.judgment != "unknown" and claim.evidence_ids
+    )
+    coverage = backed / len(all_claims) if all_claims else 1.0
     lines = [
         "**研究覆盖**",
         "",
-        f"- claims：{len(document.claims)}（unknown {unknown}）",
+        f"- claims：{len(all_claims)}（unknown {unknown}）",
+        f"- evidence-backed：{backed}/{len(all_claims)}（{coverage:.1%}）",
         f"- params：{len(document.params)}",
         f"- decisions：{len(document.decisions)}",
         f"- evidence：{len(document.evidence)}",
@@ -498,12 +552,25 @@ def coverage_markdown(document: ResearchDocument) -> str:
             f"| {dimension} {label} | {len(claims)} | {dim_unknown} | "
             f"{len(dimension_evidence)} |"
         )
+    if all_claims and coverage < 0.5:
+        lines.extend(
+            [
+                "",
+                f"> **研究覆盖偏低**：{backed}/{len(all_claims)} claims 有证据支撑，"
+                "结论主要来自有限证据，需结合数据缺口阅读。",
+            ]
+        )
     if unknown:
-        lines.append(
-            "- unknown claims："
-            + "、".join(
-                claim.claim_id for claim in document.claims if claim.judgment == "unknown"
-            )
+        lines.extend(
+            [
+                "",
+                "- unknown claims："
+                + "、".join(
+                    claim.claim_id
+                    for claim in document.claims
+                    if claim.judgment == "unknown"
+                ),
+            ]
         )
     return "\n".join(lines)
 
@@ -516,6 +583,8 @@ def _clip_quote(text: str, limit: int = _QUOTE_LIMIT) -> str:
     ``research.json`` and therefore failed the strict numeric gate.
     """
     normalized = " ".join(str(text).split())
+    while normalized.startswith(">"):
+        normalized = normalized[1:].lstrip()
     if len(normalized) <= limit:
         return normalized
     cut = normalized[:limit]
@@ -527,23 +596,18 @@ def _clip_quote(text: str, limit: int = _QUOTE_LIMIT) -> str:
 def evidence_markdown(document: ResearchDocument) -> str:
     if not document.evidence:
         return ""
-    lines = [
-        "**证据索引**",
-        "",
-        "| id | 来源 | 页 | 引文 |",
-        "|:--|:--|:--|:--|",
-    ]
+    lines = ["**证据索引**", ""]
     for evidence_id, item in sorted(document.evidence.items()):
-        url = str(item.get("url", ""))
-        page = str(item.get("page", ""))
-        if not url and str(item.get("source_type", "web")) == "data":
-            url = f"internal:{evidence_id}"
-        quote = _clip_quote(str(item.get("quote", "")))
-        lines.append(f"| {evidence_id} | {url} | {page} | {quote} |")
+        label = _evidence_label(item)
+        quote = _display_quote(str(item.get("quote", "")), _QUOTE_LIMIT)
+        lines.append(f"- {label}")
+        if quote:
+            lines.append(f"  > {quote}")
     return "\n".join(lines)
 
 
-def to_payload(document: ResearchDocument) -> dict[str, Any]:    return {
+def to_payload(document: ResearchDocument) -> dict[str, Any]:
+    return {
         "evidence": list(document.evidence.values()),
         "claims": [
             {
@@ -580,6 +644,7 @@ def to_payload(document: ResearchDocument) -> dict[str, Any]:    return {
             }
             for decision in document.decisions
         ],
+        "quality": quality(document),
     }
 
 

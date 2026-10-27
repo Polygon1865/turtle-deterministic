@@ -88,7 +88,14 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
 - `qa` 增加 `research_refs` 行：用 snapshot 的 metrics/evidence 复算引用。
 - 未解析 metric/fact、非 unknown 无证据、非法 decision 均失败。
 - 报告支持 `--html` 同时输出 HTML（D1–D6 章节/证据表可直接渲染）。
-- 仍待补：行业/竞对独立章节、claim 覆盖率统计。
+- claim 覆盖率：`quality()` 输出 `evidence_backed`、`claim_coverage` 和
+  `unknown_ratio`；报告“研究覆盖”显示 evidence-backed/total，低于 50%
+  时给出警告；QA `research_quality` 同步显示覆盖率。
+- 证据索引改为可读 blockquote：表格行压平、隐藏 `internal:` 原始 ID，
+  避免管道符破坏 Markdown 表格。
+- research bridge 的 D4 过滤支付率/回购/资本配置类 claim，避免单一
+  分红口径问题触发“管理层损害价值”否决。
+- 仍待补：行业/竞对独立章节、自动识别并补齐港股缺失数据。
 
 ## Phase 7（完成）：research → qualitative bridge
 

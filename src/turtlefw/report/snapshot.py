@@ -280,9 +280,14 @@ def freeze(
             Path(research_source).read_text(encoding="utf-8-sig"), encoding="utf-8"
         )
         from ..research import load as load_research
+        from ..research import to_payload as research_to_payload
         from ..research_bridge import bridge
 
         document = load_research(root / "research.json")
+        (root / "research.json").write_text(
+            json.dumps(research_to_payload(document), ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
         effective, bridged = bridge(document, human_qualitative)
         if effective is not None and bridged:
             (root / "qualitative.json").write_text(

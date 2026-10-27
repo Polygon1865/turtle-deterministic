@@ -46,6 +46,10 @@ Hard rules:
 4. If a dimension lacks data, use judgment="unknown" and explain the gap in
    unknowns. Do not fabricate. If context.coverage marks a capability
    partial/missing, treat it as unavailable unless evidence exists.
+   Prefer one claim per dimension with the missing pieces listed in `unknowns`.
+   Do not create a separate unknown claim for every missing metric; keep
+   unknown claims below 30% of total claims. If a dimension truly has no usable
+   evidence, emit one concise unknown claim for that dimension.
 5. Every natural-language value MUST be written in Simplified Chinese
    (zh-CN): claim.statement, claim.unknowns, param.label, textual param.value,
    and decision.reason. Company names, tickers and unavoidable proper nouns may

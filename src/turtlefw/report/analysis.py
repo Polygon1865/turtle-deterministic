@@ -16,6 +16,7 @@ from ..metrics.dividends import average_dps
 from ..metrics.dps_check import crosscheck_dps
 from ..qualitative import MODULES, all_evidence
 from ..qualitative import summary as qual_summary
+from ..research import _display_quote
 from ..types import Currency, DividendEvent, FetchIssue, Market
 from . import industry
 from .extras import render_extras
@@ -23,6 +24,27 @@ from .format import TEMPLATE_DIR, _m, _num, _pct, _table
 from .market import render_market
 
 STATUS = {"pass": "通过", "veto": "否决", "unknown": "未验证", "info": "观察"}
+
+
+def _qualitative_evidence_line(
+    label: str,
+    url: str,
+    quote: str,
+    source_type: str,
+    page: str,
+) -> str:
+    if url.startswith("tushare://"):
+        source = "Tushare"
+    elif url.startswith("pdf://"):
+        source = "PDF"
+    elif source_type == "data" or not url or url.startswith("internal:"):
+        source = "数据包"
+    else:
+        source = url
+    where = " · ".join(part for part in (source_type, source, page) if part)
+    body = _display_quote(quote, 280)
+    line = f"- **{label}**（{where}）"
+    return f"{line}\n  > {body}" if body else line
 
 
 def _pdf_value(raw: object) -> str:
@@ -244,7 +266,7 @@ def render_analysis(
         evidence = all_evidence(ctx.qualitative)
         evidence_md = (
             "\n".join(
-                f"- **{label}**（{source_type}{' · ' + page if page else ''}）：{url} — “{quote}”"
+                _qualitative_evidence_line(label, url, quote, source_type, page)
                 for label, url, quote, source_type, page in evidence
             )
             or "未提供证据。"
