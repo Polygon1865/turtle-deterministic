@@ -100,8 +100,9 @@ class TestMetricRegistry:
     def test_golden_report_hash(self):
         text, verdict = render()
         assert verdict == "观察"
+        assert "研究依据：数据包（未使用 PDF）" in text
         assert hashlib.sha256(text.encode("utf-8")).hexdigest() == (
-            "675332d9f8cd9fe87bf44d9033a66f0d8b8bc173a274cfd5ee6cfaf942796426"
+            "88564885282cb66a69c19808d5a0334b5f182712e0312aa540f5622d33f49708"
         )
 
     def test_core_metric_ledger(self):

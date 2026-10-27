@@ -784,13 +784,14 @@ def _qualitative_check(
 ) -> Check:
     item = qualitative.get(module) if qualitative else None
     if item is None or item.judgment == "unknown":
-        return Check(name, "unknown", "未提供证据化判断")
+        return Check(name, "unknown", "未验证（无可用证据）")
     status = "veto" if (veto_on_negative and item.judgment == "negative") else ok_status
-    return Check(
-        name,
-        status,
-        f"{LABELS[item.judgment]}（置信度 {item.confidence}，{len(item.evidence)} 条证据）",
-    )
+    detail = f"（置信度 {item.confidence}，{len(item.evidence)} 条证据）"
+    if item.judgment == "neutral":
+        detail = f"中性（未形成明确结论；置信度 {item.confidence}，{len(item.evidence)} 条证据）"
+    else:
+        detail = f"{LABELS[item.judgment]}{detail}"
+    return Check(name, status, detail)
 
 
 def _qualitative_trap(
@@ -799,9 +800,11 @@ def _qualitative_trap(
     """Negative evidence is a value-trap signal; missing evidence is unknown."""
     item = qualitative.get(module) if qualitative else None
     if item is None or item.judgment == "unknown":
-        return Check(name, "unknown", "未提供证据化判断（不计入陷阱）")
+        return Check(name, "unknown", "未验证（无可用证据，不计入陷阱）")
     if item.judgment == "negative":
         return Check(name, "veto", f"负面（置信度 {item.confidence}，{len(item.evidence)} 条证据）")
+    if item.judgment == "neutral":
+        return Check(name, "pass", f"中性（未形成明确结论；置信度 {item.confidence}）")
     return Check(name, "pass", f"{LABELS[item.judgment]}（置信度 {item.confidence}）")
 
 

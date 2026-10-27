@@ -405,6 +405,29 @@ def render_analysis(
             "原币为 HKD"
         )
     qual_note = ""
+    pdf_fact_rows = [
+        [
+            str(fact.get("label", "")),
+            _pdf_value(fact.get("value")),
+            str(fact.get("page", "")),
+        ]
+        for fact in document_facts
+    ] + [
+        [
+            f"{row.get('item', '')}:{row.get('label', '')}",
+            _pdf_value(row.get("value")),
+            str(row.get("page", "")),
+        ]
+        for row in fact_rows
+    ]
+    pdf_used = bool(pdf_fact_rows)
+    research_basis = "PDF 证据 + 数据包" if pdf_used else "数据包（未使用 PDF）"
+    research_pdf_note = ""
+    if research_sections and not pdf_used:
+        research_pdf_note = (
+            "本报告未使用年报 PDF，D1–D6 基于数据包、指标与公开文本；"
+            "未做页码级原文核验，研究深度受限。"
+        )
     if research_sections:
         source = ctx.qualitative.source if ctx.qualitative is not None else ""
         if "research_bridge" in source:
@@ -453,22 +476,9 @@ def render_analysis(
         "data_basis": data_basis,
         "fx_note": fx_note,
         "qual_note": qual_note,
-        "pdf_fact_rows": [
-            [
-                str(fact.get("label", "")),
-                _pdf_value(fact.get("value")),
-                str(fact.get("page", "")),
-            ]
-            for fact in document_facts
-        ]
-        + [
-            [
-                f"{row.get('item', '')}:{row.get('label', '')}",
-                _pdf_value(row.get("value")),
-                str(row.get("page", "")),
-            ]
-            for row in fact_rows
-        ],
+        "pdf_fact_rows": pdf_fact_rows,
+        "research_basis": research_basis,
+        "research_pdf_note": research_pdf_note,
         "dps_check": _dps_check_text(
             document_facts,
             ctx.dividends,

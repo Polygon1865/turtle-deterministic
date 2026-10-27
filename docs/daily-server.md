@@ -35,7 +35,8 @@ Task Scheduler 19:00
   `attempts/<attempt_id>/status.json`；`attempt_id` 同时写入 status，手动重跑不会
   覆盖历史尝试；
 - 运行状态会记录 `trade_date`、`as_of`、`screen_source` 和 `llm_usage`；
-  站点 `health.txt` 同步输出数据源与 LLM 统计；
+  站点 `health.txt` 同步输出数据源与 LLM 统计；`finished_at` 在构建站点前写入，
+  发布后的 release 会再收到一份包含 `site` 路径的最终 `status.json`；
 - 全部股票失败或站点构建失败时 `site/current` 保持旧版本；部分失败是否发布由
   `publish_partial` 控制；
 - Caddy 只监听 `127.0.0.1`，公网入口只经过 Cloudflare Access。
@@ -97,6 +98,9 @@ logs/
 `research_reason_code`/`research_reason`，清理活动 research 后回退确定性报告。
 站点把这种状态显示为“回退”，不再伪装成“未启用”；`health.txt` 同时统计
 `llm_on/llm_fallback/llm_off`，避免 40/40 QA PASS 掩盖研究失败。
+报告头与站点还会标注“研究依据”：有 PDF 证据时显示“PDF 证据 + 数据包”，否则明确为
+“数据包（未使用 PDF）”；`health.txt` 的 `pdf_ok/pdf_none` 统计 PDF 覆盖，不把数据驱动
+研究描述成 PDF-first。
 
 `screen` 输出会带 `交易日: YYYYMMDD`。pipeline 要求它等于当天，否则每 30 分钟
 重试，最多 3 次；仍不匹配则失败并保留旧站点。周六/周日且未显式传

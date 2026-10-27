@@ -692,6 +692,8 @@ def build_site(
     llm_on = sum(1 for report in reports if report.research == "on")
     llm_fallback = sum(1 for report in reports if report.research == "fallback")
     llm_off = len(reports) - llm_on - llm_fallback
+    pdf_ok = sum(1 for report in reports if report.pdf == "ok")
+    pdf_none = len(reports) - pdf_ok
     status_path = day_dir / "status.json"
     health = (
         f"status={'ok' if failed == 0 else ('partial' if passed else 'fail')}\n"
@@ -705,6 +707,8 @@ def build_site(
         f"llm_on={llm_on}\n"
         f"llm_fallback={llm_fallback}\n"
         f"llm_off={llm_off}\n"
+        f"pdf_ok={pdf_ok}\n"
+        f"pdf_none={pdf_none}\n"
         f"screen_source={screen_source}\n"
         f"generated_at={generated_at}\n"
     )

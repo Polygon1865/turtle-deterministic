@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from datetime import date
 from pathlib import Path
@@ -266,6 +267,47 @@ def test_run_daily_without_screen(tmp_path: Path) -> None:
     assert len(result["stocks"]) == 2
     assert paths.status_path.is_file()
     assert not paths.lock_path.exists()
+
+
+def test_run_daily_writes_finished_status_to_release(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths = _paths(tmp_path)
+    release = paths.site_root / "releases" / "test"
+    captured: dict[str, str] = {}
+
+    def fake_build_site(day_dir: Path, site_root: Path) -> Path:
+        status = json.loads((day_dir / "status.json").read_text(encoding="utf-8"))
+        captured["finished_at"] = status["finished_at"]
+        release.mkdir(parents=True, exist_ok=True)
+        return release
+
+    def fake_publish_site(release_path: Path, site_root: Path) -> None:
+        return None
+
+    monkeypatch.setattr("turtlefw.site.build_site", fake_build_site)
+    monkeypatch.setattr("turtlefw.site.publish_site", fake_publish_site)
+
+    def fake(command: list[str], cwd: Path, timeout: int) -> CommandResult:
+        code = command[command.index("run") + 1]
+        _write_success(paths.day_dir / code)
+        return CommandResult(tuple(command), 0, "ok")
+
+    result = run_daily(
+        paths,
+        DailyConfig(top_n=1, llm_top_n=0),
+        codes=["600887.SH"],
+        skip_screen=True,
+        publish=True,
+        run_command=fake,
+        sleep=lambda seconds: None,
+    )
+
+    assert result["ok"] is True
+    assert captured["finished_at"]
+    published = json.loads((release / "status.json").read_text(encoding="utf-8"))
+    assert published["finished_at"] == captured["finished_at"]
+    assert published["site"] == str(release)
 
 
 def test_run_daily_resumes_completed_stocks_and_keeps_attempt(tmp_path: Path) -> None:

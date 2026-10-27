@@ -1,6 +1,6 @@
 # 龟龟策略分析报告 — {{ code }}
 
-> 数据截至：{{ as_of or generated_at }} ｜ 报表币种：{{ currency }} ｜ 数据快照：`{{ snapshot_id }}`{% if data_basis %} ｜ 数据口径：{{ data_basis }}{% endif %}{% if fx_note %} ｜ {{ fx_note }}{% endif %}
+> 数据截至：{{ as_of or generated_at }} ｜ 报表币种：{{ currency }} ｜ 数据快照：`{{ snapshot_id }}`{% if data_basis %} ｜ 数据口径：{{ data_basis }}{% endif %}{% if fx_note %} ｜ {{ fx_note }}{% endif %} ｜ 研究依据：{{ research_basis }}
 > 无风险利率：{{ rf }}（来源：{{ rf_source }}）｜ 当前价：{{ price }} ｜ 总市值（百万元）：{{ market_cap }}
 
 ## 一、结论
@@ -157,6 +157,9 @@
 > {{ research_note }}
 {% else %}
 未提供 `research.json`；本节为空，不影响确定性结论。
+{% endif %}
+{% if research_pdf_note %}
+> {{ research_pdf_note }}
 {% endif %}
 
 {{ fundamental_section }}{{ market_section }}## {{ disclaimer_heading }}、数据来源与免责声明

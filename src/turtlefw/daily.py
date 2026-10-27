@@ -1018,23 +1018,47 @@ def run_daily(
                 _write_json(paths.status_path, status)
         status["stocks"].sort(key=lambda row: int(row.get("rank", 0)))
 
+        failed = [row for row in status["stocks"] if row["status"] != "ok"]
+        usage_rows = [
+            row.get("research_usage")
+            for row in status["stocks"]
+            if isinstance(row.get("research_usage"), dict)
+        ]
+        status["llm_usage"] = {
+            "reports_with_usage": len(usage_rows),
+            "input_tokens": sum(
+                int(row.get("estimated_input_tokens") or 0)
+                for row in usage_rows
+                if isinstance(row, dict)
+            ),
+            "max_input_tokens": sum(
+                int(row.get("max_input_tokens") or 0)
+                for row in usage_rows
+                if isinstance(row, dict)
+            ),
+        }
+        status["ok"] = bool(status["stocks"]) and not failed
+        status["finished_at"] = datetime.now().isoformat(timespec="seconds")
+        _write_json(paths.status_path, status)
+
         reports = [row for row in status["stocks"] if row["status"] == "ok"]
-        failed_stocks = [row for row in status["stocks"] if row["status"] != "ok"]
+        failed_stocks = failed
         should_publish = publish and bool(reports) and (
             config.publish_partial or not failed_stocks
         )
+        release_path: Path | None = None
         if should_publish:
             from .site import build_site, publish_site
 
             try:
-                release = build_site(paths.day_dir, paths.site_root)
-                publish_site(release, paths.site_root)
+                release_path = build_site(paths.day_dir, paths.site_root)
+                publish_site(release_path, paths.site_root)
                 if failed_stocks:
                     status["site"] = (
-                        f"partial: {len(failed_stocks)} failed; {release}"
+                        f"partial: {len(failed_stocks)} failed; {release_path}"
                     )
                 else:
-                    status["site"] = str(release)
+                    status["site"] = str(release_path)
             except (OSError, ValueError) as exc:
                 status["site"] = f"error: {exc}"
         elif publish and failed_stocks:
@@ -1042,28 +1066,13 @@ def run_daily(
         elif publish:
             status["site"] = "skipped: no successful stock"
 
-    failed = [row for row in status["stocks"] if row["status"] != "ok"]
-    usage_rows = [
-        row.get("research_usage")
-        for row in status["stocks"]
-        if isinstance(row.get("research_usage"), dict)
-    ]
-    status["llm_usage"] = {
-        "reports_with_usage": len(usage_rows),
-        "input_tokens": sum(
-            int(row.get("estimated_input_tokens") or 0)
-            for row in usage_rows
-            if isinstance(row, dict)
-        ),
-        "max_input_tokens": sum(
-            int(row.get("max_input_tokens") or 0)
-            for row in usage_rows
-            if isinstance(row, dict)
-        ),
-    }
-    status["ok"] = bool(status["stocks"]) and not failed
-    status["finished_at"] = datetime.now().isoformat(timespec="seconds")
-    _write_json(paths.status_path, status)
+        _write_json(paths.status_path, status)
+        if release_path is not None and release_path.is_dir():
+            (release_path / "status.json").write_text(
+                json.dumps(status, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+
     _archive_attempt(paths, status)
     _notify(config, status)
     return status

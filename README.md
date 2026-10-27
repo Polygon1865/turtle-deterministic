@@ -328,6 +328,10 @@ Task Scheduler、Caddy、Cloudflare Tunnel/Access、3 天验收和回滚步骤�
 tab 可切换历史，`site/current` 只指向最新版本。报告页会明确标记“LLM 研究”或
 “确定性报告”，避免把含 LLM 研究的报告误读为纯确定性报告。LLM 失败会在站点标为
 “回退”并给出原因码；`health.txt` 同时统计 `llm_on/llm_fallback/llm_off`。
+报告头与站点同时标注“研究依据”：有 PDF 证据时为“PDF 证据 + 数据包”，否则明确为
+“数据包（未使用 PDF）”，不把数据驱动研究伪装成 PDF-first。`health.txt` 另有
+`pdf_ok/pdf_none`；1A/1B 的 `neutral` 与 `unknown` 分开显示，避免把“中性判断”误读为
+“未提供研究”。
 
 ---
 
@@ -559,7 +563,7 @@ src/turtlefw/
 当前基线：
 
 ```text
-573 tests passed
+574 tests passed
 ```
 
 CI：pytest + selected ruff + selected mypy，见
