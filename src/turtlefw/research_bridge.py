@@ -22,19 +22,39 @@ DIMENSION_MODULES: dict[str, str] = {
 _CONFIDENCE_RANK = {"high": 0, "medium": 1, "low": 2}
 _JUDGMENT_RANK = {"negative": 0, "positive": 1, "neutral": 2}
 _D4_NON_MANAGEMENT = ("payout", "buyback", "capital_allocation", "dividend")
+# Only claims about what the business *is* can say it is un-understandable.
+# Revenue contraction or cyclicality are performance facts, not comprehension
+# failures: on 2026-11-04 a `D1.revenue_contraction: negative` claim flipped
+# 00270.HK from 买入 to 排除 through the 1A "看不懂" veto while every
+# deterministic number stayed flat.
+_D1_BUSINESS_TOKENS = (
+    "business_model",
+    "business_mix",
+    "revenue_mix",
+    "segment",
+    "product_mix",
+    "understand",
+)
 
 
 def _claim_in_scope(dimension: str, claim_id: str) -> bool:
-    """Keep capital-allocation claims out of the management judgement.
+    """Keep performance facts out of the "can't understand" judgement.
 
-    A payout or buyback deviation is useful input for factor 4, but it is not
-    sufficient evidence that management destroys value.  Management stays
-    unknown unless a management/governance claim is available.
+    * D1 (understandability): only business-model claims count.  A revenue
+      contraction is not evidence that the business is incomprehensible.
+    * D4 (management): payout/buyback deviations are factor-4 inputs, not proof
+      that management destroys value.
+
+    Management and understandability stay unknown unless the matching kind of
+    claim is available.
     """
-    if dimension != "D4":
-        return True
+
     lowered = claim_id.lower()
-    return not any(token in lowered for token in _D4_NON_MANAGEMENT)
+    if dimension == "D1":
+        return any(token in lowered for token in _D1_BUSINESS_TOKENS)
+    if dimension == "D4":
+        return not any(token in lowered for token in _D4_NON_MANAGEMENT)
+    return True
 
 
 def _source_type(raw: dict[str, object]) -> str:

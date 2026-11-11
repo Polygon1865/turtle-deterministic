@@ -16,6 +16,7 @@ Task Scheduler 19:00
        Top N
        per-stock: pdf-index (optional) -> run --strict
        QA/status -> build_site -> publish current
+       briefing: briefing.md / briefing.txt（briefing = true 时自动生成）
   -> Caddy 127.0.0.1:8080
   -> cloudflared named tunnel
   -> Cloudflare Access
@@ -26,9 +27,10 @@ Task Scheduler 19:00
 - 数字只来自确定性 CLI；LLM 只写定性研究，不写报告数字；
 - LLM 失败自动回退确定性报告，不阻塞当天发布；
 - 新站点先构建到 `site/releases/<date>/`，成功后再切换 `site/current`；
-- 每次发布同时生成 `day/<date>/index.html` 和 `archive/<date>/`，首页日期 tab
-  可回看历史；旧 release 不删除；首页另有 `全部 / A 股 / 港股` 市场 tab，
-  切换时按市场过滤报告并隐藏 A 股候选池；
+- 站点按页面类型拆分：`/`（今日研究：唯一决策主表 + 今日变化）、`/screener.html`
+  （候选池，A 股/港股分面板）、`/stock/<code>.html`（个股页，含跨日历史）、
+  `/report/<code>.html`（报告全文）、`/archive/`（按日期索引）、`/method.html`；
+  旧 release 不删除；
 - 含 LLM 研究的报告页显示“LLM 研究 + 确定性数字”，确定性报告显示
   “确定性报告”，避免把两者混淆；
 - 每次运行生成 `status.json`，并原样归档到
@@ -58,8 +60,13 @@ scripts/build_site.py
     analysis_report.html
     pdf_index.json / pdf_notes.json
 site/
-  releases/<YYYY-MM-DD>/
-  current -> releases/<YYYY-MM-DD>
+  releases/<YYYY-MM-DD>[-N]/
+    index.html  screener.html  method.html
+    stock/<code>.html   report/<code>.html
+    archive/index.html  archive/<date>/index.html
+    archive/<date>/<code>.html
+    assets/  ranking*.csv  health.txt  site_data.json
+  current -> releases/<YYYY-MM-DD>[-N]
 data/pdfs/<code>/*.pdf
 logs/
 ```
@@ -133,7 +140,14 @@ report_workers = 4
 resume = true
 refresh_market = true
 publish_partial = true
+briefing = true
+briefing_limit = 6
 ```
+
+- `briefing`：跑完自动生成 `briefing.md` / `briefing.txt`（简报，含状态、规模、结论分布、重点结论与港股候选）；关掉设 `false`；
+- `briefing_limit`：简布里「重点结论」与「港股候选」的条数（默认 6）；
+- 简报也可单独重生成：`python -m turtlefw.cli brief --date 2026-10-30`（`--format md|txt|both`、`--out`）；
+  配置 `TURTLE_BRIEFING_WEBHOOK` 后加 `--push` 可直接推送到企业微信机器人；
 
 - `fast_limit`：A 股快速筛选后保留的候选数（默认 100，写入 `ranking.csv`）；
 - `deep_limit`：进入 A 股深度分析的候选数（默认 30，写入 `ranking_deep.csv`；比 `top_n` 多留失败缓冲）；
@@ -150,7 +164,9 @@ publish_partial = true
 - `report_workers`：逐票报告并发数（默认 1；生产 4）；
 - `resume`：同日重跑时跳过 `status=ok` 且报告已存在的股票（默认 false；生产 true）；
 - `rf`：留空使用 provider；固定值用字符串，例如 `"2.0"`；
-- `refresh_market`：每日绕过 7 天行情缓存；
+- `refresh_market`：每日绕过 7 天行情缓存（只影响行情，不影响财报缓存）；
+- 缓存位置：`TURTLE_CACHE_DIR` 优先，否则 `runs_root` 的上一级 `.cache`（默认 `.runs/.cache`）。**所有日期共用一个缓存**——港股 screen 首次要逐票拉约 1.7k 份财报指标，按天分目录会让每个新交易日都冷启动，2026-10-30 就是这样撞上 `screen_timeout_seconds=1800` 而当天零报告；
+- 发布门：任一报告的 QA `report_structure` FAIL 时，当天站点不发布（`status.site` 记 `blocked: report_structure failed (...)`），旧 release 保留；
 - `screen_attempts/retry_seconds`：交易日未更新时的重试策略。
 
 ## Task Scheduler
@@ -376,8 +392,9 @@ credentials file，所以用日志里的 `Registered tunnel connection` 判断�
 ## 边界
 
 - 每日流水线覆盖 A 股全市场筛选 + 港股全市场筛选；美股不在每日流水线内；
-- 站点按日期归档，`site/releases/<date>/` 保留历史；首页日期 tab 可切换到
-  `day/<date>/index.html`，当前版仍由 `site/current` 指向；
+- 站点按页面类型归档：`site/releases/<date>/` 存当日全部页面与报告副本，
+  历史日页面在 `/archive/<date>/index.html`，个股页 `/stock/<code>.html` 跨日复用；
+  当前版仍由 `site/current` 指向；
 - PDF 是文本层 PDF，扫描件需要 OCR（当前不做）；
 - `anns_d`/`news` 权限、vendor PIT、分部自动提取仍是外部边界；
 - LLM 只写定性研究；没有 key 或调用失败时回退确定性；

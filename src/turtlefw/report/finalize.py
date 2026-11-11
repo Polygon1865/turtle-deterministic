@@ -20,6 +20,7 @@ from ..research import (
     engine_decisions,
     normalize_document_placeholders,
     snapshot_audit,
+    unsupported_industry_terms,
 )
 from ..research import load as load_research
 from ..research import (
@@ -37,6 +38,26 @@ from .pack import render_data_pack
 
 class FinalizeError(Exception):
     pass
+
+
+def _company_text(inputs: object) -> str:
+    """Deterministic identity blob used to validate research claims.
+
+    ``business_summary`` is deliberately excluded: it is Yahoo's legal
+    description and mentions incidental segments ("property investment
+    management" appears for a hot-pot chain), so treating it as support would
+    let exactly the fabricated claims this gate exists to catch pass through.
+    """
+
+    parts = [
+        str(getattr(inputs, "name", "") or ""),
+        str(getattr(inputs, "industry_label", "") or ""),
+        str(getattr(inputs, "industry_name", "") or ""),
+    ]
+    for item in getattr(inputs, "main_business", ()) or ():
+        if isinstance(item, dict):
+            parts.append(str(item.get("bz_item") or ""))
+    return "；".join(part for part in parts if part.strip())
 
 
 def finalize_research(
@@ -77,14 +98,43 @@ def finalize_research(
         )
     decisions = engine_decisions(document, allow=allow_research_decisions)
 
-    shutil.copytree(source, target)
-    (target / "research.json").write_text(
-        json.dumps(research_to_payload(document), ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
+    # Identity gate: a claim may only name an industry the data layer can back.
+    # Without this, a model that never saw the company name can turn a hot-pot
+    # chain into a property manager purely from the shape of its cash flows.
+    source_inputs, _ = snap.load(source)
+    problems = unsupported_industry_terms(
+        document, company_text=_company_text(source_inputs)
     )
+    if problems:
+        raise FinalizeError(
+            "业务描述与公司身份不符："
+            + "、".join(problems)
+            + "。请补齐 inputs 的 name/industry_label/business_summary，"
+            "或删除没有证据支撑的行业表述后重试。"
+        )
+
+    shutil.copytree(source, target)
+    payload = research_to_payload(document)
+    original = json.loads(research_file.read_text(encoding="utf-8-sig"))
     provenance = research_file.with_name("research_provenance.json")
-    if provenance.is_file():
-        shutil.copyfile(provenance, target / "research_provenance.json")
+    if payload == original:
+        # No normalization happened: keep the exact bytes the provenance
+        # record was generated against, so the sha256 still matches.
+        shutil.copyfile(research_file, target / "research.json")
+        if provenance.is_file():
+            shutil.copyfile(provenance, target / "research_provenance.json")
+    else:
+        research_bytes = (
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+        ).encode("utf-8")
+        (target / "research.json").write_bytes(research_bytes)
+        if provenance.is_file():
+            record = json.loads(provenance.read_text(encoding="utf-8-sig"))
+            record["research_sha256"] = hashlib.sha256(research_bytes).hexdigest()
+            (target / "research_provenance.json").write_text(
+                json.dumps(record, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
 
     human_path = target / "qualitative.json"
     human = None
@@ -155,6 +205,9 @@ def finalize_research(
                 market_extras=inputs.market_extras,
                 industry_peers=inputs.industry_peers,
                 qualitative=qualitative,
+                name=inputs.name,
+                industry_label=inputs.industry_label,
+                business_summary=inputs.business_summary,
             ),
             encoding="utf-8",
         )
@@ -189,6 +242,10 @@ def finalize_research(
     artifact_base = output_root() / str(inputs.code)
     artifact_base.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(target / "research.json", artifact_base / "research.json")
+    if pack_path.is_file():
+        # The finalized pack (research bridge / decisions appendix included)
+        # replaces the pre-research one in the run directory.
+        shutil.copyfile(pack_path, artifact_base / "data_pack.md")
     if (target / "research_provenance.json").is_file():
         shutil.copyfile(
             target / "research_provenance.json",

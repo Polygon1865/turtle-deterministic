@@ -1,0 +1,47 @@
+{% extends "site_layout.html.j2" %}
+{% block content %}
+<section class="hero">
+  <p class="kicker"><span>存档</span><span class="dot">/</span><span>共 {{ days|length }} 个数据日</span></p>
+  <h1>历史数据日</h1>
+  <p class="lede">每个数据日一组报告与候选池。进入单日页面可查看当日全部结论、报告全文与原始 CSV。</p>
+</section>
+
+<section class="panel">
+  <header>
+    <h2>数据日</h2>
+    <span class="hint">按日期倒序</span>
+  </header>
+  {% if days %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>数据日</th><th class="num">报告</th><th class="num">通过</th><th class="num">失败</th>
+          <th class="num">买入</th><th class="num">观察</th><th class="num">排除</th>
+          <th class="num">候选 A</th><th class="num">候选 HK</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for day in days %}
+        <tr>
+          <td class="mono"><a href="{{ day.href }}">{{ day.date }}</a></td>
+          <td class="num">{{ day.reports }}</td>
+          <td class="num">{{ day.passed }}</td>
+          <td class="num">{{ day.failed }}</td>
+          <td class="num">{{ day.buy }}</td>
+          <td class="num">{{ day.watch }}</td>
+          <td class="num">{{ day.reject }}</td>
+          <td class="num">{{ day.a_candidates }}</td>
+          <td class="num">{{ day.hk_candidates }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">还没有存档。</p>
+  {% endif %}
+</section>
+
+<p class="note">单日报告全文保留在 <span class="mono">archive/&lt;日期&gt;/</span>；候选池 CSV 同目录。</p>
+{% endblock %}

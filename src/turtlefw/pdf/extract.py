@@ -53,6 +53,13 @@ ALIASES: dict[str, tuple[str, ...]] = {
         "归属于母公司股东权益（或股东权益）合计",
         "归属于母公司所有者权益合计",
         "归属于母公司股东权益合计",
+        # Some annual reports drop the "合计" suffix, or split the row across
+        # a page break (600519 2025 prints "归属于母公司所有者权益" alone).
+        "归属于母公司所有者权益",
+        "归属于母公司股东权益",
+        # Banks label the same line with "本行" (601398, 600036).
+        "归属于本行股东权益合计",
+        "归属于本行股东权益",
         "Equity attributable to equity holders of the Company",
         "Total equity attributable to shareholders",
     ),
@@ -106,6 +113,12 @@ def _is_balance_page(text: str) -> bool:
         or "statement of financial position" in lower
         or "负债及股东权益" in text
         or "负债和股东权益总计" in text
+        # Continuation pages: the title is on the previous page, so look for
+        # the distinctive split markers instead (600519, 2025).
+        or "股东权益）总计" in text
+        or "所有者权益（或股东权" in text
+        or "负债和所有者权益（或" in text
+        or "益）合计" in text
     )
 
 
@@ -260,6 +273,100 @@ def _scan_following_values(
     return found
 
 
+_OTHER_STATEMENT_HEADINGS = re.compile(
+    r"^\d*[、.]?\s*(?:合并|母公司)?\s*(?:利润表|现金流量表|所有者权益变动表)"
+    r"|^\d*[、.]?\s*母公司资产负债表"
+)
+
+
+def _plausible_value(value: Decimal, line: str) -> bool:
+    """Reject note references and calendar years picked up as values."""
+
+    if abs(value) <= Decimal("1000"):
+        return False
+    if value == value.to_integral_value() and Decimal("1900") <= value <= Decimal("2100"):
+        if any(marker in line for marker in ("年", "月", "日", "-", "/")):
+            return False
+    return True
+
+
+def _opens_other_statement(line: str) -> bool:
+    """True when a page starts with a non-balance statement heading."""
+
+    return bool(_OTHER_STATEMENT_HEADINGS.match(line.strip()))
+
+
+def _looks_like_balance_rows(text: str) -> bool:
+    """Row-level evidence that a page belongs to a balance sheet."""
+
+    markers = ("资产总计", "负债合计", "所有者权益合计", "负债和所有者权益")
+    supporting = ("非流动资产合计", "流动负债合计", "少数股东权益")
+    hits = [marker for marker in markers + supporting if marker in text]
+    # A statement page carries at least one grand total plus another subtotal;
+    # notes pages quote single line items ("合同负债") without any totals.
+    return any(marker in text for marker in markers) and len(hits) >= 2
+
+
+def _matches_any_alias(text: str) -> bool:
+    return any(
+        _matches(alias, text)
+        for aliases in {**ALIASES, **EXTRA_ALIASES}.values()
+        for alias in aliases
+    )
+
+
+def _wrapped_label_match(
+    lines: Sequence[str], index: int, aliases: tuple[str, ...]
+) -> tuple[str, str] | None:
+    """Match an alias the PDF wrapped over adjacent lines.
+
+    Annual reports routinely break a label across lines, and some layouts put
+    the amount *between* the two halves (``所有者权益（或股东权`` /
+    ``253,959,253,909.07 242,011,315,120.60`` / ``益）合计``). Returns the
+    reassembled label plus the line holding its values, or ``None``.
+    """
+
+    if _tokens(lines[index]):
+        # A line that already carries numbers is handled by the normal path.
+        return None
+    labels: list[str] = [lines[index]]
+    value_line: str | None = None
+    for offset in range(1, 4):
+        position = index + offset
+        if position >= len(lines):
+            break
+        raw = lines[position]
+        numbers = _tokens(raw)
+        remainder = raw
+        for token in numbers:
+            remainder = remainder.replace(token, " ")
+        remainder = "".join(remainder.split())
+        if numbers:
+            if value_line is None:
+                value_line = raw
+                if remainder:
+                    labels.append(remainder)
+                continue
+            # Values of the next row already belong to another item; only a
+            # short dangling label tail (e.g. "益）合计") still belongs here.
+            if remainder and len(remainder) <= 12 and not _matches_any_alias(remainder):
+                labels.append(remainder)
+            break
+        labels.append(raw)
+        if value_line is not None:
+            # Keep only one label fragment after the value line unless it is
+            # clearly a wrapped half ("所有者权益（或股东权" / value / "益）合计").
+            if len(raw) > 12 or _matches_any_alias(raw):
+                break
+    if value_line is None:
+        return None
+    joined = "".join("".join(part.split()) for part in labels)
+    for alias in aliases:
+        if alias in joined:
+            return joined, value_line
+    return None
+
+
 def extract_from_pages(
     pages_text: Sequence[tuple[int, str]],
     *,
@@ -269,6 +376,8 @@ def extract_from_pages(
     """Extract candidates from ``(page_number, text)`` pairs."""
     candidates: list[Candidate] = []
     last_scale = Decimal("1")
+    prev_tail: list[str] = []
+    in_balance = False
     for page_number, text in pages_text:
         if not text:
             continue
@@ -277,22 +386,56 @@ def extract_from_pages(
             last_scale = explicit_scale
         page_scale = last_scale
         page_score = _statement_score(text)
-        balance_page = _is_balance_page(text)
-        cashflow_page = _is_cashflow_page(text) or _is_reconciliation_page(text)
+        # Balance sheets run over several pages and only the first one carries
+        # the title; some PDFs even number the heading ("1、合并资产负债表")
+        # while the rows sit on the following pages. Decide per page with title
+        # *or* row evidence, and only stop when a page opens with another
+        # statement's title (000858 p53 carries both the consolidated tail and
+        # the "2、母公司资产负债表" heading).
+        raw_lines = [line.strip() for line in text.splitlines() if line.strip()]
+        first_line = raw_lines[0] if raw_lines else ""
         highlight_page = "主要会计数据" in text or "主要财务指标" in text
+        other_statement = _opens_other_statement(first_line)
+        # A balance sheet is a contiguous run of pages: titled pages open it,
+        # following pages stay inside only while they still carry totals, and
+        # the notes section (页 181 of 600887 quotes 合同负债 without totals)
+        # must close it so note tables cannot feed statement items.
+        if other_statement:
+            in_balance = False
+        elif _is_balance_page(text):
+            in_balance = True
+        elif in_balance and _looks_like_balance_rows(text):
+            in_balance = True
+        else:
+            in_balance = False
+        balance_page = in_balance and not highlight_page
+        cashflow_page = _is_cashflow_page(text) or _is_reconciliation_page(text)
         lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if balance_page and prev_tail:
+            # A balance sheet split across a page break loses the first half of
+            # the last row's label ("归属于母公司所有者权益" on page N,
+            # "（或股东权益）合计" on page N+1). Stitch the trailing labels back
+            # on; values still have to come from *this* page.
+            lines = [*prev_tail, *lines]
+        prev_tail = [line for line in lines if not _tokens(line)][-3:]
         for index, line in enumerate(lines):
             for item, aliases in {**ALIASES, **EXTRA_ALIASES}.items():
                 if item in BALANCE_ITEMS and not balance_page:
                     continue
                 if item in CASHFLOW_ITEMS and not cashflow_page:
                     continue
-                if not any(_matches(alias, line) for alias in aliases):
-                    continue
+                matched = any(_matches(alias, line) for alias in aliases)
+                wrapped_label: str | None = None
+                wrapped_value_line: str | None = None
+                if not matched:
+                    found = _wrapped_label_match(lines, index, aliases)
+                    if found is None:
+                        continue
+                    wrapped_label, wrapped_value_line = found
                 # Some HK statements put the label on one line and the total
                 # after a block of segment/subtotal lines.
                 stripped_label = line.strip().rstrip(":").lower()
-                if item == "revenue" and stripped_label in {"revenue", "revenues"}:
+                if matched and item == "revenue" and stripped_label in {"revenue", "revenues"}:
                     followed = _scan_following_values(
                         lines, index, stop_terms=("cost of revenues",)
                     )
@@ -311,7 +454,7 @@ def extract_from_pages(
                                 )
                             )
                             break
-                if item == "equity" and stripped_label.startswith(
+                if matched and item == "equity" and stripped_label.startswith(
                     "equity attributable to equity holders"
                 ):
                     followed = _scan_following_values(
@@ -336,15 +479,18 @@ def extract_from_pages(
                             break
                 # Prefer a number on the same line; otherwise look one line
                 # ahead (PDF extraction often splits label and value).
-                numbers = _tokens(line)
-                target_line = line
-                if not numbers and index + 1 < len(lines):
+                if wrapped_value_line is not None:
+                    numbers = _tokens(wrapped_value_line)
+                    target_line = wrapped_value_line
+                else:
+                    numbers = _tokens(line)
+                    target_line = line
+                if not numbers and wrapped_value_line is None and index + 1 < len(lines):
                     next_line = lines[index + 1]
-                    if any(
-                        _matches(alias, next_line)
-                        for aliases in {**ALIASES, **EXTRA_ALIASES}.values()
-                        for alias in aliases
-                    ):
+                    # Only a *matched* label may borrow the next line's value;
+                    # otherwise an unrelated label (or a wrapped row above it)
+                    # would steal the following row's number.
+                    if not matched or _matches_any_alias(next_line):
                         continue
                     target_line = next_line
                     numbers = _tokens(target_line)
@@ -352,8 +498,11 @@ def extract_from_pages(
                 for token in numbers:
                     candidate_value = parse_number(token, detect_scale(target_line, page_scale))
                     # A note reference like "五、32" is too small to be a
-                    # statement value; also skip obviously malformed values.
-                    if candidate_value is not None and abs(candidate_value) > Decimal("1000"):
+                    # statement value; a bare year on a date line is not a
+                    # statement value either.
+                    if candidate_value is not None and _plausible_value(
+                        candidate_value, target_line
+                    ):
                         value = (
                             abs(candidate_value)
                             if item in {"capex", "capex_intangibles"}
@@ -370,7 +519,7 @@ def extract_from_pages(
                         page=page_number,
                         source=f"{year}{report_type}",
                         confidence=confidence,
-                        score=_line_score(line, page_score, item)
+                        score=_line_score(wrapped_label or line, page_score, item)
                         - (10 if item == "ocf" and highlight_page else 0)
                         + (
                             10
@@ -382,12 +531,20 @@ def extract_from_pages(
                 )
                 break  # one item per line
 
-    # Pick the highest-scoring, then earliest-page candidate per item.
-    best: dict[str, Candidate] = {}
+    # Pick the highest-scoring candidate per item. Balance-sheet rows repeat in
+    # the parent-company statements a few pages after the consolidated ones, so
+    # for those items prefer the earliest page among near-best scores instead of
+    # letting a slightly better page score pick the parent company.
+    grouped: dict[str, list[Candidate]] = {}
     for candidate in candidates:
-        current = best.get(candidate.item)
-        if current is None or (candidate.score, -candidate.page) > (current.score, -current.page):
-            best[candidate.item] = candidate
+        grouped.setdefault(candidate.item, []).append(candidate)
+    best: dict[str, Candidate] = {}
+    for item, group in grouped.items():
+        top = max(group, key=lambda candidate: (candidate.score, -candidate.page))
+        if item in BALANCE_ITEMS:
+            near = [candidate for candidate in group if candidate.score >= top.score - 2]
+            top = min(near, key=lambda candidate: (candidate.page, -candidate.score))
+        best[item] = top
 
     # HK reports split capex into PPE and intangible assets; the audit item is
     # the sum of the two cash outflows. A-share reports already have a combined

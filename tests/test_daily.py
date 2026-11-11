@@ -358,6 +358,16 @@ def test_classify_research_failure_codes() -> None:
     assert classify_research_failure("LLM unavailable") == "llm_error"
 
 
+def test_classify_research_failure_identity_gate() -> None:
+    # The gate message mentions "business_model", which the generic "model"
+    # branch used to misread as an LLM error.
+    text = (
+        "run 在 finalize 阶段失败：业务描述与公司身份不符："
+        "D1.business_model:物业。请补齐 inputs 的 name/industry_label/business_summary"
+    )
+    assert classify_research_failure(text) == "identity_gate"
+
+
 def test_run_daily_skips_weekend_without_allow_stale(tmp_path: Path) -> None:
     paths = DailyPaths(
         day=date(2026, 10, 24),
@@ -470,6 +480,47 @@ def test_daily_lock_reclaims_stale_lock(tmp_path: Path) -> None:
     assert not path.exists()
 
 
+def test_run_daily_blocks_publish_on_report_structure_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths = _paths(tmp_path)
+    called = {"build": False}
+
+    def fake_build_site(day_dir: Path, site_root: Path) -> Path:
+        called["build"] = True
+        raise AssertionError("build_site must not run when lint fails")
+
+    monkeypatch.setattr("turtlefw.site.build_site", fake_build_site)
+
+    def fake(command: list[str], cwd: Path, timeout: int) -> CommandResult:
+        code = command[command.index("run") + 1]
+        _write_success(paths.day_dir / code)
+        (paths.day_dir / code / "qa.json").write_text(
+            json.dumps(
+                {
+                    "status": "fail",
+                    "rows": [
+                        {"name": "report_structure", "status": "FAIL", "detail": "heading.order"}
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return CommandResult(tuple(command), 0, "ok")
+
+    result = run_daily(
+        paths,
+        DailyConfig(top_n=1, llm_top_n=0),
+        codes=["600887.SH"],
+        skip_screen=True,
+        publish=True,
+        run_command=fake,
+        sleep=lambda seconds: None,
+    )
+    assert result["site"].startswith("blocked: report_structure failed")
+    assert called["build"] is False
+
+
 def test_run_daily_does_not_publish_partial_failure(tmp_path: Path) -> None:
     paths = _paths(tmp_path)
 
@@ -579,3 +630,30 @@ def test_production_config_attempts_llm_for_all_reports() -> None:
     config = load_config(root / "configs" / "daily.toml")
     assert (config.top_n, config.llm_top_n) == (20, 20)
     assert (config.hk_limit, config.hk_llm_top_n) == (20, 20)
+
+
+def _pipeline_module():
+    import importlib.util
+
+    root = Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location(
+        "turtlefw_daily_pipeline", root / "scripts" / "daily_pipeline.py"
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_pipeline_overrides_do_not_reset_config_values() -> None:
+    module = _pipeline_module()
+    config = DailyConfig(top_n=20, llm_top_n=20, hk_llm_top_n=20, report_workers=4)
+    merged = module._apply_overrides(
+        config, {"top_n": None, "llm_top_n": None, "hk_llm_top_n": None, "allow_stale": False}
+    )
+    assert (merged.top_n, merged.llm_top_n, merged.hk_llm_top_n) == (20, 20, 20)
+    assert merged.report_workers == 4
+
+    tuned = module._apply_overrides(config, {"top_n": 3, "llm_top_n": 0, "hk_llm_top_n": 1})
+    assert (tuned.top_n, tuned.llm_top_n, tuned.hk_llm_top_n) == (3, 0, 1)
+    assert tuned.report_workers == 4

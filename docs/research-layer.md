@@ -95,7 +95,15 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
   避免管道符破坏 Markdown 表格。
 - research bridge 的 D4 过滤支付率/回购/资本配置类 claim，避免单一
   分红口径问题触发“管理层损害价值”否决。
-- 仍待补：行业/竞对独立章节、自动识别并补齐港股缺失数据。
+- 公司身份进入研究上下文：`ReportInputs` 增加 `name` / `industry_label` /
+  `business_summary`；港股从 `hk_basic` 取名称、从 Yahoo profile 取
+  sector/industry/摘要；`research-context` 增加 `company` 块与
+  `data:company` 证据事实，data pack 头部显示公司/行业/主营。
+- `finalize` 增加业务事实门控：`unsupported_industry_terms()` 把
+  claim / params / decision 里的行业词，与公司身份及该 claim 的证据引文比对，
+  没有支撑就拒绝（例如把海底捞描述成物业管理）。门控只看确定性身份，
+  不看 Yahoo 的长摘要，避免摘要里的附带业务反过来为杜撰背书。
+- 仍待补：行业/竞对独立章节；港股行业分类（申万/中信口径）尚未落地。
 
 ## Phase 7（完成）：research → qualitative bridge
 

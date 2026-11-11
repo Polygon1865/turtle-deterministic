@@ -1,0 +1,71 @@
+{% extends "site_layout.html.j2" %}
+{% block content %}
+<section class="hero">
+  <p class="kicker"><span>{{ report.code }}</span><span class="dot">/</span><span>{{ report.market }}</span>{% if report.industry %}<span class="dot">/</span><span>{{ report.industry }}</span>{% endif %}</p>
+  <h1>{{ report.name or report.code }}{% if report.verdict %} <span class="badge {{ report.verdict_class }}">{{ report.verdict }}</span>{% endif %}</h1>
+  <p class="lede">{% if report.thesis %}{{ report.thesis }}{% else %}该标的暂无定性研究摘要，以下为确定性数字与历史记录。{% endif %}</p>
+  <p class="meta"><span>QA {{ report.qa }}</span>{% if report.numeric_coverage %}<span>覆盖 {{ report.numeric_coverage }}</span>{% endif %}<span>数据日 {{ report.date_label }}</span><span><a href="{{ report.day_href }}">当日全部报告 →</a></span></p>
+</section>
+
+<div class="quickread">
+  <div class="qr-main">
+    <div class="qr-kicker">综合判定</div>
+    <div class="verdict {{ report.verdict_class }}">{{ report.verdict or '—' }}</div>
+    <p>当前价 {{ report.price or '—' }}，综合底价 {{ report.floor or '—' }}，当前价溢价 {{ report.premium or '—' }}；安全边际 {{ report.margin or '—' }}。</p>
+    <p class="qr-position">{{ report.code }} · {{ report.industry or report.market }} · 报告期数据</p>
+  </div>
+  <div class="qr-grid">
+    <div class="qr-cell"><span>穿透回报率 R</span><strong>{{ report.r or '—' }}</strong></div>
+    <div class="qr-cell"><span>精算回报率 GG</span><strong>{{ report.gg or '—' }}</strong></div>
+    <div class="qr-cell"><span>门槛回报率 II</span><strong>{{ report.ii or '—' }}</strong></div>
+    <div class="qr-cell"><span>安全边际</span><strong>{{ report.margin or '—' }}</strong></div>
+    <div class="qr-cell"><span>当前价</span><strong>{{ report.price or '—' }}</strong></div>
+    <div class="qr-cell"><span>综合底价</span><strong>{{ report.floor or '—' }}</strong></div>
+    <div class="qr-cell"><span>当前价溢价</span><strong>{{ report.premium or '—' }}</strong></div>
+    <div class="qr-cell"><span>支付率</span><strong>{{ report.payout or '—' }}</strong></div>
+  </div>
+</div>
+
+<section class="panel">
+  <header>
+    <h2>历史记录</h2>
+    <span class="hint">同一标的跨数据日的变化</span>
+    <span class="links"><a href="{{ report.report_href }}">报告全文 →</a></span>
+  </header>
+  {% if history %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>数据日</th><th>结论</th><th class="num">当前价</th><th class="num">底价</th><th class="num">安全边际</th><th>报告</th></tr>
+      </thead>
+      <tbody>
+        {% for point in history %}
+        <tr>
+          <td class="mono">{{ point.date }}</td>
+          <td>{% if point.verdict %}<span class="badge {{ point.verdict_class }}">{{ point.verdict }}</span>{% else %}<span class="dim">—</span>{% endif %}</td>
+          <td class="num">{{ point.price or '—' }}</td>
+          <td class="num">{{ point.floor or '—' }}</td>
+          <td class="num">{{ point.margin or '—' }}</td>
+          <td>{% if point.report_href %}<a href="{{ point.report_href }}">全文</a>{% else %}<span class="dim">—</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">暂无历史记录。</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <header><h2>相关文件</h2><span class="hint">报告、数据与审计入口</span></header>
+  <div class="body">
+    <ul>
+      <li><a href="{{ report.report_href }}">完整分析报告</a>：四因子检查、估值与底价、数据问题、研究判断（D1–D6）。</li>
+      <li><a href="{{ report.day_href }}">{{ report.date_label }} 当日报告</a>：同批 A 股与港股的全部结论。</li>
+      <li><a href="{{ base }}archive/{{ date_key }}/ranking.csv">A 股候选 CSV</a> · <a href="{{ base }}archive/{{ date_key }}/ranking_hk.csv">港股候选 CSV</a></li>
+      <li><a href="{{ base }}health.txt">运行健康检查</a> · <a href="{{ base }}method.html">方法说明</a></li>
+    </ul>
+  </div>
+</section>
+{% endblock %}

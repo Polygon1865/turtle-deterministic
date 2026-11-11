@@ -15,6 +15,8 @@ from typing import Any, Iterable
 from .narrative import tokens, unknown_numbers
 
 _YEAR = re.compile(r"^(19|20)\d{2}$")
+_ISO_DATE = re.compile(r"\b(?:19|20)\d{2}-\d{2}-\d{2}\b")
+_COMPACT_DATE = re.compile(r"\b(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\b")
 _RESEARCH_COLLECTIONS = ("claims", "params", "decisions", "evidence")
 
 
@@ -66,8 +68,10 @@ def audit(
     strict: bool = False,
 ) -> dict[str, Any]:
     text = Path(report).read_text(encoding="utf-8-sig")
-    # Snapshot IDs are provenance, not report metrics.
+    # Snapshot IDs and calendar dates are provenance, not report metrics.
     text = re.sub(r"`[0-9a-fA-F]{12,}`", "", text)
+    text = _ISO_DATE.sub("", text)
+    text = _COMPACT_DATE.sub("", text)
     allowed = set()
     source_paths = [Path(source) for source in sources]
     if strict:

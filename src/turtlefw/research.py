@@ -30,6 +30,33 @@ CONFIDENCES = {"high", "medium", "low"}
 _NUMBER = re.compile(r"(?<!\{)\b\d+(?:\.\d+)?%?\b")
 _YEAR = re.compile(r"^(19|20)\d{2}$")
 _PLACEHOLDER = re.compile(r"\{\{(metric|fact):([^}]+)\}\}")
+
+
+def _resolve_lenient(
+    text: str,
+    *,
+    metrics: Mapping[str, str],
+    facts: Mapping[str, str] | None = None,
+) -> str:
+    """Render free-form prose with placeholders; missing ids become "—".
+
+    ``claim.unknowns`` is prose about what the model could not verify.  A
+    placeholder there (typically ``{{metric:parent_cash_ratio}}`` for a market
+    that does not carry that metric) must not leave ``{{...}}`` in the report
+    nor fail the whole render.
+    """
+
+    fact_map = facts or {}
+
+    def replace(match: re.Match[str]) -> str:
+        kind, key = match.group(1), match.group(2).strip()
+        if kind == "metric" and key in metrics:
+            return metrics[key]
+        if kind == "fact" and key in fact_map:
+            return fact_map[key]
+        return "—"
+
+    return _PLACEHOLDER.sub(replace, text)
 _QUOTE_LIMIT = 400
 _PARTIAL_NUMBER = re.compile(r"\d[\d,.]*$")
 _TABLE_RULE = re.compile(r"^:?-{2,}:?$")
@@ -80,6 +107,7 @@ def render_markdown(
     *,
     include_meta: bool = True,
     include_heading: bool = True,
+    params_heading: str = "研究参数",
 ) -> str:
     """Render D1–D6 claims, params and decisions; unresolved refs fail loudly."""
     lines: list[str] = []
@@ -120,9 +148,15 @@ def render_markdown(
                 lines.append(f"  - 证据：{label}")
                 lines.append(f"    > {quote}")
             if claim.unknowns:
-                lines.append(f"  - 未验证：{'、'.join(claim.unknowns)}")
+                rendered_unknowns = "、".join(
+                    _resolve_lenient(item, metrics=metrics, facts=fact_map)
+                    for item in claim.unknowns
+                )
+                lines.append(f"  - 未验证：{rendered_unknowns}")
     if document.params:
-        lines.extend(["", "### 研究参数", "", "| 参数 | 值 | 置信度 |", "|:--|:--|:--|"])
+        lines.extend(
+            ["", f"### {params_heading}", "", "| 参数 | 值 | 置信度 |", "|:--|:--|:--|"]
+        )
         for param in document.params:
             lines.append(
                 f"| {param.label or param.param_id} | {resolve(param.value)} | {param.confidence} |"
@@ -173,7 +207,12 @@ def render_dimensions(
             params=params,
         )
         body = render_markdown(
-            filtered, metrics, facts, include_meta=False, include_heading=False
+            filtered,
+            metrics,
+            facts,
+            include_meta=False,
+            include_heading=False,
+            params_heading=f"{dimension} 研究参数",
         )
         if body:
             sections[dimension] = body
@@ -517,6 +556,129 @@ def audit(
         "errors": errors,
         "quality": quality(document),
     }
+
+
+# Industry vocabulary used to check that a research claim does not invent a
+# business.  A statement may only *assert* an industry when a member of that
+# group appears in the company profile or in the claim's own evidence quotes.
+#
+# 2026-10-29: the first version matched every mention of these words, so
+# "地产销售下行压制需求" or "供应链管理" were read as industry assertions and the
+# research layer fell back for 21 of 40 daily stocks.  The check now only looks
+# inside identity assertions ("以…为主业", "主营…", "是一家…公司", …), and groups
+# no longer contain operation nouns such as 供应链 that every manufacturer uses.
+INDUSTRY_GROUPS: tuple[tuple[str, ...], ...] = (
+    ("物业", "物业管理", "在管面积", "物业费", "property management", "property"),
+    ("房地产", "地产", "开发商", "土地储备", "real estate", "developer"),
+    ("餐饮", "火锅", "餐厅", "快餐", "restaurant", "hot pot", "catering"),
+    ("白酒", "啤酒", "酒类", "葡萄酒", "wineries", "breweries", "spirits"),
+    ("食品", "零食", "乳制品", "packaged foods", "food products"),
+    ("饮料", "饮用水", "矿泉水", "果汁", "茶饮", "咖啡", "beverages", "soft drinks"),
+    ("医药", "制药", "生物医药", "创新药", "中药", "drug manufacturers", "biotechnology"),
+    ("医疗", "医疗器械", "医院", "诊断", "medical devices", "healthcare"),
+    ("汽车", "整车", "乘用车", "商用车", "auto manufacturers", "vehicles"),
+    ("银行", "商业银行", "零售银行", "banks"),
+    ("保险", "寿险", "财险", "再保险", "insurance"),
+    ("证券", "券商", "投行", "资产管理", "capital markets", "asset management"),
+    ("半导体", "芯片", "晶圆", "集成电路", "semiconductors"),
+    ("化工", "化肥", "农药", "涂料", "新材料", "chemicals"),
+    ("煤炭", "焦煤", "煤化工", "coal"),
+    ("电力", "发电", "新能源", "光伏", "风电", "水电", "utilities", "solar", "wind"),
+    ("通信", "运营商", "电信", "5G", "telecom"),
+    ("零售", "商超", "百货", "便利店", "retail"),
+    ("电商", "互联网", "平台经济", "本地生活", "internet retail", "e-commerce"),
+    ("游戏", "手游", "网络游戏", "electronic gaming", "gaming"),
+    ("传媒", "影视", "广告", "出版", "entertainment", "advertising"),
+    ("教育", "培训", "职业教育", "education"),
+    ("航空", "机场", "民航", "airlines", "airports"),
+    ("航运", "港口", "集装箱", "干散货", "shipping", "marine shipping"),
+    ("钢铁", "普钢", "特钢", "steel"),
+    ("有色金属", "铝", "铜", "黄金", "锂", "copper", "aluminum", "gold"),
+    ("建筑", "工程", "基建", "施工", "engineering & construction"),
+    ("机械", "工程机械", "设备制造", "industrial machinery", "machinery"),
+    ("家电", "家用电器", "白色家电", "appliances"),
+    ("纺织", "服装", "鞋类", "体育用品", "apparel", "footwear"),
+    ("农业", "养殖", "生猪", "种植", "farm products", "agricultural"),
+    ("物流", "快递", "仓储", "logistics", "freight"),
+    ("租赁", "航运租赁", "融资租赁", "rental & leasing"),
+    ("酒店", "旅游", "景区", "免税", "lodging", "resorts", "travel"),
+)
+
+# Only these sentence shapes assert what the company *is*.  A claim that names
+# an industry as a driver, a customer or a comparison ("地产下行压制需求") is
+# analysis, not an identity claim, and must not trigger the gate.
+_IDENTITY_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"以([^。；，,、]{1,24}?)(?:为主业|作为主业|为主要业务|为核心业务|为主营业务)"),
+    re.compile(r"主营(?:业务)?(?:为|是|包括|涵盖)?\s*([^。；，,、]{1,24})"),
+    re.compile(r"主要从事\s*([^。；，,、]{1,24})"),
+    re.compile(r"(?:属于|身处|深耕)\s*([^。；，,、]{1,16}?)(?:行业|赛道|板块)"),
+    re.compile(r"是一家\s*([^。；，,、]{1,20}?)(?:公司|企业|集团)"),
+    re.compile(r"定位(?:为|于)\s*([^。；，,、]{1,24})"),
+    re.compile(r"([^。；，,、]{1,24}?)(?:提供商|服务商|运营商|制造商|开发商)"),
+)
+
+
+def _identity_phrases(text: str) -> list[str]:
+    phrases: list[str] = []
+    for pattern in _IDENTITY_PATTERNS:
+        for match in pattern.finditer(text):
+            phrase = match.group(1).strip(" 　的")
+            if phrase:
+                phrases.append(phrase)
+    return phrases
+
+
+def unsupported_industry_terms(
+    document: ResearchDocument, *, company_text: str
+) -> list[str]:
+    """Return ``label:term`` for industry assertions the profile does not support.
+
+    ``company_text`` is the deterministic identity blob (name, industry and
+    business summary from the data layer).  An assertion like "以物业管理及
+    相关服务为主业" may only name an industry when that industry appears in the
+    profile or in the claim's own evidence quotes; otherwise the text is
+    fabrication even if its numbers are right.  This is the check the
+    2026-10-29 Haidilao intro would have failed.
+    """
+
+    profile = (company_text or "").strip().casefold()
+    problems: list[str] = []
+
+    def evidence_text(claim: ResearchClaim) -> str:
+        quotes: list[str] = []
+        for evidence_id in claim.evidence_ids:
+            entry = document.evidence.get(evidence_id)
+            if isinstance(entry, dict):
+                quotes.append(str(entry.get("quote") or ""))
+        return "\n".join(quotes).casefold()
+
+    def inspect(label: str, text: str, quotes: str) -> None:
+        if not text:
+            return
+        for phrase in _identity_phrases(text):
+            folded = phrase.casefold()
+            for group in INDUSTRY_GROUPS:
+                named = [term for term in group if term.casefold() in folded]
+                if not named:
+                    continue
+                supported = any(
+                    term.casefold() in profile or term.casefold() in quotes
+                    for term in group
+                )
+                if not supported:
+                    problem = f"{label}:{named[0]}"
+                    if problem not in problems:
+                        problems.append(problem)
+
+    for claim in document.claims:
+        if claim.judgment == "unknown":
+            continue
+        inspect(claim.claim_id, claim.statement, evidence_text(claim))
+    for param in document.params:
+        inspect(param.param_id, param.value, "")
+    for decision in document.decisions:
+        inspect(decision.decision_id, decision.reason, "")
+    return problems
 
 
 def coverage_markdown(document: ResearchDocument) -> str:

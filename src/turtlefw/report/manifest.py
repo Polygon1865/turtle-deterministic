@@ -11,6 +11,7 @@ from ..facts import (
     config_payload,
     content_hash,
     file_hash,
+    renderer_hash,
     statement_payload,
     template_hash,
 )
@@ -54,6 +55,7 @@ def build_manifest(
         template_hash=template_hash(
             Path(__file__).resolve().parent / "templates"
         ),
+        renderer_hash=renderer_hash(Path(__file__).resolve().parent),
         engine_version=__version__,
         report_hash=report_hash,
         metrics_hash=metrics_hash,

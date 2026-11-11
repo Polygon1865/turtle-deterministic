@@ -55,6 +55,18 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _apply_overrides(config: DailyConfig, overrides: dict[str, object]) -> DailyConfig:
+    """Apply only the overrides the caller actually supplied.
+
+    ``argparse`` defaults are ``None`` for every overridable option. Merging
+    those ``None`` values over the TOML config before filtering them out makes
+    each such field silently fall back to its dataclass default (for example
+    ``hk_llm_top_n`` reverts from 20 to 3), so drop them first.
+    """
+    supplied = {key: value for key, value in overrides.items() if value is not None}
+    return DailyConfig(**{**config.__dict__, **supplied})
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.config.is_file():
@@ -76,13 +88,7 @@ def main(argv: list[str] | None = None) -> int:
         "allow_stale": args.allow_stale,
         "project_root": str(ROOT),
     }
-    config = DailyConfig(
-        **{
-            key: value
-            for key, value in {**config.__dict__, **overrides}.items()
-            if value is not None
-        }
-    )
+    config = _apply_overrides(config, overrides)
     codes = tuple(code.strip() for code in args.codes.split(",") if code.strip())
     paths = DailyPaths(
         day=args.date,

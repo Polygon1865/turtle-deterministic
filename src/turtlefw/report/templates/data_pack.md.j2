@@ -1,6 +1,9 @@
-# 数据包 — {{ code }}
+# 数据包 — {{ code }}{% if name %} {{ name }}{% endif %}
 
-> 数据截至：{{ as_of or generated_at }} ｜ 报表币种：{{ currency }} ｜ 数据源：Tushare Pro
+{% if industry_label or business_summary %}
+> 公司：{{ name or "未接入" }}{% if industry_label %} ｜ 行业：{{ industry_label }}{% endif %}{% if business_summary %} ｜ 主营：{{ business_summary }}{% endif %}
+{% endif %}
+> 数据截至：{{ as_of or generated_at }} ｜ 报表币种：{{ currency }} ｜ 数据源：{{ data_source }}{% if quote_note %} ｜ {{ quote_note }}{% endif %}
 > 数据快照：`{{ snapshot_id }}` ｜ 行情日期：{{ as_of }} ｜ 市场：{{ market }}
 {% if rf_source %}
 > 无风险利率来源：{{ rf_source }}
@@ -73,9 +76,15 @@
 
 ## 8. 股东与主营
 
-{% if holders_available %}**前十大股东**
+{% if holders_available %}**{{ holders_heading }}**
 
 {{ holders_table }}
+
+{% if holders_note %}> {{ holders_note }}{% endif %}
+{% endif %}
+{% if business_summary %}**主营描述（{{ industry_label or '行业未标注' }}）**
+
+{{ business_summary }}
 {% endif %}
 {% if mainbz_available %}**主营/分部**
 
@@ -85,9 +94,9 @@
 
 {{ peer_table }}
 
-> Peer 数字由 Tushare 三表按确定性公式计算，仅用于可比公司背景，不进入目标公司估值。
+> Peer 数字由数据源三表按确定性公式计算，仅用于可比公司背景，不进入目标公司估值。
 {% endif %}
-{% if not holders_available and not mainbz_available and not peer_available %}未接入股东/主营数据。{% endif %}
+{% if not holders_available and not mainbz_available and not business_summary and not peer_available %}未接入股东/主营数据。{% endif %}
 
 {% if hk_facts_note %}> HK PDF 语义：{{ hk_facts_note }}{% endif %}
 
@@ -148,5 +157,5 @@
 
 ---
 
-> 本数据包由确定性脚本生成，所有金额来自 Tushare Pro，未经 LLM 加工。
+> 本数据包由确定性脚本生成，所有金额来自 {{ data_source }}，未经 LLM 加工。
 > 指标口径与阈值见 `configs/screening.toml`；不构成投资建议。

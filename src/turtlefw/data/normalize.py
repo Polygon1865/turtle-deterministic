@@ -10,6 +10,7 @@ from typing import Any, Iterable, Mapping
 
 import pandas as pd
 
+from ..metrics import payout as payout_metrics
 from ..types import Currency, DividendEvent, TurtleError
 from .protocol import StatementRow
 
@@ -233,9 +234,7 @@ def hk_dividend_events(
             continue
         ratio = to_decimal(record.get("divi_ratio"))
         dps = to_decimal(record.get("dps_hkd"))
-        payout_pct = None
-        if ratio is not None:
-            payout_pct = ratio * Decimal("100") if ratio <= 1 else ratio
+        payout_pct = payout_metrics.vendor_ratio(ratio).pct
         if payout_pct is None and (dps is None or dps <= 0):
             continue
         by_year[fiscal_end.year] = DividendEvent(

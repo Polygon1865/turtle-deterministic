@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import re
 import shutil
 import tempfile
 from dataclasses import replace
@@ -130,7 +131,7 @@ def test_report_shows_pdf_accounts_receivable_fact():
         ],
     )
     markdown, _ = render(inputs, load_settings())
-    assert "## PDF 证据" in markdown
+    assert re.search(r"^## (?:[一二三四五六七八九十]+、\s*)?PDF 证据", markdown, re.M)
     assert "123.46" in markdown
 
 
@@ -245,7 +246,9 @@ def test_metric_registry_points_to_capex_detail_fact():
 
 def test_report_contains_industry_template():
     markdown, _ = render(_inputs(), load_settings())
-    assert "## 行业模板：食品饮料" in markdown
+    assert re.search(
+        r"^## (?:[一二三四五六七八九十]+、\s*)?行业模板：食品饮料", markdown, re.M
+    )
     assert "Peer 组" in markdown
 
 
@@ -583,3 +586,104 @@ def test_finalize_refuses_existing_target(tmp_path):
         pass
     else:
         raise AssertionError("expected FinalizeError")
+
+
+def _identity_inputs() -> ReportInputs:
+    return replace(
+        _inputs(),
+        name="海底捞",
+        industry_label="餐饮 / Restaurants",
+        business_summary="连锁火锅餐厅与外卖",
+    )
+
+
+def _identity_research(statement: str) -> str:
+    return json.dumps(
+        {
+            "evidence": [
+                {
+                    "id": "ev1",
+                    "url": "https://example.com/a",
+                    "quote": "公司披露的业务描述",
+                }
+            ],
+            "claims": [
+                {
+                    "claim_id": "D1.1",
+                    "dimension": "D1",
+                    "statement": statement,
+                    "judgment": "neutral",
+                    "confidence": "high",
+                    "evidence_ids": ["ev1"],
+                }
+            ],
+        },
+        ensure_ascii=False,
+    )
+
+
+def test_finalize_rejects_industry_not_supported_by_identity(tmp_path, monkeypatch):
+    monkeypatch.setenv("TURTLE_OUTPUT_DIR", str(tmp_path / "out"))
+    settings = load_settings()
+    old = tmp_path / "snapshot"
+    freeze(_identity_inputs(), settings, old)
+    research = tmp_path / "research.json"
+    research.write_text(
+        _identity_research("公司以物业管理及相关服务为主业"), encoding="utf-8"
+    )
+    target = tmp_path / "final"
+    try:
+        finalize_research(old, research, target, min_claims=1, min_dimensions=1)
+    except FinalizeError as exc:
+        assert "物业" in str(exc)
+        assert "业务描述与公司身份不符" in str(exc)
+    else:
+        raise AssertionError("expected FinalizeError")
+    assert not target.exists()
+
+
+def test_finalize_accepts_industry_supported_by_identity(tmp_path, monkeypatch):
+    monkeypatch.setenv("TURTLE_OUTPUT_DIR", str(tmp_path / "out"))
+    settings = load_settings()
+    old = tmp_path / "snapshot"
+    freeze(_identity_inputs(), settings, old)
+    research = tmp_path / "research.json"
+    research.write_text(_identity_research("公司以火锅餐饮连锁为主业"), encoding="utf-8")
+    target = finalize_research(
+        old, research, tmp_path / "final", min_claims=1, min_dimensions=1
+    )
+    assert (target / "research.json").is_file()
+
+
+def test_finalize_gate_ignores_incidental_summary_mentions(tmp_path, monkeypatch):
+    monkeypatch.setenv("TURTLE_OUTPUT_DIR", str(tmp_path / "out"))
+    settings = load_settings()
+    old = tmp_path / "snapshot"
+    identity = replace(
+        _identity_inputs(),
+        business_summary="also engaged in property investment management and consulting",
+    )
+    freeze(identity, settings, old)
+    research = tmp_path / "research.json"
+    research.write_text(
+        _identity_research("公司以物业管理及相关服务为主业"), encoding="utf-8"
+    )
+    try:
+        finalize_research(
+            old, research, tmp_path / "final", min_claims=1, min_dimensions=1
+        )
+    except FinalizeError as exc:
+        assert "物业" in str(exc)
+    else:
+        raise AssertionError("expected FinalizeError")
+
+
+def test_inputs_roundtrip_identity_fields(tmp_path):
+    settings = load_settings()
+    old = tmp_path / "snapshot"
+    freeze(_identity_inputs(), settings, old)
+    loaded, _ = load(old)
+    assert loaded.name == "海底捞"
+    assert loaded.industry_label == "餐饮 / Restaurants"
+    assert loaded.business_summary == "连锁火锅餐厅与外卖"
+

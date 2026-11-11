@@ -1,0 +1,20 @@
+{
+  "holdings": [
+    {
+      "code": "00270.HK",
+      "entry_date": "2026-11-02",
+      "entry_price": 8.03,
+      "entry_verdict": "买入",
+      "entry_margin": 5.32,
+      "stop_loss": 0.25
+    },
+    {
+      "code": "03877.HK",
+      "entry_date": "2026-11-02",
+      "entry_price": 2.365,
+      "entry_verdict": "买入",
+      "entry_margin": 11.09,
+      "stop_loss": 0.25
+    }
+  ]
+}

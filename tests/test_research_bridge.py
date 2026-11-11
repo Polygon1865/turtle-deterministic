@@ -52,8 +52,8 @@ def test_bridge_maps_dimensions_and_keeps_pdf_evidence():
 
 def test_bridge_negative_wins_and_uses_weakest_confidence():
     doc = _doc(
-        _claim("D1.1", "D1", "positive", confidence="high"),
-        _claim("D1.2", "D1", "negative", confidence="medium"),
+        _claim("D1.business_model", "D1", "positive", confidence="high"),
+        _claim("D1.business_model_mix", "D1", "negative", confidence="medium"),
         evidence={
             "e1": {
                 "source_type": "data",
@@ -67,6 +67,23 @@ def test_bridge_negative_wins_and_uses_weakest_confidence():
     assert item is not None
     assert item.judgment == "negative"
     assert item.confidence == "medium"
+
+
+def test_revenue_contraction_does_not_make_business_ununderstandable():
+    """A falling top line is a performance fact, not a comprehension failure.
+
+    On 2026-11-04 a `D1.revenue_contraction: negative` claim flipped 00270.HK
+    from 买入 to 排除 through the 1A "看不懂" veto while every deterministic
+    number stayed flat.
+    """
+
+    doc = _doc(
+        _claim("D1.revenue_contraction", "D1", "negative", confidence="high"),
+        evidence={"e1": {"source_type": "data", "quote": "营业收入五年复合增速为负"}},
+    )
+    result, modules = bridge(doc)
+    assert result is None
+    assert modules == ()
 
 
 def test_bridge_ignores_low_confidence_and_unknown():

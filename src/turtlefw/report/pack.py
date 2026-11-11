@@ -28,7 +28,16 @@ from ..metrics.dividends import average_dps
 from ..pdf.hk_facts import extract as extract_hk_facts
 from ..types import Currency, DividendEvent, FetchIssue, Money, StockCode
 from .extras import render_extras
-from .format import TEMPLATE_DIR, _m, _num, _pct, _ratio_pct, _table, _x
+from .format import (
+    TEMPLATE_DIR,
+    _m,
+    _num,
+    _pct,
+    _ratio_pct,
+    _table,
+    _x,
+    data_source_label,
+)
 from .market import render_market
 from .pdf_facts import apply_document_facts
 from .snapshot_id import source_snapshot_id
@@ -36,6 +45,43 @@ from .snapshot_id import source_snapshot_id
 
 def _series(rows: Sequence[StatementRow], statement: str, item: str) -> dict[int, Decimal]:
     return statements.annual_series(rows, statement, item)
+
+
+def _quote_note(quote: Mapping[str, Any] | None, currency: str) -> str:
+    """Describe the original quote currency when the pack converts it."""
+    if not quote:
+        return ""
+    local = quote.get("close_local")
+    local_currency = quote.get("currency_local")
+    if local is None or not local_currency or str(local_currency) == currency:
+        return ""
+    try:
+        price_text = f"{Decimal(str(local)):,.2f}"
+    except (ArithmeticError, ValueError):
+        return ""
+    fx = quote.get("fx")
+    fx_text = f"（1 {local_currency} = {float(fx):g} {currency}）" if fx else ""
+    return f"报价 {local_currency} {price_text}{fx_text}"
+
+
+def _holders_heading(holders: Sequence[Mapping[str, Any]]) -> str:
+    """Title for section 8's holder table, honest about the source."""
+    if any(str(row.get("source") or "") == "yahoo" for row in holders):
+        return "机构与基金持仓（Yahoo，第三方，可能滞后）"
+    return "前十大股东"
+
+
+def _holders_note(holders: Sequence[Mapping[str, Any]]) -> str:
+    """Footnote describing holder source and disclosure date."""
+    yahoo = [row for row in holders if str(row.get("source") or "") == "yahoo"]
+    if not yahoo:
+        return ""
+    dates = sorted({str(row.get("as_of") or "").strip() for row in yahoo if row.get("as_of")})
+    stamp = f"，披露日期 {dates[-1]}" if dates else ""
+    return (
+        f"来源 Yahoo Finance（第三方机构持仓快照{stamp}），"
+        "不是完整股东名册，也不等同于年报披露；仅供背景参考。"
+    )
 
 
 def _week52(
@@ -110,6 +156,9 @@ def render_data_pack(
     market_extras: Mapping[str, Any] | None = None,
     industry_peers: Sequence[Mapping[str, object]] | None = None,
     qualitative: object | None = None,
+    name: str = "",
+    industry_label: str = "",
+    business_summary: str = "",
 ) -> str:
     rows = apply_document_facts(list(rows), document_facts)
     decisions = decisions or {}
@@ -727,7 +776,12 @@ def render_data_pack(
     context = {
         "code": str(code),
         "market": code.market.value,
+        "data_source": data_source_label(code.market),
+        "name": name,
+        "industry_label": industry_label,
+        "business_summary": business_summary,
         "currency": currency.value,
+        "quote_note": _quote_note(quote, currency.value),
         "generated_at": str(as_of or (quote.get("trade_date", "") if quote else "")),
         "snapshot_id": snapshot_id or source_snapshot_id(rows),
         "as_of": str(as_of or (quote.get("trade_date", "") if quote else "")),
@@ -776,6 +830,8 @@ def render_data_pack(
             ["股东", "持股（亿股）", "比例"], holders_rows, ["l", "r", "r"]
         ),
         "holders_available": bool(holders_rows),
+        "holders_heading": _holders_heading(holders or []),
+        "holders_note": _holders_note(holders or []),
         "hk_facts_note": "；".join(hk_notes),
         "mainbz_table": _table(
             ["主营/分部", "收入（百万元）", "利润（百万元）"],

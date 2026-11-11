@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from typing import Any
@@ -20,8 +21,46 @@ from ..research import _display_quote
 from ..types import Currency, DividendEvent, FetchIssue, Market
 from . import industry
 from .extras import render_extras
-from .format import TEMPLATE_DIR, _m, _num, _pct, _table
+from .format import TEMPLATE_DIR, _m, _num, _pct, _table, data_source_label
 from .market import render_market
+from .normalize import renumber
+
+_RAW_DATE = re.compile(r"^((?:19|20)\d{2})(\d{2})(\d{2})$")
+
+
+def _price_text(display: str, quote: Mapping[str, Any] | None, currency: str) -> str:
+    """Price in the report currency; append the quote-currency close if converted."""
+    if not quote:
+        return display
+    local = quote.get("close_local")
+    local_currency = quote.get("currency_local")
+    if local is None or not local_currency or str(local_currency) == currency:
+        return display
+    try:
+        local_text = f"{Decimal(str(local)):,.2f}"
+    except (ArithmeticError, ValueError):
+        return display
+    return f"{display} {currency}（报价 {local_text} {local_currency}）"
+
+
+def _display_date(value: str) -> str:
+    """Render ``20261027`` as ``2026-10-27``; leave other formats untouched."""
+
+    match = _RAW_DATE.match(value.strip())
+    if not match:
+        return value
+    return f"{match.group(1)}-{match.group(2)}-{match.group(3)}"
+
+
+def _join_notes(notes: Sequence[str]) -> str:
+    """Join factor notes with a single delimiter, dropping trailing stops.
+
+    Notes are authored as full sentences, so a naive ``"；".join`` produced
+    ``。；`` at every boundary.
+    """
+
+    cleaned = [note.strip().rstrip("。；;") for note in notes if note.strip()]
+    return "；".join(cleaned)
 
 STATUS = {"pass": "通过", "veto": "否决", "unknown": "未验证", "info": "观察"}
 
@@ -109,6 +148,7 @@ def render_analysis(
     industry_name: str = "",
     market_extras: Mapping[str, Any] | None = None,
     research_note: str = "",
+    quote: Mapping[str, Any] | None = None,
 ) -> str:
     verdict, reason = final_verdict(results)
     rows = ctx.rows
@@ -162,24 +202,17 @@ def render_analysis(
         str(ctx.code), metric_ledger, list(industry_peers), industry_name
     )
     fundamental_md = render_extras(fundamental_extras)
+    # US quotes come from yfinance/SEC, not Tushare; the section title must not
+    # claim otherwise (2026-11-11 US smoke: KO.US report said "（Tushare）").
+    extras_label = "Tushare" if ctx.code.market is not Market.US else "yfinance 实验"
+    data_source = data_source_label(ctx.code.market)
     fundamental_section = (
-        f"## 十二、补充基本面（Tushare）\n\n{fundamental_md}\n\n"
-        if fundamental_md
-        else ""
+        f"## 补充基本面（{extras_label}）\n\n{fundamental_md}\n\n" if fundamental_md else ""
     )
     market_md = render_market(market_extras)
-    market_number = "十三" if fundamental_md else "十二"
     market_section = (
-        f"## {market_number}、市场与宏观（Tushare）\n\n{market_md}\n\n"
-        if market_md
-        else ""
+        f"## 市场与宏观（{extras_label}）\n\n{market_md}\n\n" if market_md else ""
     )
-    if fundamental_md and market_md:
-        disclaimer_heading = "十四"
-    elif fundamental_md or market_md:
-        disclaimer_heading = "十三"
-    else:
-        disclaimer_heading = "十二"
     status_label = {"stable": "口径一致", "divergent": "口径分歧", "unavailable": "不可用"}[
         stats.status
     ]
@@ -473,8 +506,9 @@ def render_analysis(
         "code": str(ctx.code),
         "market": ctx.code.market.value,
         "currency": ctx.market_cap.currency.value,
-        "generated_at": as_of,
-        "as_of": as_of,
+        "data_source": data_source,
+        "generated_at": _display_date(as_of),
+        "as_of": _display_date(as_of),
         "research_md": research_md,
         "research_sections": research_sections or [],
         "research_meta_md": research_meta_md,
@@ -488,13 +522,13 @@ def render_analysis(
         "rf": _pct(ctx.rf_pct),
         "rf_source": rf_source,
         "price": metric_ledger.display("price"),
+        "price_text": _price_text(metric_ledger.display("price"), quote, ctx.market_cap.currency.value),
         "market_cap": _m(ctx.market_cap.amount),
         "metric": metric_ledger.display,
         "metric_registry": metric_ledger,
         "industry_md": industry_md,
         "fundamental_section": fundamental_section,
         "market_section": market_section,
-        "disclaimer_heading": disclaimer_heading,
         "data_basis": data_basis,
         "fx_note": fx_note,
         "qual_note": qual_note,
@@ -554,14 +588,15 @@ def render_analysis(
         "thesis_catalysts_md": "\n".join(f"- {item}" for item in thesis_catalysts),
         "thesis_holding": thesis_holding,
         "issues_md": "\n".join(f"- {issue}" for issue in issues) or "未检测到数据问题。",
-        "notes_1a": "；".join(results["1A"].notes),
-        "notes_1b": "；".join(results["1B"].notes),
-        "notes_2": "；".join(results["2"].notes),
-        "notes_3": "；".join(results["3"].notes),
-        "notes_4": "；".join(results["4"].notes),
+        "notes_1a": _join_notes(results["1A"].notes),
+        "notes_1b": _join_notes(results["1B"].notes),
+        "notes_2": _join_notes(results["2"].notes),
+        "notes_3": _join_notes(results["3"].notes),
+        "notes_4": _join_notes(results["4"].notes),
     }
 
     env = Environment(loader=FileSystemLoader(TEMPLATE_DIR), autoescape=False)
     if metrics_out is not None:
         metrics_out.update(metric_ledger.to_dict())
-    return env.get_template("analysis.md.j2").render(**context)
+    rendered = env.get_template("analysis.md.j2").render(**context)
+    return renumber(rendered)

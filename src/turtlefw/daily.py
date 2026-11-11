@@ -114,6 +114,8 @@ class DailyConfig:
     allow_stale: bool = False
     publish_partial: bool = True
     resume: bool = False
+    briefing: bool = True
+    briefing_limit: int = 6
     project_root: str = "."
 
 
@@ -486,6 +488,8 @@ def classify_research_failure(text: str) -> str:
     """Map an LLM/finalize error to a stable, displayable reason code."""
 
     lowered = text.lower()
+    if "业务描述与公司身份不符" in text or "identity gate" in lowered:
+        return "identity_gate"
     if "not valid json" in lowered or "json output" in lowered:
         return "json_invalid"
     if "unresolved placeholder" in lowered or "unresolved metric" in lowered:
@@ -795,6 +799,34 @@ def _ranking_source(path: Path) -> str:
     return ""
 
 
+def _structural_failures(
+    day_dir: Path, reports: Sequence[dict[str, Any]]
+) -> list[str]:
+    """Reports whose QA contains a failed ``report_structure`` row.
+
+    T6: structural damage (broken tables, duplicate headings, stray
+    placeholders) must stop the release instead of shipping to the public site.
+    """
+
+    bad: list[str] = []
+    for row in reports:
+        payload = _read_json(day_dir / str(row.get("code")) / "qa.json")
+        if not isinstance(payload, dict):
+            continue
+        rows = payload.get("rows")
+        if not isinstance(rows, list):
+            continue
+        for item in rows:
+            if (
+                isinstance(item, dict)
+                and item.get("name") == "report_structure"
+                and item.get("status") == "FAIL"
+            ):
+                bad.append(str(row.get("code")))
+                break
+    return bad
+
+
 def run_daily(
     paths: DailyPaths,
     config: DailyConfig | None = None,
@@ -809,6 +841,13 @@ def run_daily(
 
     config = config or DailyConfig()
     paths.day_dir.mkdir(parents=True, exist_ok=True)
+    # One cache across days: the HK screen needs ~1.7k indicator calls and a
+    # per-day cache made every new day pay a 30-minute cold start (2026-10-30
+    # hit the 1800s screen timeout and produced no reports at all).
+    from .paths import cache_root as shared_cache_root
+
+    shared_cache = shared_cache_root(paths.runs_root)
+    os.environ["TURTLE_CACHE_DIR"] = str(shared_cache)
     started_at = datetime.now().isoformat(timespec="seconds")
     attempt_id = datetime.now().strftime("%Y%m%dT%H%M%S")
     status: dict[str, Any] = {
@@ -823,6 +862,7 @@ def run_daily(
         "stocks": [],
         "site": None,
         "llm_usage": {},
+        "cache_dir": str(shared_cache),
         "ok": False,
     }
     if config.resume and paths.status_path.is_file():
@@ -844,6 +884,18 @@ def run_daily(
             and not codes
             and not skip_screen
         ):
+            # Weekend runs only prove the scheduler is alive.  A manual
+            # --allow-stale run earlier the same day already produced reports
+            # and a site release; never clobber that status with a no-op record.
+            prior: dict[str, Any] = {}
+            if paths.status_path.is_file():
+                try:
+                    prior = json.loads(paths.status_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    prior = {}
+            if prior.get("ok") and prior.get("site"):
+                _archive_attempt(paths, status)
+                return prior
             status.update(
                 {
                     "screen": "skipped",
@@ -1043,8 +1095,12 @@ def run_daily(
 
         reports = [row for row in status["stocks"] if row["status"] == "ok"]
         failed_stocks = failed
-        should_publish = publish and bool(reports) and (
-            config.publish_partial or not failed_stocks
+        structural = _structural_failures(paths.day_dir, status["stocks"])
+        should_publish = (
+            publish
+            and bool(reports)
+            and not structural
+            and (config.publish_partial or not failed_stocks)
         )
         release_path: Path | None = None
         if should_publish:
@@ -1061,6 +1117,10 @@ def run_daily(
                     status["site"] = str(release_path)
             except (OSError, ValueError) as exc:
                 status["site"] = f"error: {exc}"
+        elif structural:
+            status["site"] = (
+                "blocked: report_structure failed (" + ", ".join(structural[:5]) + ")"
+            )
         elif publish and failed_stocks:
             status["site"] = "skipped: failed stocks; previous release preserved"
         elif publish:
@@ -1072,6 +1132,24 @@ def run_daily(
                 json.dumps(status, ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
+
+    if config.briefing and paths.day_dir.is_dir():
+        from .briefing import notify_briefing, write_briefing
+
+        try:
+            written = write_briefing(paths.day_dir, limit=config.briefing_limit)
+            status["briefing"] = str(written[0]) if written else ""
+        except (OSError, ValueError) as exc:
+            status["briefing"] = f"error: {exc}"
+        else:
+            plain = ""
+            try:
+                plain = (paths.day_dir / "briefing.txt").read_text(encoding="utf-8")
+            except OSError:
+                pass
+            if plain:
+                status["briefing_sent"] = notify_briefing(plain)
+        _write_json(paths.status_path, status)
 
     _archive_attempt(paths, status)
     _notify(config, status)

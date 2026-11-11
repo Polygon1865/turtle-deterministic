@@ -14,17 +14,18 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping, Sequence, TypeVar
 
 from ..config import Settings, load_settings
 from ..data.protocol import StatementRow
-from ..factors.engine import FactorContext, run
+from ..factors.engine import FactorContext, final_verdict, run
 from ..facts import (
     FORMULA_VERSION,
     ReportManifest,
     config_payload,
     content_hash,
     file_hash,
+    renderer_hash,
     statement_payload,
     template_hash,
 )
@@ -46,6 +47,47 @@ def resolve_markdown(payload: list[dict[str, Any]]) -> str:
     from ..metrics.source_resolver import render_markdown
 
     return render_markdown(payload)
+
+
+def _as_of_digits(value: object) -> str:
+    """Normalise ``20261029`` / ``2026-10-29`` / ``2026/10/29`` / ``date`` to digits."""
+
+    text = "".join(ch for ch in str(value or "") if ch.isdigit())
+    return text[:8]
+
+
+def _announced_digits(row: object) -> str:
+    if isinstance(row, Mapping):
+        return _as_of_digits(row.get("ann_date"))
+    return _as_of_digits(getattr(row, "ann_date", ""))
+
+
+RowT = TypeVar("RowT")
+
+
+def filter_as_of_rows(rows: Sequence[RowT], as_of: str) -> tuple[list[RowT], int]:
+    """Drop statement rows announced after ``as_of`` (point-in-time guard).
+
+    C3 replay found one archived snapshot (2026-10-28, ``as_of=20261021``) that
+    contained 20 rows announced on 2026-10-29 — a genuine look-ahead.  The QA row
+    ``pit_lookahead`` can only flag it after the fact; this filter removes the
+    rows before the snapshot is written, so the report never sees future data.
+    Rows without an announcement date are kept (HK sources usually lack one).
+    """
+
+    limit = _as_of_digits(as_of)
+    if not limit:
+        return list(rows), 0
+    kept: list[RowT] = []
+    dropped = 0
+    for row in rows:
+        announced = _announced_digits(row)
+        if announced and announced > limit:
+            dropped += 1
+            continue
+        kept.append(row)
+    return kept, dropped
+
 
 
 RESEARCH_SECTION_TITLES = {
@@ -97,6 +139,12 @@ class ReportInputs:
     industry_name: str = ""
     market_extras: dict[str, Any] = field(default_factory=dict)
     research_note: str = ""
+    # Company identity.  The research layer needs these to state what the
+    # business actually is: without them a model can only infer a story from
+    # the financial statements (see the 2026-10-29 Haidilao incident).
+    name: str = ""
+    industry_label: str = ""
+    business_summary: str = ""
 
 
 def inputs_to_dict(inputs: ReportInputs) -> dict[str, Any]:
@@ -170,6 +218,9 @@ def inputs_to_dict(inputs: ReportInputs) -> dict[str, Any]:
         "industry_name": inputs.industry_name,
         "market_extras": inputs.market_extras,
         "research_note": inputs.research_note,
+        "name": inputs.name,
+        "industry_label": inputs.industry_label,
+        "business_summary": inputs.business_summary,
     }
 
 
@@ -253,6 +304,9 @@ def inputs_from_dict(payload: dict[str, Any]) -> ReportInputs:
         industry_name=str(payload.get("industry_name", "")),
         market_extras=dict(payload.get("market_extras") or {}),
         research_note=str(payload.get("research_note", "")),
+        name=str(payload.get("name", "")),
+        industry_label=str(payload.get("industry_label", "")),
+        business_summary=str(payload.get("business_summary", "")),
     )
 
 
@@ -309,6 +363,51 @@ def load(directory: Path | str) -> tuple[ReportInputs, Settings]:
     config_path = root / "config.toml"
     settings = load_settings(config_path) if config_path.is_file() else load_settings()
     return inputs_from_dict(payload), settings
+
+
+def _verdict_record(
+    inputs: ReportInputs,
+    *,
+    verdict: str,
+    reason: str,
+    snapshot_id: str,
+    research_document: Any | None,
+) -> dict[str, Any]:
+    """Explain *why* a verdict happened, and on which evidence.
+
+    The record is the anchor for the T3 rule: the verdict may only change when
+    the evidence changed.  ``evidence_hash`` covers the deterministic inputs
+    plus the research document; a verdict flip with an unchanged hash is a
+    defect, not a new opinion.
+    """
+
+    inputs_hash = hashlib.sha256(
+        json.dumps(inputs_to_dict(inputs), sort_keys=True, ensure_ascii=False, default=str).encode(
+            "utf-8"
+        )
+    ).hexdigest()
+    research_hash = ""
+    if research_document is not None:
+        from ..research import to_payload as research_to_payload
+
+        research_hash = hashlib.sha256(
+            json.dumps(
+                research_to_payload(research_document), sort_keys=True, ensure_ascii=False
+            ).encode("utf-8")
+        ).hexdigest()
+    evidence_hash = hashlib.sha256(
+        f"{inputs_hash}:{research_hash}".encode("utf-8")
+    ).hexdigest()
+    return {
+        "code": str(inputs.code),
+        "as_of": inputs.as_of,
+        "verdict": verdict,
+        "reason": reason,
+        "snapshot_id": snapshot_id,
+        "inputs_hash": inputs_hash,
+        "research_hash": research_hash,
+        "evidence_hash": evidence_hash,
+    }
 
 
 def verify_manifest(
@@ -378,6 +477,9 @@ def verify_manifest(
     actual_template = template_hash(Path(__file__).parent / "templates")
     if manifest.template_hash and actual_template != manifest.template_hash:
         errors.append("template_hash mismatch")
+    actual_renderer = renderer_hash(Path(__file__).parent)
+    if manifest.renderer_hash and actual_renderer != manifest.renderer_hash:
+        errors.append("renderer_hash mismatch")
     actual_report = hashlib.sha256(markdown.encode("utf-8")).hexdigest()
     if manifest.report_hash and actual_report != manifest.report_hash:
         errors.append("report_hash mismatch")
@@ -631,6 +733,7 @@ def render(
             fundamental_extras=inputs.fundamental_extras,
             industry_name=inputs.industry_name,
             market_extras=inputs.market_extras,
+            quote=inputs.quote,
         )
         metric_map.update(
             {
@@ -682,6 +785,7 @@ def render(
         fundamental_extras=inputs.fundamental_extras,
         industry_name=inputs.industry_name,
         market_extras=inputs.market_extras,
+        quote=inputs.quote,
     )
     if decisions and research_document is not None:
         selected = "、".join(
@@ -690,5 +794,18 @@ def render(
         markdown += (
             "\n\n> 本轮启用了 research decisions："
             f"{selected}（LLM 从候选值选择，均带 evidence；不是裸数字）。\n"
+        )
+    final_verdict_text, final_reason = final_verdict(results)
+    if snapshot_dir is not None:
+        record = _verdict_record(
+            inputs,
+            verdict=final_verdict_text,
+            reason=final_reason,
+            snapshot_id=snapshot_id or source_snapshot_id(rows),
+            research_document=research_document,
+        )
+        (Path(snapshot_dir) / "verdict.json").write_text(
+            json.dumps(record, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
         )
     return markdown, dict(results["4"].metrics).get("结论", "观察")

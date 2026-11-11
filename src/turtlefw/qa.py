@@ -7,8 +7,10 @@ narrative number is untraceable.
 
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -18,6 +20,84 @@ from .paths import output_root
 from .qualitative import load as load_qualitative
 
 
+def _pit_lookahead_check(base: Path) -> tuple[bool, str]:
+    """No statement row may be announced after the snapshot's ``as_of``.
+
+    A-shares carry ``ann_date`` so this is a real look-ahead guard.  HK rows
+    usually have no announcement date, which the detail text reports honestly
+    rather than pretending the check passed.
+    """
+
+    from .backtest import lookahead_audit
+
+    snapshot = base / "snapshot"
+    if not (snapshot / "inputs.json").is_file():
+        return True, "未保存快照，跳过前视审计"
+    audit = lookahead_audit(snapshot)
+    return audit.clean, audit.summary()
+
+
+def _verdict_record_check(base: Path, report: Path) -> tuple[bool, str]:
+    """The verdict must carry its evidence hash, and match the report.
+
+    T3: a verdict may only change together with its evidence.  The record lives
+    next to the snapshot so the next day's diff can explain a flip instead of
+    silently re-deciding.
+    """
+
+    path = base / "snapshot" / "verdict.json"
+    if not path.is_file():
+        return False, "缺少 snapshot/verdict.json（重新渲染以写入结论记录）"
+    try:
+        record = json.loads(path.read_text(encoding="utf-8-sig"))
+    except ValueError as exc:
+        return False, f"verdict.json 无法解析：{exc}"
+    if not isinstance(record, dict) or not record.get("evidence_hash"):
+        return False, "verdict.json 缺少 evidence_hash"
+    verdict = str(record.get("verdict", ""))
+    if not verdict:
+        return False, "verdict.json 缺少 verdict"
+    if report.is_file():
+        text = report.read_text(encoding="utf-8-sig")
+        match = re.search(r"\*\*(买入|观察|排除|减持)\*\*", text)
+        if match and match.group(1) != verdict:
+            return False, f"报告结论 {match.group(1)} ≠ 记录 {verdict}"
+    return True, f"{verdict} · evidence {str(record['evidence_hash'])[:10]}"
+
+
+_RESEARCH_FALLBACK_WARN = 0.10
+
+
+def _research_fallback_row(base: Path) -> tuple[str, str]:
+    """Surface a run where most LLM research fell back to deterministic text.
+
+    A fallback is not a failure, but 23/40 (57%) falling back was invisible on
+    2026-10-29 and 10-30; above 10% the day gets a WARN row instead of a clean
+    PASS.
+    """
+
+    path = base.parent / "status.json"
+    if not path.is_file():
+        return "PASS", "无当天 status.json（单票运行）"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except ValueError as exc:
+        return "WARN", f"status.json 无法解析：{exc}"
+    stocks = payload.get("stocks") if isinstance(payload, dict) else None
+    if not isinstance(stocks, list) or not stocks:
+        return "PASS", "当天没有股票记录"
+    fallback = [
+        str(item.get("code"))
+        for item in stocks
+        if isinstance(item, dict) and str(item.get("research") or "") in {"fallback", "off"}
+    ]
+    rate = len(fallback) / len(stocks)
+    if rate > _RESEARCH_FALLBACK_WARN:
+        sample = "、".join(fallback[:5])
+        return "WARN", f"研究回退 {len(fallback)}/{len(stocks)}（{rate:.0%} > 10%）：{sample}"
+    return "PASS", f"研究回退 {len(fallback)}/{len(stocks)}（{rate:.0%}）"
+
+
 def run_qa(code: str, root: Path | str | None = None, *, allow_missing_qualitative: bool = False) -> list[tuple[str, str, str]]:
     base = (Path(root) if root is not None else output_root()) / str(code)
     rows: list[tuple[str, str, str]] = []
@@ -25,9 +105,21 @@ def run_qa(code: str, root: Path | str | None = None, *, allow_missing_qualitati
     def add(name: str, ok: bool, detail: str = "") -> None:
         rows.append((name, "PASS" if ok else "FAIL", detail))
 
+    def add_status(name: str, status: str, detail: str = "") -> None:
+        rows.append((name, status, detail))
+
     state = base / "run_state.json"
     add("run_state", state.is_file(), "" if state.is_file() else "缺少 run_state.json")
-    add("report", (base / "analysis_report.md").is_file())
+    report = base / "analysis_report.md"
+    add("report", report.is_file())
+    if report.is_file():
+        from .report.lint import lint_report, summary as lint_summary
+
+        findings = lint_report(report.read_text(encoding="utf-8-sig"))
+        add("report_structure", not findings, lint_summary(findings))
+    add("verdict_record", *_verdict_record_check(base, report))
+    add("pit_lookahead", *_pit_lookahead_check(base))
+    add_status("research_fallback_rate", *_research_fallback_row(base))
 
     try:
         from .data.coverage import capabilities
@@ -313,14 +405,70 @@ def run_qa(code: str, root: Path | str | None = None, *, allow_missing_qualitati
             )
         except Exception as exc:
             add("research_refs", False, str(exc))
+    add("payout_consistency", *_payout_consistency(base, str(code)))
     return rows
 
 
+def _metric_value(point: object) -> float | None:
+    if isinstance(point, dict):
+        point = point.get("value", point.get("display"))
+    try:
+        return float(str(point))
+    except (TypeError, ValueError):
+        return None
+
+
+def _payout_consistency(base: Path, code: str) -> tuple[bool, str]:
+    """HK only: ranking payout (latest annual ratio) must match the report.
+
+    The two artifacts previously used different fraction/percent rules and
+    different year windows.  Arithmetic now lives in ``metrics.payout``; this
+    row catches the remaining case where one side silently falls back to a
+    different source.
+    """
+
+    if not code.upper().endswith(".HK"):
+        return True, "非港股，跳过"
+    ranking = base.parent / "ranking_hk.csv"
+    if not ranking.is_file():
+        return True, "无榜单文件"
+    metrics_path = base / "snapshot" / "metrics.json"
+    if not metrics_path.is_file():
+        return True, "无快照指标"
+    try:
+        payload = json.loads(metrics_path.read_text(encoding="utf-8-sig"))
+    except Exception as exc:  # noqa: BLE001 - a broken snapshot is a QA finding
+        return False, f"metrics.json 读取失败：{exc}"
+    latest = _metric_value(payload.get("payout.latest"))
+    if latest is None:
+        return True, "报告无最新年支付率"
+    try:
+        with ranking.open(encoding="utf-8-sig", newline="") as handle:
+            for row in csv.DictReader(handle):
+                if str(row.get("code") or row.get("ts_code") or "").strip() != code:
+                    continue
+                rank_value = _metric_value(row.get("payout"))
+                if rank_value is None:
+                    return True, "榜单无支付率"
+                if abs(rank_value - latest) <= 0.01:
+                    return True, f"榜单 {rank_value:.2f}% = 报告 {latest:.2f}%"
+                return False, f"榜单 {rank_value:.2f}% vs 报告 {latest:.2f}%"
+    except Exception as exc:  # noqa: BLE001
+        return False, f"榜单读取失败：{exc}"
+    return True, "榜单无此股票"
+
+
 def payload(code: str, rows: list[tuple[str, str, str]]) -> dict[str, object]:
+    if failed(rows):
+        status = "fail"
+    elif any(row_status == "WARN" for _, row_status, _ in rows):
+        status = "warn"
+    else:
+        status = "pass"
     return {
         "code": str(code),
         "generated_at": datetime.now().isoformat(timespec="seconds"),
-        "status": "pass" if not failed(rows) else "fail",
+        "status": status,
         "rows": [
             {"name": name, "status": status, "detail": detail}
             for name, status, detail in rows
@@ -350,3 +498,7 @@ def write_json(
 
 def failed(rows: list[tuple[str, str, str]]) -> list[str]:
     return [name for name, status, _ in rows if status == "FAIL"]
+
+
+def warned(rows: list[tuple[str, str, str]]) -> list[str]:
+    return [name for name, status, _ in rows if status == "WARN"]

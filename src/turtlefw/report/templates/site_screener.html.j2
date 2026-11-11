@@ -1,0 +1,131 @@
+{% extends "site_layout.html.j2" %}
+{% block content %}
+<section class="hero">
+  <p class="kicker"><span>候选池</span><span class="dot">/</span><span>{{ date_label }}</span></p>
+  <h1>筛选</h1>
+  <p class="lede">A 股 {{ a_rows|length }} 只按通道与穿透回报率排序；港股 {{ hk_rows|length }} 只按安全边际（GG − 门槛）排序。搜索与排序只作用于当前视图，市场状态写入地址栏。</p>
+  <p class="meta"><span>R = 穿透回报率</span><span>GG = 精算穿透回报率</span><span>II = 门槛回报率</span><span>安全边际 = GG − II</span></p>
+</section>
+
+<section class="panel" data-table-scope>
+  <div class="toolbar">
+    <div class="seg" id="market-seg" role="tablist" aria-label="市场">
+      <a href="?market=A" data-market="A" role="tab" class="{{ 'on' if market == 'A' else '' }}">A 股 {{ a_rows|length }}</a>
+      <a href="?market=HK" data-market="HK" role="tab" class="{{ 'on' if market == 'HK' else '' }}">港股 {{ hk_rows|length }}</a>
+    </div>
+    <input type="search" data-search placeholder="搜索代码或名称…" aria-label="搜索">
+    <select data-sort aria-label="排序">
+      <option value="">默认排序</option>
+      <option value="margin">按安全边际</option>
+      <option value="rank">按排名</option>
+    </select>
+    <span class="spacer"></span>
+    <a class="note" href="{{ base }}archive/{{ date_key }}/ranking.csv">A 股 CSV</a>
+    <a class="note" href="{{ base }}archive/{{ date_key }}/ranking_hk.csv">港股 CSV</a>
+  </div>
+
+  <div data-market-panel="A">
+    <div class="subhead">
+      <h3>A 股候选池</h3>
+      <span class="hint">通道 main：有股息且估值在闸门内；observation：仅市值观察</span>
+      <span class="count">{{ a_rows|length }}</span>
+    </div>
+    {% if a_rows %}
+    <div class="table-wrap">
+      <table data-sortable>
+        <thead>
+          <tr>
+            <th class="num">#</th><th>代码</th><th>名称</th><th>通道</th>
+            <th class="num">R</th><th class="num">GG</th><th class="num">II</th>
+            <th class="num">安全边际</th><th>深度结论</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in a_rows %}
+          <tr data-rank="{{ row.rank }}" data-margin="{{ row.margin_number }}">
+            <td class="num">{{ row.rank }}</td>
+            <td class="mono">{{ row.code }}</td>
+            <td>{% if row.stock_href %}<a href="{{ row.stock_href }}">{{ row.name or row.code }}</a>{% else %}{{ row.name or row.code }}{% endif %}</td>
+            <td>{% if row.channel %}<span class="badge muted">{{ row.channel }}</span>{% else %}<span class="dim">—</span>{% endif %}</td>
+            <td class="num">{{ row.r or '—' }}</td>
+            <td class="num">{{ row.gg or '—' }}</td>
+            <td class="num">{{ row.ii or '—' }}</td>
+            <td class="num">{{ row.margin or '—' }}</td>
+            <td>{% if row.verdict %}<span class="badge {{ row.verdict_class }}">{{ row.verdict }}</span>{% else %}<span class="dim">—</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="empty">今日没有 A 股候选。</p>
+    {% endif %}
+  </div>
+
+  <div data-market-panel="HK" hidden>
+    <div class="subhead">
+      <h3>港股候选池</h3>
+      <span class="hint">已剔除美元报表与人民币柜台；PE/PB 为报告期口径</span>
+      <span class="count">{{ hk_rows|length }}</span>
+    </div>
+    {% if hk_rows %}
+    <div class="table-wrap">
+      <table data-sortable>
+        <thead>
+          <tr>
+            <th class="num">#</th><th>代码</th><th>名称</th>
+            <th class="num">R</th><th class="num">GG</th><th class="num">II</th>
+            <th class="num">安全边际</th><th class="num">PE</th><th class="num">PB</th>
+            <th>报告结论</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in hk_rows %}
+          <tr data-rank="{{ row.rank }}" data-margin="{{ row.margin_number }}">
+            <td class="num">{{ row.rank }}</td>
+            <td class="mono">{{ row.code }}</td>
+            <td>{% if row.stock_href %}<a href="{{ row.stock_href }}">{{ row.name or row.code }}</a>{% else %}{{ row.name or row.code }}{% endif %}</td>
+            <td class="num">{{ row.r or '—' }}</td>
+            <td class="num">{{ row.gg or '—' }}</td>
+            <td class="num">{{ row.ii or '—' }}</td>
+            <td class="num">{{ row.margin or '—' }}</td>
+            <td class="num">{{ row.pe or '—' }}</td>
+            <td class="num">{{ row.pb or '—' }}</td>
+            <td>{% if row.verdict %}<a href="{{ row.stock_href }}"><span class="badge {{ row.verdict_class }}">{{ row.verdict }}</span></a>{% else %}<span class="dim">—</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="empty">今日没有港股候选。</p>
+    {% endif %}
+  </div>
+</section>
+
+<p class="note">口径与计算细节见 <a href="method.html">方法说明</a>；候选 CSV 随 release 发布。</p>
+
+<script>
+(function () {
+  var panels = document.querySelectorAll("[data-market-panel]");
+  var seg = document.querySelectorAll("[data-market]");
+  function show(market, push) {
+    panels.forEach(function (panel) {
+      panel.hidden = panel.getAttribute("data-market-panel") !== market;
+    });
+    seg.forEach(function (link) {
+      link.classList.toggle("on", link.getAttribute("data-market") === market);
+    });
+    if (push) history.replaceState(null, "", "?market=" + market);
+  }
+  var params = new URLSearchParams(location.search);
+  show(params.get("market") === "HK" ? "HK" : "A", false);
+  seg.forEach(function (link) {
+    link.addEventListener("click", function (event) {
+      event.preventDefault();
+      show(link.getAttribute("data-market"), true);
+    });
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "site_layout.html.j2" %}
+{% block content %}
+<section class="hero">
+  <p class="kicker"><span>单日记录</span><span class="dot">/</span><span>{{ date_label }}</span>{% if trade_date %}<span class="dot">/</span><span>交易日 {{ trade_date }}</span>{% endif %}</p>
+  <h1>{{ date_label }} 研究</h1>
+  <p class="lede">报告 {{ total }} 份，通过 {{ passed }}、失败 {{ failed }}；候选池 A 股 {{ a_candidates }} 只、港股 {{ hk_candidates }} 只。</p>
+  <p class="meta">
+    {% if prev_href %}<a href="{{ prev_href }}">← 上一数据日</a>{% endif %}
+    <a href="index.html">全部存档</a>
+    {% if next_href %}<a href="{{ next_href }}">下一数据日 →</a>{% endif %}
+    <a href="ranking.csv">A 股 CSV</a>
+    <a href="ranking_hk.csv">港股 CSV</a>
+  </p>
+</section>
+
+<section class="panel">
+  <header>
+    <h2>当日报告</h2>
+    <span class="hint">按结论与安全边际排序</span>
+  </header>
+  {% if reports %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th class="num">#</th><th>结论</th><th>标的</th><th>市场</th>
+          <th class="num">安全边际</th><th class="num">底价</th><th class="num">当前价</th><th class="num">溢价</th>
+          <th>报告</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for report in reports %}
+        <tr>
+          <td class="num">{{ loop.index }}</td>
+          <td>{% if report.verdict %}<span class="badge {{ report.verdict_class }}">{{ report.verdict }}</span>{% else %}<span class="dim">—</span>{% endif %}</td>
+          <td>{{ report.name or report.code }} <span class="mono dim">{{ report.code }}</span>{% if report.qa != 'PASS' %} <span class="badge bad">{{ report.qa }}</span>{% endif %}</td>
+          <td><span class="badge market">{{ report.market }}</span></td>
+          <td class="num">{{ report.margin or '—' }}</td>
+          <td class="num">{{ report.floor or '—' }}</td>
+          <td class="num">{{ report.price or '—' }}</td>
+          <td class="num">{{ report.premium or '—' }}</td>
+          <td>{% if report.report_href %}<a href="{{ report.report_href }}">全文</a>{% else %}<span class="dim">—</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">当日没有报告。</p>
+  {% endif %}
+</section>
+{% endblock %}

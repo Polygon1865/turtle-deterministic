@@ -50,6 +50,12 @@ def setup_run(tmp_path, with_all=True):
     )
     if with_all:
         (base / "narrative.md").write_text("R 为 7.48%", encoding="utf-8")
+    snapshot = base / "snapshot"
+    snapshot.mkdir(exist_ok=True)
+    (snapshot / "verdict.json").write_text(
+        json.dumps({"verdict": "买入", "evidence_hash": "2" * 64}),
+        encoding="utf-8",
+    )
     return base
 
 
@@ -66,11 +72,55 @@ def test_missing_report_fails(tmp_path):
     assert "report" in qa.failed(rows)
 
 
+def test_verdict_record_must_match_report(tmp_path):
+    base = setup_run(tmp_path)
+    (base / "analysis_report.md").write_text(
+        "结论：**排除** — 因子1A「看不懂」触发否决", encoding="utf-8"
+    )
+    rows = qa.run_qa("600887.SH", root=tmp_path)
+    assert "verdict_record" in qa.failed(rows)
+
+
+def test_verdict_record_requires_evidence_hash(tmp_path):
+    base = setup_run(tmp_path)
+    (base / "snapshot" / "verdict.json").write_text(
+        json.dumps({"verdict": "买入"}), encoding="utf-8"
+    )
+    rows = qa.run_qa("600887.SH", root=tmp_path)
+    assert "verdict_record" in qa.failed(rows)
+
+
 def test_untraceable_narrative_fails(tmp_path):
     base = setup_run(tmp_path)
     (base / "narrative.md").write_text("R 为 9.99%", encoding="utf-8")
     rows = qa.run_qa("600887.SH", root=tmp_path)
     assert "narrative" in qa.failed(rows)
+
+
+def test_research_fallback_rate_warns_above_ten_percent(tmp_path):
+    base = setup_run(tmp_path)
+    stocks = [
+        {"code": f"60000{i}.SH", "research": "fallback" if i < 23 else "on"}
+        for i in range(40)
+    ]
+    (tmp_path / "status.json").write_text(json.dumps({"stocks": stocks}), encoding="utf-8")
+    rows = qa.run_qa("600887.SH", root=tmp_path)
+    assert "research_fallback_rate" in qa.warned(rows)
+    assert qa.failed(rows) == []
+    assert qa.payload("600887.SH", rows)["status"] == "warn"
+
+
+def test_research_fallback_rate_passes_below_ten_percent(tmp_path):
+    base = setup_run(tmp_path)
+    stocks = [
+        {"code": f"60000{i}.SH", "research": "fallback" if i < 2 else "on"}
+        for i in range(40)
+    ]
+    (tmp_path / "status.json").write_text(json.dumps({"stocks": stocks}), encoding="utf-8")
+    rows = qa.run_qa("600887.SH", root=tmp_path)
+    assert "research_fallback_rate" not in qa.warned(rows)
+    detail = {name: text for name, _, text in rows}["research_fallback_rate"]
+    assert "研究回退 2/40" in detail
 
 
 def test_all_unknown_fails(tmp_path):
@@ -193,7 +243,7 @@ def test_research_bridge_mismatch_fails(tmp_path):
                 ],
                 "claims": [
                     {
-                        "claim_id": "D1.1",
+                        "claim_id": "D1.business_model",
                         "dimension": "D1",
                         "statement": "看不懂",
                         "judgment": "negative",

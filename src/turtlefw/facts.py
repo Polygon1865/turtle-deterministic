@@ -91,6 +91,24 @@ def template_hash(template_dir: Path | str) -> str:
     return content_hash(payload)
 
 
+def renderer_hash(report_dir: Path | str) -> str:
+    """Hash the report renderer (Python sources + templates).
+
+    ``template_hash`` only covers ``templates/``; the report text is mostly
+    assembled by ``analysis.py``/``pack.py``/``html.py``, so a renderer change
+    used to leave the snapshot looking reproducible when it was not.
+    """
+
+    root = Path(report_dir)
+    payload = {
+        path.name: file_hash(path)
+        for path in sorted(root.glob("*.py"))
+        if path.is_file()
+    }
+    payload["templates"] = template_hash(root / "templates")
+    return content_hash(payload)
+
+
 def statement_payload(rows: Sequence[Any]) -> list[dict[str, Any]]:
     return [
         {
@@ -287,6 +305,7 @@ class ReportManifest:
     research_hash: str = ""
     research_audit_hash: str = ""
     template_hash: str = ""
+    renderer_hash: str = ""
     source_id: str = ""
     engine_version: str = ""
     formula_version: str = FORMULA_VERSION
@@ -332,6 +351,7 @@ class ReportManifest:
             {
                 "snapshot_id": self.snapshot_id,
                 "source_id": self.source_id,
+                "renderer_hash": self.renderer_hash,
                 "research_audit_hash": self.research_audit_hash,
                 "report_hash": self.report_hash,
                 "metrics_hash": self.metrics_hash,
@@ -362,6 +382,7 @@ class ReportManifest:
             research_hash=str(payload.get("research_hash", "")),
             research_audit_hash=str(payload.get("research_audit_hash", "")),
             template_hash=str(payload.get("template_hash", "")),
+            renderer_hash=str(payload.get("renderer_hash", "")),
             source_id=str(payload.get("source_id", "")),
             engine_version=str(payload.get("engine_version", "")),
             formula_version=str(payload.get("formula_version", FORMULA_VERSION)),

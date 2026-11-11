@@ -48,3 +48,15 @@ def test_research_structural_counts_are_traceable(tmp_path):
 
     report.write_text("evidence：17，其他 99\n", encoding="utf-8")
     assert audit(report, [research], strict=True)["status"] == "review"
+
+
+def test_calendar_dates_are_provenance_not_metrics(tmp_path):
+    report = tmp_path / "report.md"
+    source = tmp_path / "metrics.json"
+    source.write_text('{"r": "5.13"}', encoding="utf-8")
+
+    report.write_text("数据截至：2026-10-28\nR 5.13\n", encoding="utf-8")
+    assert audit(report, [source], strict=True)["status"] == "pass"
+
+    report.write_text("数据截至：20261028\nR 5.13\n", encoding="utf-8")
+    assert audit(report, [source], strict=True)["status"] == "pass"

@@ -21,7 +21,7 @@ from typing import Any
 import pandas as pd
 
 from ..metrics.prices import adjust_ohlc, factor_map
-from ..paths import output_root
+from ..paths import cache_root as default_cache_root
 from ..types import Currency, DividendEvent, FetchIssue, Market, StockCode
 from .cache import FileCache
 from .extras import (
@@ -88,10 +88,13 @@ HK_INDICATOR_FIELDS = (
     "ts_code,name,end_date,report_type,currency,roe_avg,gross_profit_ratio,"
     "net_profit_ratio,debt_asset_ratio,ocf_sales,basic_eps,bps,operate_income,"
     "holder_profit,operate_income_yoy,holder_profit_yoy,total_parent_equity,"
-    "pe_ttm,pb_ttm,total_market_cap,dps_hkd,fiscal_year"
+    "pe_ttm,pb_ttm,total_market_cap,dps_hkd,divi_ratio,fiscal_year"
 )
 HK_BASIC_FIELDS = "ts_code,name,fullname,market,list_date,delist_date,curr_type"
 HK_DAILY_FIELDS = "ts_code,trade_date,close,pre_close,vol,amount"
+# Above this many tickers, skip the Yahoo whole-market fallback (see
+# ``_yf_hk_market_snapshot``): a 2.8k-ticker sweep is a hang, not a fallback.
+YF_HK_MARKET_SWEEP_LIMIT = 600
 US_INDICATOR_FIELDS = (
     "ts_code,end_date,roe_avg,gross_profit_ratio,net_profit_ratio,"
     "debt_asset_ratio,basic_eps"
@@ -167,12 +170,43 @@ NEWS_FIELDS = "datetime,content,title,channels"
 
 _REFRESH_MARKET = False
 
+# Endpoints whose payload only changes when a financial report is published.
+# They keep their own 7-day cache even when ``--refresh-market`` is set.
+_FUNDAMENTAL_ENDPOINTS = frozenset(
+    {
+        "hk_fina_indicator",
+        "fina_indicator",
+        # HK statements change once a report is published, exactly like A-share
+        # indicators; the HK screen now needs one cash-flow call per survivor.
+        "hk_income",
+        "hk_balancesheet",
+        "hk_cashflow",
+    }
+)
+
 
 def set_refresh_market(enabled: bool) -> None:
     """Bypass the TTL cache for this process (CLI ``--refresh-market``)."""
 
     global _REFRESH_MARKET
     _REFRESH_MARKET = enabled
+
+
+def _summary_excerpt(text: str, limit: int = 600) -> str:
+    """Trim a Yahoo business summary at a sentence boundary.
+
+    The raw field is a wall of text; cutting mid-word ("...and t") reads like a
+    rendering bug in the report, so shorten at the last full stop instead.
+    """
+
+    cleaned = " ".join(str(text or "").split())
+    if len(cleaned) <= limit:
+        return cleaned
+    head = cleaned[:limit]
+    cut = max(head.rfind("。"), head.rfind(". "), head.rfind("; "))
+    if cut >= limit // 2:
+        return head[: cut + 1].rstrip() + "…"
+    return head.rstrip() + "…"
 
 
 class TushareProvider:
@@ -199,7 +233,24 @@ class TushareProvider:
         self._local = threading.local()
         self._lock = threading.Lock()
         self._pro = self._new_client(token)
-        self._cache = FileCache(cache_dir or output_root() / ".cache", ttl_seconds)
+        cache_root = Path(cache_dir) if cache_dir is not None else default_cache_root()
+        # Financial statements only change when a report is published.  They must
+        # not be refetched by `--refresh-market`, which is about daily quotes: the
+        # HK screen alone needs one indicator call per surviving listing (~1.7k),
+        # so a zero TTL there turns every daily run into a 15-minute crawl.
+        self._cache = FileCache(cache_root, ttl_seconds)
+        self._fund_cache = FileCache(cache_root, 7 * 86400)
+        # yfinance keeps its timezone/cookie SQLite under the user profile by
+        # default, which is not writable inside the sandbox.  Point it at the
+        # same workspace cache so ``company_profile`` can work at all.
+        try:
+            import yfinance as yf
+
+            tz_cache = cache_root / "yfinance"
+            tz_cache.mkdir(parents=True, exist_ok=True)
+            yf.set_tz_cache_location(str(tz_cache))
+        except Exception:  # noqa: BLE001 - optional optimisation
+            pass
         self._min_interval = min_interval
         self._max_retries = max_retries
         self._last_call = 0.0
@@ -212,6 +263,8 @@ class TushareProvider:
         self._hk_market_source = "tushare:hk_daily"
         self._hk_indicator_cache: dict[str, dict | None] = {}
         self._us_yf: dict[str, Any] = {}
+        self._profile_cache: dict[str, dict[str, str]] = {}
+        self._holders_cache: dict[str, list[dict[str, Any]]] = {}
         self._dividend_map: dict[str, pd.DataFrame] | None = None
 
     def _new_client(self, token: str):
@@ -245,9 +298,36 @@ class TushareProvider:
                 time.sleep(wait)
             self._last_call = time.monotonic()
 
+    def _stale_frame(
+        self, endpoint: str, key: str, params: dict[str, Any], error: object
+    ) -> pd.DataFrame | None:
+        """Serve the exact-key cached snapshot when a refresh cannot succeed.
+
+        ``hk_daily`` allows one call per hour; a second run in the same hour
+        must reuse the snapshot fetched earlier for that trade date instead of
+        failing the whole screen.
+        """
+
+        if endpoint in _FUNDAMENTAL_ENDPOINTS:
+            return None
+        stale = self._cache.get_any(key)
+        if stale is None:
+            return None
+        with self._lock:
+            self._issues.append(
+                FetchIssue(
+                    endpoint=endpoint,
+                    code=str(params.get("ts_code", "*")),
+                    message=f"{endpoint} 刷新失败，改用缓存快照：{error}",
+                    retryable=False,
+                )
+            )
+        return pd.DataFrame(stale)
+
     def _call(self, endpoint: str, **params: Any) -> pd.DataFrame:
+        cache = self._fund_cache if endpoint in _FUNDAMENTAL_ENDPOINTS else self._cache
         key = FileCache.make_key(endpoint, params, self.SCHEMA_VERSION)
-        cached = self._cache.get(key)
+        cached = cache.get(key)
         if cached is not None:
             return pd.DataFrame(cached)
 
@@ -258,18 +338,27 @@ class TushareProvider:
                 frame = getattr(self._client(), endpoint)(**params)
                 if frame is None:
                     frame = pd.DataFrame()
-                self._cache.put(key, frame.to_dict("records"))
+                cache.put(key, frame.to_dict("records"))
                 return frame
             except Exception as exc:
                 last_error = exc
                 message = str(exc)
                 if "没有接口" in message or "权限" in message:
+                    stale = self._stale_frame(endpoint, key, params, message)
+                    if stale is not None:
+                        return stale
                     raise ProviderError(f"{endpoint} permission denied: {message}") from exc
                 if "频率超限" in message:
                     # e.g. hk_daily is limited to once per hour; retrying is futile.
+                    stale = self._stale_frame(endpoint, key, params, message)
+                    if stale is not None:
+                        return stale
                     raise ProviderError(f"{endpoint} rate limited: {message}") from exc
                 if attempt < self._max_retries:
                     time.sleep(min(2.0 * attempt, 8.0))
+        stale = self._stale_frame(endpoint, key, params, last_error)
+        if stale is not None:
+            return stale
         raise ProviderError(
             f"{endpoint} failed after {self._max_retries} attempts: {last_error}"
         )
@@ -320,6 +409,54 @@ class TushareProvider:
         if code is not None:
             params["ts_code"] = str(code)
         return self._safe("stock_basic", **params).to_dict("records")
+
+    def company_name(self, code: StockCode) -> str:
+        """Listed company name, from the cheapest source that has it.
+
+        A-share names come from ``stock_basic``; HK names from the reference
+        universe (``hk_basic``); other markets from the Yahoo profile.
+        """
+
+        if code.is_a_share:
+            rows = self.stock_basic(code)
+            return str(rows[0].get("name") or "") if rows else ""
+        if code.market is Market.HK:
+            for row in self.hk_universe():
+                if str(row.get("ts_code")) == str(code):
+                    return str(row.get("name") or row.get("fullname") or "")
+            return ""
+        return str(self.company_profile(code).get("name") or "")
+
+    def company_profile(self, code: StockCode) -> dict[str, str]:
+        """Sector, industry and business summary for one listing.
+
+        Yahoo Finance is the only usable free source for HK/US business
+        descriptions.  Results are cached per process; failures degrade to empty
+        fields because identity is optional context, never a hard input.
+        """
+
+        key = str(code)
+        cached = self._profile_cache.get(key)
+        if cached is not None:
+            return dict(cached)
+        profile = {"name": "", "sector": "", "industry": "", "summary": ""}
+        # Tushare uses five digits (06862.HK); Yahoo uses four (6862.HK).
+        symbol = f"{int(code.numeric):04d}.HK" if code.market is Market.HK else key
+        try:
+            import yfinance as yf
+
+            ticker = yf.Ticker(symbol)
+            info = ticker.get_info()
+        except Exception:  # noqa: BLE001 - optional identity source
+            info = {}
+        if isinstance(info, dict):
+            profile["name"] = str(info.get("longName") or info.get("shortName") or "")
+            profile["sector"] = str(info.get("sector") or "")
+            profile["industry"] = str(info.get("industry") or "")
+            profile["summary"] = _summary_excerpt(info.get("longBusinessSummary"))
+        self._profile_cache[key] = dict(profile)
+        return dict(profile)
+
 
     def hk_universe(self) -> list[dict]:
         """All currently listed HK equities.
@@ -379,6 +516,19 @@ class TushareProvider:
             tickers[f"{int(prefix):04d}.HK"] = code
         rows: list[dict] = []
         symbols = sorted(tickers)
+        if len(symbols) > YF_HK_MARKET_SWEEP_LIMIT:
+            # A whole-market Yahoo sweep (2.8k tickers, batches of 200) takes
+            # tens of minutes and usually means hk_daily hit its hourly quota.
+            # Fail loudly instead of hanging the screen.
+            self._issues.append(
+                FetchIssue(
+                    "hk_daily",
+                    "*",
+                    f"yfinance whole-market fallback skipped for {len(symbols)} tickers",
+                    retryable=True,
+                )
+            )
+            return []
         for start in range(0, len(symbols), 200):
             batch = symbols[start : start + 200]
             try:
@@ -454,6 +604,24 @@ class TushareProvider:
             row = records[0]
         self._hk_indicator_cache[key] = row
         return row
+
+    def hk_cashflow_rows(
+        self, code: StockCode, *, currency: Currency | None = None
+    ) -> list[StatementRow]:
+        """Annual cash-flow line items for one HK listing (one API call).
+
+        The HK screen needs operating cash flow and capex to build FCF for the
+        GG (cash-backed return) ranking.  ``hk_fina_indicator`` does not carry
+        either, so fetch the cash-flow statement once per candidate and let the
+        7-day fundamental cache absorb nightly reruns.
+        """
+        unit = currency or self._default_currency(code)
+        return rows_from_hk_line_items(
+            self._safe("hk_cashflow", ts_code=str(code), fields=HK_LINE_ITEM_FIELDS),
+            statement="cashflow",
+            item_map=HK_CASHFLOW_MAP,
+            currency=unit,
+        )
 
     def _yf_hk(self, code: StockCode) -> tuple[list[dict], dict]:
         """Yahoo Finance quote + daily history for HK listings (cached)."""
@@ -1533,7 +1701,16 @@ class TushareProvider:
         return total / Decimal(max(1, min(years, len(by_year))))
 
     def holders(self, code: StockCode) -> list[dict]:
-        """Latest top-10 shareholder table (A-share only)."""
+        """Latest shareholder rows.
+
+        A-shares come from Tushare ``top10_holders``.  Hong Kong has no Tushare
+        shareholder endpoint, so HK listings fall back to Yahoo Finance
+        institutional/mutual-fund positions.  Those rows are third-party data
+        and can lag the filing date, which the report must label explicitly.
+        """
+
+        if code.market is Market.HK:
+            return self._hk_holders(code)
         if not code.is_a_share:
             return []
         frame = self._safe(
@@ -1545,6 +1722,54 @@ class TushareProvider:
             return []
         latest = str(frame["end_date"].max())
         return frame[frame["end_date"].astype(str) == latest].to_dict("records")
+
+    def _hk_holders(self, code: StockCode) -> list[dict[str, Any]]:
+        """Yahoo institutional/mutual-fund holders for one HK listing.
+
+        Returns at most ten rows with the same keys the report table expects
+        (``holder_name/hold_amount/hold_ratio``) plus ``holder_type``,
+        ``as_of`` and ``source``.  Failures degrade to an empty list because
+        holdings are supporting context, never a hard valuation input.
+        """
+
+        key = str(code)
+        cached = self._holders_cache.get(key)
+        if cached is not None:
+            return [dict(row) for row in cached]
+        rows: list[dict[str, Any]] = []
+        symbol = f"{int(code.numeric):04d}.HK"
+        try:
+            import yfinance as yf
+
+            ticker = yf.Ticker(symbol)
+            for frame_name, holder_type in (
+                ("institutional_holders", "机构"),
+                ("mutualfund_holders", "公募基金"),
+            ):
+                frame = getattr(ticker, frame_name, None)
+                if frame is None or getattr(frame, "empty", True):
+                    continue
+                for record in frame.to_dict("records"):
+                    name = str(record.get("Holder") or "").strip()
+                    if not name:
+                        continue
+                    ratio = record.get("pctHeld")
+                    shares = record.get("Shares")
+                    rows.append(
+                        {
+                            "holder_name": name,
+                            "hold_ratio": round(float(ratio) * 100, 4) if ratio is not None else None,
+                            "hold_amount": float(shares) if shares is not None else None,
+                            "holder_type": holder_type,
+                            "as_of": str(record.get("Date Reported") or "")[:10],
+                            "source": "yahoo",
+                        }
+                    )
+        except Exception:  # noqa: BLE001 - optional third-party context
+            rows = []
+        rows = rows[:10]
+        self._holders_cache[key] = rows
+        return [dict(row) for row in rows]
 
     def main_business(self, code: StockCode) -> list[dict]:
         """Latest revenue/profit by product/segment (A-share only)."""

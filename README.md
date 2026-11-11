@@ -57,6 +57,7 @@ Turtle Framework 把链路拆开：
 | D1–D6 Research | claims / params / decisions，claim-level audit |
 | Research bridge | D1/D2/D3/D4/D6 → 1A/1B 定性判断；负面优先、证据不足不进入 |
 | DSH 原生研究 | DSH 模型直接写 `research.json`，不需要项目 API key |
+| 公司身份门控 | 港股补 name/industry/主营；行业表述无身份或证据支撑时 finalize 拒绝 |
 | Snapshot | facts/config/research/metrics/report hash 冻结 |
 | QA | research/numeric/provenance/coverage 门控 |
 
@@ -322,10 +323,15 @@ turtle sec-audit --snapshot .runs\AAPL.US\snapshot --ticker AAPL
 
 Task Scheduler、Caddy、Cloudflare Tunnel/Access、3 天验收和回滚步骤见
 [docs/daily-server.md](docs/daily-server.md)；站点信息架构与后续视觉方案见
-[docs/site-design.md](docs/site-design.md)。站点首页现已提供“今日概览 + 优先看 +
-20 份 A 股报告 + 20 份港股报告 + 100 A 股候选 / 100 港股候选”，支持日期 tab、A/港股市场 tab、
-搜索、通道筛选和排序；候选 CSV 随 release 发布。每日结果按日期归档，页面顶部日期
-tab 可切换历史，`site/current` 只指向最新版本。报告页会明确标记“LLM 研究”或
+[docs/site-design.md](docs/site-design.md)。每次运行结束会自动生成
+`.runs/daily/<date>/briefing.md` 与 `briefing.txt`（`configs/daily.toml` 的
+`briefing = true` 控制，`briefing_limit` 控制条数），可手工用
+`python -m turtlefw.cli brief --date <date>` 重生成，或加 `--push` 推送到
+`TURTLE_BRIEFING_WEBHOOK`（企业微信机器人等）。站点按页面类型拆分：首页只有一张「今日报告」
+决策表与「今日变化」；候选池独立在 `/screener.html`，A 股/港股分面板，支持 `?market=`、
+搜索和排序；个股有稳定地址 `/stock/<code>.html`（决策摘要 + 关键指标 + 跨日历史），
+报告全文在 `/report/<code>.html`；`/archive/` 按日期索引，`/method.html` 说明口径。
+候选 CSV 随 release 发布，`site/current` 只指向最新版本。报告页会明确标记“LLM 研究”或
 “确定性报告”，避免把含 LLM 研究的报告误读为纯确定性报告。LLM 失败会在站点标为
 “回退”并给出原因码；`health.txt` 同时统计 `llm_on/llm_fallback/llm_off`。
 报告头与站点同时标注“研究依据”：有 PDF 证据时为“PDF 证据 + 数据包”，否则明确为
@@ -607,7 +613,7 @@ Nightly live smoke 见 [.github/workflows/nightly.yml](.github/workflows/nightly
 - **官方披露**：上交所、深交所、巨潮资讯、HKEXnews、SEC EDGAR 的年度报告/公告；样例 PDF 只用于本地验证，不随仓库分发。
 - **行情与股东数据**：Yahoo Finance（`yfinance`）；港股/美股治理字段的来源和缺口见 [docs/data-sources.md](docs/data-sources.md)。
 - **v2 参照**：内部 v2.1-beta 快照 `c61419c`（2026-07-04），仅用于功能对照，不是运行时依赖，也不随仓库分发；差异讨论见 [docs/upstream-v2-vs-local.md](docs/upstream-v2-vs-local.md)。
-- **项目设计约束**：[target-architecture.md](docs/target-architecture.md)、[research-layer.md](docs/research-layer.md)、[pdf-first-deep-context.md](docs/pdf-first-deep-context.md)、[snapshot-byte-identical.md](docs/snapshot-byte-identical.md)。
+- **项目设计约束**：[target-architecture.md](docs/target-architecture.md)、[roadmap-2026-11.md](docs/roadmap-2026-11.md)（执行计划与 14 条 ADR）、[research-layer.md](docs/research-layer.md)、[pdf-first-deep-context.md](docs/pdf-first-deep-context.md)、[snapshot-byte-identical.md](docs/snapshot-byte-identical.md)。
 
 ### 原项目与致谢
 

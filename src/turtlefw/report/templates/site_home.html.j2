@@ -1,0 +1,103 @@
+{% extends "site_layout.html.j2" %}
+{% block content %}
+<section class="hero">
+  <p class="kicker"><span>每日研究</span><span class="dot">/</span><span>{{ date_label }}</span>{% if trade_date %}<span class="dot">/</span><span>交易日 {{ trade_date }}</span>{% endif %}</p>
+  <h1>今日研究</h1>
+  <p class="lede">{{ total }} 份报告、A 股 {{ a_count }} / 港股 {{ hk_count }} 份已生成；候选池 A 股 {{ a_candidates }} 只、港股 {{ hk_candidates }} 只。页面按结论与安全边际排序，先看结论，再看证据。</p>
+  <p class="meta"><span>结论来自报告首屏判定</span><span>底价与安全边际是估值口径，不是买卖建议</span></p>
+</section>
+
+<div class="statline">
+  <div class="stat"><span>今日报告</span><b>{{ total }}</b></div>
+  <div class="stat"><span>通过 QA</span><b>{{ passed }}</b></div>
+  <div class="stat"><span>未通过 / 失败</span><b>{{ failed }}</b></div>
+  <div class="stat"><span>候选 A / HK</span><b>{{ a_candidates }}<small> / {{ hk_candidates }}</small></b></div>
+  <div class="stat"><span>LLM 研究</span><b>{{ llm_on }}</b></div>
+  <div class="stat{% if research_fallback %} warn{% endif %}"><span>研究回退</span><b>{{ research_fallback }}</b>{% if research_fallback %}<small> / {{ total }}</small>{% endif %}</div>
+</div>
+
+{% if diff and diff.total %}
+<section class="panel">
+  <header>
+    <h2>今日变化</h2>
+    <span class="hint">相对上一数据日 {{ diff.previous }}</span>
+  </header>
+  <div class="body">
+    <div class="changes">
+      <div class="box">
+        <h3>新进 {{ diff.new|length }}</h3>
+        {% if diff.new %}<ul>{% for item in diff.new %}<li><a href="{{ item.href }}">{{ item.name or item.code }}</a> <span class="mono dim">{{ item.code }}</span></li>{% endfor %}</ul>{% else %}<p class="note">无</p>{% endif %}
+      </div>
+      <div class="box">
+        <h3>移出 {{ diff.dropped|length }}</h3>
+        {% if diff.dropped %}<ul>{% for item in diff.dropped %}<li><span class="mono">{{ item.code }}</span> {{ item.name }}</li>{% endfor %}</ul>{% else %}<p class="note">无</p>{% endif %}
+      </div>
+      <div class="box">
+        <h3>结论变化 {{ diff.changed|length }}</h3>
+        {% if diff.changed %}<ul>{% for item in diff.changed %}<li><a href="{{ item.href }}">{{ item.name or item.code }}</a> <span class="dim">{{ item.was }}</span> → <span class="dim">{{ item.now }}</span></li>{% endfor %}</ul>{% else %}<p class="note">无</p>{% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+{% else %}
+<section class="panel">
+  <header>
+    <h2>今日变化</h2>
+    <span class="hint">暂无上一数据日记录</span>
+  </header>
+  <div class="body">
+    <p class="note">从第二个数据日开始，这里会列出新进候选、移出候选与结论发生变化的标的。</p>
+  </div>
+</section>
+{% endif %}
+
+<section class="panel">
+  <header>
+    <h2>今日报告</h2>
+    <span class="hint">{{ total }} 份 · 买入 → 观察 → 排除，同结论内按安全边际降序</span>
+    <span class="links"><a href="screener.html">筛选全部候选 →</a></span>
+  </header>
+  {% if reports %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th class="num">#</th>
+          <th>结论</th>
+          <th>标的</th>
+          <th>市场</th>
+          <th class="num">R</th>
+          <th class="num">GG</th>
+          <th class="num">安全边际</th>
+          <th class="num">底价</th>
+          <th class="num">当前价</th>
+          <th class="num">溢价</th>
+          <th>报告</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for report in reports %}
+        <tr>
+          <td class="num">{{ loop.index }}{% if report.priority %} <span class="badge star" title="今日优先关注">★</span>{% endif %}</td>
+          <td>{% if report.verdict %}<span class="badge {{ report.verdict_class }}">{{ report.verdict }}</span>{% else %}<span class="dim">—</span>{% endif %}</td>
+          <td><a href="{{ report.stock_href }}">{{ report.name or report.code }}</a> <span class="mono dim">{{ report.code }}</span>{% if report.status == 'failed' %} <span class="badge bad" title="{{ report.error }}">失败</span>{% elif report.qa != 'PASS' %} <span class="badge bad" title="{{ report.error }}">{{ report.qa }}</span>{% endif %}{% if report.research == 'fallback' %} <span class="badge muted" title="{{ report.research_reason }}">LLM 研究回退</span>{% endif %}</td>
+          <td><span class="badge market">{{ report.market }}</span></td>
+          <td class="num">{{ report.r or '—' }}</td>
+          <td class="num">{{ report.gg or '—' }}</td>
+          <td class="num">{{ report.margin or '—' }}</td>
+          <td class="num">{{ report.floor or '—' }}</td>
+          <td class="num">{{ report.price or '—' }}</td>
+          <td class="num">{{ report.premium or '—' }}</td>
+          <td>{% if report.report_href %}<a href="{{ report.report_href }}">全文</a>{% else %}<span class="dim">—</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">今日没有生成报告。</p>
+  {% endif %}
+</section>
+
+<p class="note">历史数据日见 <a href="archive/index.html">存档</a>；全部候选与筛选见 <a href="screener.html">筛选器</a>；口径见 <a href="method.html">方法说明</a>。</p>
+{% endblock %}

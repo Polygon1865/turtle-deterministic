@@ -37,3 +37,7 @@ allow_stale = false
 # Publish successful stocks even when another stock failed. Set false to keep
 # the previous site whenever any selected stock fails.
 publish_partial = true
+
+# 跑完自动生成 daily briefing（.runs/daily/<date>/briefing.md 与 briefing.txt）
+briefing = true
+briefing_limit = 6

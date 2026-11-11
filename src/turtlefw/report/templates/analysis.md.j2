@@ -1,9 +1,9 @@
 # 龟龟策略分析报告 — {{ code }}
 
-> 数据截至：{{ as_of or generated_at }} ｜ 报表币种：{{ currency }} ｜ 数据快照：`{{ snapshot_id }}`{% if data_basis %} ｜ 数据口径：{{ data_basis }}{% endif %}{% if fx_note %} ｜ {{ fx_note }}{% endif %} ｜ 研究依据：{{ research_basis }}
-> 无风险利率：{{ rf }}（来源：{{ rf_source }}）｜ 当前价：{{ price }} ｜ 总市值（百万元）：{{ market_cap }}
+> 数据截至：{{ as_of or generated_at }} ｜ 报表币种：{{ currency }} ｜ 数据快照：`{{ snapshot_id }}`{% if data_source %} ｜ 数据源：{{ data_source }}{% endif %}{% if data_basis %} ｜ 数据口径：{{ data_basis }}{% endif %}{% if fx_note %} ｜ {{ fx_note }}{% endif %} ｜ 研究依据：{{ research_basis }}
+> 无风险利率：{{ rf }}（来源：{{ rf_source }}）｜ 当前价：{{ price_text }} ｜ 总市值（百万元）：{{ market_cap }}
 
-## 一、结论
+## 结论
 
 **{{ verdict }}** — {{ reason }}
 
@@ -32,13 +32,13 @@
 {{ research_summary_md }}
 {% endif %}
 
-## 二、因子 1A：五分钟快筛
+## 因子 1A：五分钟快筛
 
 {{ f1a_table }}
 
 > {{ notes_1a }}
 
-## 三、因子 1B：深度定性
+## 因子 1B：深度定性
 
 {{ f1b_table }}
 
@@ -52,13 +52,13 @@
 > {{ qual_note }}
 {% endif %}
 
-## 四、因子 2：穿透回报率粗算
+## 因子 2：穿透回报率粗算
 
 {{ f2_table }}
 
 > {{ notes_2 }}
 
-## 五、因子 3：穿透回报率精算
+## 因子 3：穿透回报率精算
 
 {{ f3_table }}
 
@@ -66,7 +66,7 @@
 
 > {{ notes_3 }}
 
-## 六、因子 4：估值与安全边际
+## 因子 4：估值与安全边际
 
 {{ f4_table }}
 
@@ -76,7 +76,7 @@
 
 > {{ notes_4 }}
 
-## 七、估值指标与底价
+## 估值指标与底价
 
 {{ valuation_table }}
 
@@ -86,7 +86,7 @@
 
 {{ floor_note }}
 
-## 八、数据问题与待验证事项
+## 数据问题与待验证事项
 
 {{ issues_md }}
 
@@ -102,12 +102,13 @@
 
 {{ unknown_md }}
 
-## 九、投资论点卡（Thesis Card）
+## 投资论点卡（Thesis Card）
 
 **核心论点**：{{ thesis_core }}
 
 **仓位建议**：{{ thesis_position }}
 
+{% if verdict != "排除" %}
 **买入/持有理由**
 
 {{ thesis_reasons_md }}
@@ -123,6 +124,11 @@
 {{ thesis_catalysts_md }}
 
 **预期持有周期**：{{ thesis_holding }}
+{% else %}
+
+已排除，不建立仓位；买入理由、催化剂与持有周期不适用。复核时只在否决项解除后重跑本报告。
+
+{% endif %}
 
 **基本面止损条件**
 
@@ -134,7 +140,7 @@
 
 {{ thesis_monitor_md }}
 
-## 十、来源冲突决策（SourceRank）
+## 来源冲突决策（SourceRank）
 
 {% if resolved_md %}
 {{ resolved_md }}
@@ -142,7 +148,7 @@
 未提供 PDF 候选；未执行跨源冲突决策。
 {% endif %}
 
-## 十一、研究判断（D1–D6，证据驱动）
+## 研究判断（D1–D6，证据驱动）
 
 {% if research_sections %}
 {{ research_meta_md }}
@@ -162,7 +168,7 @@
 > {{ research_pdf_note }}
 {% endif %}
 
-{{ fundamental_section }}{{ market_section }}## {{ disclaimer_heading }}、数据来源与免责声明
+{{ fundamental_section }}{{ market_section }}## 数据来源与免责声明
 
 - 财务数据：Tushare Pro（`turtlefw` 确定性管线）
 - 无风险利率：{{ rf_source }}

@@ -567,6 +567,7 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
                 ("owner_earnings", oe_used),
                 ("g", g_row.g),
                 ("payout", mean_payout),
+                ("payout.latest", _latest_year_payout(payouts)),
                 ("owner_earnings_m", oe_used / Decimal("1000000") if oe_used is not None else None),
                 *(
                     (f"payout.candidate.{index}", candidate.value)
@@ -733,6 +734,14 @@ def _payout_note(check: grids.PayoutCrosscheck) -> str:
     return " / ".join(parts) + (f"；{check.note}" if check.note else "")
 
 
+def _latest_year_payout(payouts: dict[int, Decimal | None]) -> Decimal | None:
+    """Payout for the most recent fiscal year (QA compares this to the ranking)."""
+
+    if not payouts:
+        return None
+    return payouts.get(max(payouts))
+
+
 def _payout_spread(check: grids.PayoutCrosscheck) -> Decimal | None:
     values = [candidate.value for candidate in check.candidates if candidate.value is not None]
     if len(values) < 2:
@@ -808,11 +817,18 @@ def _qualitative_trap(
     return Check(name, "pass", f"{LABELS[item.judgment]}（置信度 {item.confidence}）")
 
 
+def _veto_reason(result: FactorResult) -> str:
+    """Name the check that actually vetoed, instead of a hard-coded label."""
+
+    names = [check.name for check in result.checks if check.status == "veto"]
+    return "「" + "、".join(names) + "」" if names else ""
+
+
 def final_verdict(results: dict[str, FactorResult]) -> tuple[str, str]:
     if results["1A"].passed is False:
-        return "排除", "因子1A 触发否决"
+        return "排除", "因子1A" + _veto_reason(results["1A"]) + "触发否决"
     if results["1B"].passed is False:
-        return "排除", "因子1B 管理层触发否决"
+        return "排除", "因子1B" + _veto_reason(results["1B"]) + "触发否决"
     if results["2"].passed is False:
         return "排除", "粗算穿透回报率未过否决门"
     if results["3"].passed is False:

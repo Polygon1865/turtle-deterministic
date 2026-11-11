@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }}</title>
+<meta name="description" content="{{ description }}">
+<link rel="canonical" href="{{ canonical }}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="龟龟策略 · 每日研究">
+<meta property="og:title" content="{{ title }}">
+<meta property="og:description" content="{{ description }}">
+<meta property="og:url" content="{{ canonical }}">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="{{ base }}{{ asset_favicon }}" type="image/svg+xml">
+<link rel="stylesheet" href="{{ base }}{{ asset_css }}">
+</head>
+<body>
+<header class="shell top">
+  <a class="brand" href="{{ base }}index.html"><span class="mark">龟</span><span class="brand-name">龟龟策略<span class="brand-sub">每日研究</span></span></a>
+  <nav class="nav" aria-label="主导航">
+    <a href="{{ base }}index.html"{% if nav_active == 'home' %} aria-current="page"{% endif %}>首页</a>
+    <a href="{{ base }}screener.html"{% if nav_active == 'screener' %} aria-current="page"{% endif %}>筛选</a>
+    <a href="{{ base }}archive/index.html"{% if nav_active == 'archive' %} aria-current="page"{% endif %}>存档</a>
+    <a href="{{ base }}method.html"{% if nav_active == 'method' %} aria-current="page"{% endif %}>方法</a>
+  </nav>
+  <span class="spacer"></span>
+  <span class="asof">{{ date_label }}{% if trade_date %} · {{ trade_date }}{% endif %}</span>
+</header>
+<main class="shell main">
+{% block content %}{% endblock %}
+</main>
+<footer class="shell footer">
+  <span>龟龟策略 · 每日研究</span>
+  <nav aria-label="页脚">
+    <a href="{{ base }}method.html">方法</a>
+    <a href="{{ base }}archive/{{ date_key }}/ranking.csv">A 股 CSV</a>
+    <a href="{{ base }}archive/{{ date_key }}/ranking_hk.csv">港股 CSV</a>
+    <a href="{{ base }}health.txt">运行健康</a>
+  </nav>
+  <span class="spacer"></span>
+  <span>生成于 {{ generated_at }}</span>
+</footer>
+<script src="{{ base }}{{ asset_js }}" defer></script>
+</body>
+</html>

@@ -190,11 +190,45 @@
 | `hk_basic` | ✅ 2787 只在市 | 主板/创业板、上市日期、币种；用于全市场筛选 |
 | `hk_fina_indicator` | ✅ 逐票 | 无批量接口；ROE/毛利率/净利率/负债率/营收增速/EPS/BPS/PE/PB 用于质量分；`report_type` 校验年报，`currency` 非 HKD/CNY 跳过 |
 
-港股 screen 先用 `hk_basic` 过滤创业板、上市不足 3 年、价格低于 1 港元、成交额低于 500 万港元的标的，
-并跳过已知美元报表公司 `00005.HK`、`01299.HK`、`02378.HK`、`02888.HK`（项目不伪造 USD 折算；运行时还会按 `currency` 跳过非 HKD/CNY 报表），
-再对存活标的逐票取 `hk_fina_indicator`（财报期默认上一完整年度；`report_type=Q4` 或 `end_date` 为 1231 视为年报，非 12 月财年按年报回退，拒绝中报），要求营收/净利为正且核心指标齐全，
-最后按“0.40×ROE + 0.25×净利率 + 0.15×毛利率 − 0.20×负债率 + 0.10×营收增速（上限 50）”排序；ROE/净利率/毛利率/负债率分别截断 50/50/100/100，原始值仍保留在 CSV。
-`hk_daily` 单次最多 5000 行，单日全市场通常一次足够；`hk_fina_indicator` 逐票调用，完整刷新约数分钟到十几分钟。
+港股 screen 先用 `hk_basic` 过滤创业板、上市不足 3 年、当日无行情的标的，
+并跳过已知美元报表公司 `00005.HK`、`01299.HK`、`02378.HK`、`02888.HK`（项目不伪造 USD 折算；运行时还会按 `currency` 跳过非 HKD/CNY 报表）、
+人民币柜台重复上市（`8xxxx.HK` 且名称以 `-R` 结尾，如 `82333.HK 长城汽车-R`，其港币柜台 `02333.HK` 会正常参与），
+再对存活标的逐票取 `hk_fina_indicator`（财报期默认上一完整年度；`report_type=Q4` 或 `end_date` 为 1231 视为年报，非 12 月财年按年报回退，拒绝中报），
+要求年报口径、`total_market_cap` ≥ 50 亿港元（`--min-market-cap-yi` 可调）、营收/净利为正，且通过与 A 股相同的质量门槛（ROE ≥ 8、负债率 ≤ 70、毛利率存在时 ≥ 15）。
+
+排序改用与 A 股 `fast_screen` 完全一致的穿透回报率口径，而不是 ROE 加权分：
+
+- `payout`：优先 `divi_ratio`（Tushare 存小数，0.928 = 92.8%，特别股息可 >1，超过 100% 截断并标 `payout_ok=False`），缺失回退 `dps_hkd / basic_eps`；
+- `R% = 归母净利 × payout / 市值`；`GG% = 近两年 FCF 均值 × payout / 市值`；`II% = max(5.0, Rf + 3.0)`；`margin = GG% − II%`；
+- 市值、净利、FCF 统一为港元（CNY 报表按 `cny_per_hkd` 折算），FCF 取 `hk_cashflow` 的 `n_cashflow_act − |c_pay_acq_const_fiolta|`，按年报财月过滤掉中报期间；
+- 无现金流数据的标的直接剔除（`drop_no_cashflow`），毛利率缺失只跳过毛利质量项，不再整只丢弃（港交所 00388、中国平安 02318 曾因此被误杀）。
+
+入选行在返回前还会用 yfinance 复核报表币种（`hk_fina_indicator.currency` 对 06862 一类内地发行人并不可靠）：确认为 USD 的标的直接剔除，
+避免像 `00288.HK 万洲国际` 这样进了榜单却在分析阶段报「港股美元报表暂不支持」、白白占掉 35% 的港股报告名额。
+
+### 港股股东与主营（2026-11-11）
+
+- 股东：Tushare 没有港股股东接口（`hk_holders`/`hk_major_holders` 均返回「请指定正确的接口名」），
+  改为 Yahoo Finance `institutional_holders` + `mutualfund_holders`（`TushareProvider._hk_holders`，进程内缓存）。
+  报表第 8 节标题会写成「机构与基金持仓（Yahoo，第三方，可能滞后）」，并附披露日期；
+  它不是完整股东名册，也不等同于年报披露。
+- 主营：Yahoo 只有 `sector/industry/longBusinessSummary`，没有分部收入；数据包第 8 节在无分部表时输出
+  「主营描述（行业）」段落，分部收入仍仅 PDF 路径（`hk_facts.segments`）可得。
+- 母公司现金：港股只有合并报表，保持「未验证」，不做估算。
+
+CSV 列含 `R%`/`GG%`/`II%`/`margin`/`payout`/`FCF yield%`，与 `ranking.csv` 对齐；`hk_daily` 单次最多 5000 行，单日全市场通常一次足够；
+`hk_fina_indicator`/`hk_cashflow` 逐票调用，首次完整刷新约十几分钟，之后走 7 天文件缓存（`--refresh-market` 也不会重拉财报类接口）。
+
+### 港股价格与币种（2026-11-05）
+
+报告币种取 `reporting_currency`（yfinance），取不到时默认 CNY 并打印提示；HKD 报价按 `fx.cny_per_hkd`（默认 0.92，固定配置、非实时汇率）折算成报告币种，OHLC 历史与分红也乘同一因子。
+为了不让读者把折算价当成行情价，三处展示都同时给出原币收盘：
+
+- 报告头：`当前价：3.63 CNY（报价 3.95 HKD）`（`analysis._price_text`，quote 里的 `close_local/currency_local/fx` 由 `cli._quote_with_local` 写入 `inputs.quote`）；
+- 数据包头：`报价 HKD 3.95（1 HKD = 0.92 CNY）`（`pack._quote_note`）；
+- 站点个股页 lede：`现价 3.63 CNY（报价 3.95 HKD）`（`site._report_lede`）。
+
+已知未统一：`ranking_hk.csv` 的 `total_market_cap` 仍是港元口径，而报告市值是人民币，同一家公司在 screener 与报告里市值数字不同；`fx.cny_per_hkd` 是配置常量，港元汇率大幅波动时需要手工改配置。
 
 ### 港股现金桥为什么是“间接”
 

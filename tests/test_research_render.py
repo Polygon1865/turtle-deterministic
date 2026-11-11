@@ -70,3 +70,24 @@ def test_evidence_markdown_keeps_complete_numbers(tmp_path) -> None:
     )
     result = audit(report_path, [source], strict=True)
     assert result["status"] == "pass", result["unknown"]
+
+
+def test_render_unknowns_tolerates_unresolved_metrics() -> None:
+    document = ResearchDocument(
+        claims=(
+            ResearchClaim(
+                claim_id="D6.3",
+                dimension="D6",
+                statement="母公司分红路径未核实",
+                judgment="neutral",
+                confidence="low",
+                evidence_ids=("ev",),
+                unknowns=("母公司账面现金为{{metric:parent_cash_ratio}}亿元，未披露",),
+            ),
+        ),
+        evidence={"ev": {"source_type": "data", "quote": "| net_cash | 6,203.16 |"}},
+    )
+    text = render_markdown(document, {})
+    assert "{{" not in text
+    assert "未验证" in text
+    assert "—" in text

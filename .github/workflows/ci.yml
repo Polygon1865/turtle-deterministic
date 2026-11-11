@@ -33,6 +33,8 @@ jobs:
             src/turtlefw/report/analysis.py \
             src/turtlefw/report/pack.py \
             src/turtlefw/report/html.py \
+            src/turtlefw/report/lint.py \
+            src/turtlefw/report/normalize.py \
             src/turtlefw/pdf/extract.py \
             src/turtlefw/facts.py \
             src/turtlefw/research.py \
@@ -49,7 +51,11 @@ jobs:
             src/turtlefw/pit.py \
             src/turtlefw/qa.py \
             src/turtlefw/state.py \
+            src/turtlefw/holdings.py \
             src/turtlefw/agent/research_agent.py \
+            src/turtlefw/agent/roles.py \
+            src/turtlefw/agent/budget.py \
+            src/turtlefw/agent/pipeline.py \
             src/turtlefw/metrics/source_resolver.py \
             src/turtlefw/numeric_audit.py \
             src/turtlefw/data/sec.py \

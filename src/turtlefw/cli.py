@@ -271,6 +271,32 @@ def _fx_history(
     return converted
 
 
+def _quote_with_local(
+    quote: dict[str, Any],
+    price_local: object,
+    price: Decimal | None,
+    *,
+    code: StockCode,
+    fx: Decimal,
+) -> dict[str, Any]:
+    """Keep the quote-currency close next to the report-currency price.
+
+    HK names that report in CNY show a converted price (HKD x fx); without the
+    original close the report looks like a stale/wrong quote.
+    """
+    if fx == Decimal("1"):
+        return quote
+    local = _num(price_local)
+    currency_local = "HKD" if code.market is Market.HK else str(quote.get("currency", ""))
+    return {
+        **quote,
+        "close": float(price) if price is not None else quote.get("close"),
+        "close_local": float(local) if local is not None else None,
+        "currency_local": currency_local,
+        "fx": float(fx),
+    }
+
+
 def _pdf_bridge(path: str | None) -> dict[int, dict[str, str | None]] | None:
     """Load ``cash_bridge`` from a ``reported_numbers.json`` file."""
     if not path:
@@ -352,6 +378,48 @@ def _industry_name(extras: dict[str, object]) -> str:
     if isinstance(industry, dict):
         return str(industry.get("level1", "")).strip()
     return ""
+
+
+def _company_identity(
+    provider: Any, code: StockCode, extras: dict[str, object] | None = None
+) -> dict[str, str]:
+    """Name, industry and business summary for one listing.
+
+    The research layer cannot describe what a company does without these
+    fields; the statements alone only show what the numbers look like.  Every
+    lookup is best-effort: identity is context, not a hard input.
+    """
+
+    payload = dict(extras or {})
+    identity = {"name": "", "industry": "", "summary": ""}
+    name_method = getattr(provider, "company_name", None)
+    if callable(name_method):
+        try:
+            identity["name"] = str(name_method(code) or "")
+        except Exception:  # noqa: BLE001 - optional identity source
+            identity["name"] = ""
+    if code.is_a_share:
+        identity["industry"] = _industry_name(payload)
+        company = payload.get("company")
+        if isinstance(company, dict):
+            summary = company.get("main_business") or company.get("introduction") or ""
+            identity["summary"] = str(summary)[:600]
+    else:
+        profile_method = getattr(provider, "company_profile", None)
+        profile: dict[str, object] = {}
+        if callable(profile_method):
+            try:
+                profile = dict(profile_method(code))
+            except Exception:  # noqa: BLE001 - optional identity source
+                profile = {}
+        parts = [
+            str(profile.get("sector") or "").strip(),
+            str(profile.get("industry") or "").strip(),
+        ]
+        identity["industry"] = " / ".join(part for part in parts if part)
+        identity["summary"] = str(profile.get("summary") or "")[:600]
+        identity["name"] = identity["name"] or str(profile.get("name") or "")
+    return identity
 
 
 def _load_fundamental_extras(
@@ -680,9 +748,10 @@ def _pack(
     price: Decimal | None = None
     if quote:
         price = _num(quote.get("close"))
+        price_local = price
         if price is not None:
             price = price * fx
-            quote = {**quote, "close": float(price)}
+            quote = _quote_with_local(quote, price_local, price, code=code, fx=fx)
         total_mv_wan = _num(quote.get("total_mv"))
         total_share_wan = _num(quote.get("total_share"))
         if total_mv_wan is not None and total_share_wan is not None:
@@ -744,6 +813,7 @@ def _pack(
     main_business = merge_main_business(
         list(main_business), main_business_rows(fact_rows)
     )
+    identity = _company_identity(provider, code, fundamental_extras)
     markdown = render_data_pack(
         code,
         rows,
@@ -772,6 +842,9 @@ def _pack(
         document_facts=document_facts,
         fundamental_extras=fundamental_extras,
         market_extras=market_extras,
+        name=identity["name"],
+        industry_label=identity["industry"],
+        business_summary=identity["summary"],
     )
 
     path = Path(out) if out else output_root() / str(code) / "data_pack.md"
@@ -867,6 +940,115 @@ def _qa_cmd(
         st.advance(run, "done")
         st.save(run, path)
         print("已推进到 done")
+    return 0
+
+
+def _brief_cmd(
+    date_raw: str,
+    runs_root: str,
+    fmt: str,
+    limit: int,
+    out: str,
+    push: bool,
+) -> int:
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from .briefing import build_briefing, notify_briefing, write_briefing
+
+    day = date_raw.strip() or datetime.now(ZoneInfo("Asia/Hong_Kong")).date().isoformat()
+    base = Path(runs_root) if runs_root.strip() else output_root() / "daily"
+    day_dir = base / day
+    if not day_dir.is_dir():
+        print(f"没有找到运行目录：{day_dir}", file=sys.stderr)
+        return 1
+    briefing = build_briefing(day_dir, limit=limit)
+    written = write_briefing(
+        day_dir,
+        limit=limit,
+        fmt=fmt,
+        out=Path(out) if out.strip() else None,
+    )
+    print(f"简报：{day} ｜ 报告 {briefing.total} 只 ｜ "
+          + " · ".join(f"{name} {count}" for name, count in briefing.verdicts.items()))
+    for path in written:
+        print(f"  已写入 {path.resolve()}")
+    if push:
+        ok = notify_briefing(briefing.plain)
+        print("  已推送 webhook" if ok else "  未配置 TURTLE_BRIEFING_WEBHOOK 或推送失败")
+    return 0
+
+
+def _backtest_cmd(runs_root: str, out: str, limit: int, as_json: bool) -> int:
+    from .backtest import load_panel, panel_payload, render_markdown, write_report
+
+    base = Path(runs_root) if runs_root.strip() else output_root() / "daily"
+    if not base.is_dir():
+        print(f"没有找到运行目录：{base}", file=sys.stderr)
+        return 1
+    report = load_panel(base)
+    if not report.rows:
+        print(f"{base} 下没有可回放的归档（缺 status.json 或报告）", file=sys.stderr)
+        return 1
+    text = render_markdown(report, limit=limit)
+    if out.strip():
+        path, _ = write_report(base, Path(out), limit=limit)
+        print(f"回放报告已写入 {path.resolve()}")
+    else:
+        print(text)
+    if as_json:
+        payload = panel_payload(report)
+        target = Path(out).with_suffix(".json") if out.strip() else Path("backtest.json")
+        target.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"回放数据已写入 {target.resolve()}")
+    flipped = [row for row in report.churn if row.flips]
+    print(
+        f"归档 {len(report.dates)} 天 ｜ 样本 {len(report.rows)} ｜ "
+        f"翻转标的 {len(flipped)}/{len(report.churn)} ｜ "
+        f"前视违规快照 {sum(1 for _d, a in report.audits if not a.clean)}/{len(report.audits)}"
+    )
+    return 0
+
+
+def _holdings_cmd(
+    file_path: str, date_raw: str, runs_root: str, strict: bool, confirm: int = 1
+) -> int:
+    from .holdings import SELL, check, check_window, load_holdings, render
+
+    try:
+        holdings = load_holdings(file_path)
+    except (OSError, ValueError) as exc:
+        print(f"持仓文件读取失败：{exc}", file=sys.stderr)
+        return 2
+    if not holdings:
+        print("持仓文件为空。")
+        return 0
+    date_key = date_raw.strip().replace("-", "")
+    base = Path(runs_root) if runs_root.strip() else output_root() / "daily"
+    day_dir = base / f"{date_key[:4]}-{date_key[4:6]}-{date_key[6:]}" if len(date_key) == 8 else base / date_raw
+    if not day_dir.is_dir():
+        print(f"没有找到运行目录：{day_dir}", file=sys.stderr)
+        return 2
+    if confirm > 1:
+        days = sorted(
+            path
+            for path in base.iterdir()
+            if path.is_dir() and (path / "status.json").is_file() and path.name <= day_dir.name
+        )[-confirm:]
+        if len(days) < confirm:
+            print(f"归档不足 {confirm} 天，按单日检查。", file=sys.stderr)
+            results = check(holdings, day_dir)
+        else:
+            print(f"检查窗口：{days[0].name} → {days[-1].name}（软规则需连续 {confirm} 天）")
+            results = check_window(holdings, days, confirm=confirm)
+    else:
+        results = check(holdings, day_dir)
+    print(render(results))
+    sells = sum(
+        1 for _h, _s, signals in results for signal in signals if signal.severity == SELL
+    )
+    if strict and sells:
+        return 1
     return 0
 
 
@@ -1683,6 +1865,55 @@ def _pdf_notes_path(index_path: Path) -> Path:
     return index_path.with_name(index_path.stem + ".pdf_notes.json")
 
 
+def _governance_quote(governance: dict[str, object]) -> str:
+    """Render governance facts as a readable sentence.
+
+    The research context used to embed a Python ``dict`` repr; the model then
+    copied that repr into the report's evidence quotes, which is how
+    ``parent_cash=...; audit=[{...}]`` reached a published markdown table.
+    """
+
+    parts: list[str] = []
+    parent_cash = governance.get("parent_cash")
+    if parent_cash not in (None, "", 0):
+        parts.append(f"母公司现金 {parent_cash} 元")
+    pledge_pct = governance.get("pledge_pct")
+    if pledge_pct not in (None, "", 0):
+        parts.append(f"质押比例 {pledge_pct}%")
+    buyback = governance.get("buyback")
+    if buyback not in (None, "", 0):
+        parts.append(f"回购金额 {buyback} 元")
+    audit = governance.get("audit")
+    if isinstance(audit, (list, tuple)) and audit:
+        parts.append(f"审计意见 {len(audit)} 条")
+    elif audit:
+        parts.append(f"审计意见 {audit}")
+    return "；".join(parts)
+
+
+def _company_quote(company: dict[str, object]) -> str:
+    """Chinese identity sentence used as a ``data:`` evidence fact."""
+
+    parts: list[str] = []
+    name = str(company.get("name") or "").strip()
+    industry = str(company.get("industry") or "").strip()
+    summary = str(company.get("business_summary") or "").strip()
+    items = [
+        str(item).strip()
+        for item in (company.get("main_business") or [])
+        if str(item).strip()
+    ][:4]
+    if name:
+        parts.append(f"公司名称：{name}")
+    if industry:
+        parts.append(f"所属行业：{industry}")
+    if summary:
+        parts.append(f"主营业务：{summary}")
+    if items:
+        parts.append("主营构成：" + "、".join(items))
+    return "；".join(parts)
+
+
 def _research_context(
     snapshot: str,
     data_pack: str | None = None,
@@ -1701,6 +1932,18 @@ def _research_context(
         "code": payload.get("code", ""),
         "as_of": payload.get("as_of", ""),
         "currency": payload.get("currency", ""),
+        "company": {
+            "name": str(payload.get("name", "") or ""),
+            "industry": str(
+                payload.get("industry_label") or payload.get("industry_name") or ""
+            ),
+            "business_summary": str(payload.get("business_summary", "") or ""),
+            "main_business": [
+                str(item.get("bz_item", "")).strip()
+                for item in (payload.get("main_business") or [])
+                if isinstance(item, dict) and str(item.get("bz_item", "")).strip()
+            ][:10],
+        },
         "metrics": {},
         "facts": [],
         "governance": {
@@ -1746,12 +1989,23 @@ def _research_context(
                     "url": "",
                     "page": "",
                     "source_type": "data",
-                    "quote": (
-                        f"parent_cash={governance.get('parent_cash')}; "
-                        f"pledge_pct={governance.get('pledge_pct')}; "
-                        f"buyback={governance.get('buyback')}; "
-                        f"audit={governance.get('audit')}"
-                    ),
+                    "quote": _governance_quote(governance),
+                }
+            )
+    company = context.get("company")
+    company_quote = (
+        _company_quote(dict(company)) if isinstance(company, dict) else ""
+    )
+    if company_quote:
+        facts = context["facts"]
+        if isinstance(facts, list):
+            facts.append(
+                {
+                    "id": "data:company",
+                    "url": "",
+                    "page": "",
+                    "source_type": "data",
+                    "quote": company_quote,
                 }
             )
     if data_pack and Path(data_pack).is_file():
@@ -1896,6 +2150,7 @@ def _research_agent_cmd(
     min_dimensions: int = 0,
     response: str | None = None,
     max_input_tokens: int | None = None,
+    roles: bool = False,
 ) -> int:
     import json
     import os
@@ -1936,12 +2191,36 @@ def _research_agent_cmd(
     else:
         llm = OpenAICompatibleLLM(base_url=url, model=model_name, api_key=key)
     try:
-        document = ResearchAgent(llm).run(
-            context,
-            retries=retries,
-            min_claims=min_claims,
-            min_dimensions=min_dimensions,
-        )
+        if roles:
+            from .agent.budget import TokenBudget
+            from .agent.pipeline import run_research_roles
+
+            role_run = run_research_roles(
+                context,
+                llm=llm,
+                budget=TokenBudget(),
+                min_claims=min_claims,
+                min_dimensions=min_dimensions,
+                retries=retries,
+            )
+            if role_run.document is None:
+                print(f"research 四角色失败且无法回退：{role_run.reason}", file=sys.stderr)
+                return 2
+            document = role_run.document
+            if role_run.fallback:
+                print(
+                    f"四角色降级为 {role_run.fallback}：{role_run.reason}",
+                    file=sys.stderr,
+                )
+            else:
+                print("四角色流水线：extractor → researcher → writer → auditor")
+        else:
+            document = ResearchAgent(llm).run(
+                context,
+                retries=retries,
+                min_claims=min_claims,
+                min_dimensions=min_dimensions,
+            )
     except AgentError as exc:
         print(f"research agent 失败：{exc}", file=sys.stderr)
         return 2
@@ -1957,6 +2236,7 @@ def _research_agent_cmd(
         "estimated_input_tokens": estimated_input_tokens,
         "max_input_tokens": max_input_tokens,
         "mode": "replay" if response else "llm",
+        "roles": roles,
         "model": "replay" if response else model_name,
     }
     target.with_suffix(".usage.json").write_bytes(
@@ -2795,6 +3075,9 @@ def _report(
     if pit and snapshot_dir:
         print("--snapshot 与 --pit 不能同时使用", file=sys.stderr)
         return 2
+    if snapshot_dir and save_snapshot:
+        print("--snapshot 与 --save-snapshot 不能同时使用（冻结快照不重新冻结）", file=sys.stderr)
+        return 2
     if snapshot_dir and source_policy != "record-only":
         print("--snapshot 使用冻结的 source policy，不能再传 --source-policy", file=sys.stderr)
         return 2
@@ -2907,10 +3190,11 @@ def _report(
         if as_of and quote is None:
             print(f"截至 {as_of} 没有可用行情。", file=sys.stderr)
             return 2
-        price = _num(quote.get("close")) if quote else None
-        if price is not None and not price_from_history:
+        price_local = _num(quote.get("close")) if quote else None
+        price = price_local
+        if price is not None and not price_from_history and quote is not None:
             price = price * fx
-            quote = {**quote, "close": float(price)}
+            quote = _quote_with_local(quote, price_local, price, code=code, fx=fx)
         market_cap = Money(Decimal("0"), unit)
         shares = Decimal("0")
         if quote:
@@ -3007,17 +3291,26 @@ def _report(
             from json import loads as json_loads
 
             pdf_payload = json_loads(Path(pdf_numbers).read_text(encoding="utf-8-sig"))
+        as_of_value = as_of or (
+            str(quote.get("trade_date", ""))
+            if quote
+            else str(history[-1].get("trade_date", "")) if history else ""
+        )
+        rows, lookahead_dropped = snap.filter_as_of_rows(rows, as_of_value)
+        if lookahead_dropped:
+            issues.append(
+                FetchIssue(
+                    endpoint="pit-filter",
+                    code=str(code),
+                    message=(
+                        f"剔除 {lookahead_dropped} 行公告日晚于 as_of={as_of_value} 的财务数据"
+                    ),
+                )
+            )
         inputs = snap.ReportInputs(
             code=str(code),
             currency=unit.value,
-            as_of=(
-                as_of
-                or (
-                    str(quote.get("trade_date", ""))
-                    if quote
-                    else str(history[-1].get("trade_date", "")) if history else ""
-                )
-            ),
+            as_of=as_of_value,
             rows=list(rows),
             dividends=list(dividends),
             quote=quote,
@@ -3046,6 +3339,10 @@ def _report(
         extras, extras_error = _load_fundamental_extras(provider, code)
         inputs.fundamental_extras = extras
         inputs.industry_name = _industry_name(extras)
+        identity = _company_identity(provider, code, extras)
+        inputs.name = identity["name"]
+        inputs.industry_label = identity["industry"]
+        inputs.business_summary = identity["summary"]
         if extras_error:
             issues.append(
                 FetchIssue(
@@ -3188,6 +3485,9 @@ def _report(
                 market_extras=inputs.market_extras,
                 industry_peers=inputs.industry_peers,
                 qualitative=qualitative,
+                name=inputs.name,
+                industry_label=inputs.industry_label,
+                business_summary=inputs.business_summary,
             )
             for target in pack_targets:
                 target.parent.mkdir(parents=True, exist_ok=True)
@@ -3292,6 +3592,13 @@ def _report(
             research_audit_hash = file_hash(research_audit_path)
             base_dir.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(research_audit_path, base_dir / "research_audit.json")
+            # QA hashes ``base/research.json`` while the audit is computed over
+            # the rendered (normalized) snapshot copy.  Keep both on the exact
+            # same bytes, otherwise a ``--research`` replay can never pass the
+            # research_audit row.
+            canonical_research = snapshot_root / "research.json"
+            if canonical_research.is_file():
+                shutil.copyfile(canonical_research, base_dir / "research.json")
             if research_audit["status"] != "pass":
                 gate_failed = True
                 print(
@@ -3333,6 +3640,40 @@ def _report(
     return 1 if gate_failed else 0
 
 
+_HK_FUNNEL_LABELS: tuple[tuple[str, str], ...] = (
+    ("universe", "全部上市"),
+    ("quotes", "当日有行情"),
+    ("drop_usd", "美元报表"),
+    ("drop_rmb_counter", "人民币柜台"),
+    ("drop_gem", "创业板"),
+    ("drop_recent_ipo", "上市不足3年"),
+    ("drop_no_quote", "无当日行情"),
+    ("candidates", "进入指标筛选"),
+    ("drop_no_indicator", "无财务指标"),
+    ("drop_no_annual", "只有中报"),
+    ("drop_currency", "币种不支持"),
+    ("drop_no_market_cap", "缺市值"),
+    ("drop_market_cap", "市值不足50亿"),
+    ("drop_missing_core", "缺核心字段"),
+    ("drop_no_revenue", "无营收"),
+    ("drop_loss", "亏损"),
+    ("drop_quality", "质量门槛"),
+    ("drop_no_cashflow", "无现金流"),
+    ("rows", "通过筛选"),
+)
+
+
+def _hk_funnel_text(stats: dict[str, int]) -> str:
+    """One-line HK screen funnel for CLI output: where did the 2.8k listings go."""
+
+    if not stats:
+        return ""
+    parts = [
+        f"{label} {stats[key]}" for key, label in _HK_FUNNEL_LABELS if key in stats
+    ]
+    return "漏斗：" + "，".join(parts)
+
+
 def _screen(
     tier1_only: bool,
     tier2_limit: int | None = None,
@@ -3346,6 +3687,7 @@ def _screen(
     api_interval: float = 0.35,
     as_of: str | None = None,
     market: str = "A",
+    min_market_cap_yi: float = 50.0,
 ) -> int:
     from .data.tushare_provider import TushareProvider
     from .data.universe import listed_as_of
@@ -3359,12 +3701,24 @@ def _screen(
         from .screener.hk import HkScreenError, screen_hk, write_ranking
 
         trade_date = (as_of or "").replace("-", "") or provider.latest_trade_date()
+        hk_stats: dict[str, int] = {}
+        rf_value, _ = _rf_for(provider, settings, StockCode.parse("00700.HK"), rf, rf_source)
+
+        def _hk_progress(done: int, total: int) -> None:
+            if sys.stderr.isatty():
+                print(f"  指标进度 {done}/{total} …", file=sys.stderr, flush=True)
+
         try:
             rows = screen_hk(
                 provider,
                 trade_date=trade_date,
+                settings=settings,
+                rf_pct=rf_value,
                 limit=fast_limit,
                 candidate_limit=0,
+                min_market_cap=Decimal(str(min_market_cap_yi)) * Decimal("100000000"),
+                stats=hk_stats,
+                on_progress=_hk_progress,
             )
         except HkScreenError as exc:
             print(f"港股 screen 失败：{exc}", file=sys.stderr)
@@ -3372,11 +3726,16 @@ def _screen(
                 print(f"  {issue}", file=sys.stderr)
             return 2
         print(f"交易日: {trade_date}")
-        print("\n=== 港股全市场 screen（质量/流动性） ===")
+        print("\n=== 港股全市场 screen（穿透回报率 R/GG/II，按安全边际排序） ===")
+        print(_hk_funnel_text(hk_stats))
+        total = hk_stats.get("rows", 0)
+        if total > len(rows):
+            print(f"（合格 {total} 只，仅展示前 {len(rows)} 只；完整列表用 --csv 导出）")
         for hk_row in rows:
             print(
                 f"{hk_row.rank:>3}  {hk_row.code:<10} {hk_row.name[:12]:<14} "
-                f"ROE {hk_row.roe:>6}%  净利率 {hk_row.net_margin:>6}%  "
+                f"R {hk_row.r:>6.2f}%  GG {hk_row.gg:>6.2f}%  门槛 {hk_row.ii:>5.1f}%  "
+                f"边际 {hk_row.margin:>7.2f}%  "
                 f"PE {hk_row.pe if hk_row.pe is not None else '-'}  "
                 f"PB {hk_row.pb if hk_row.pb is not None else '-'}"
             )
@@ -3545,11 +3904,19 @@ def build_parser() -> argparse.ArgumentParser:
     screen.add_argument("--workers", type=int, default=6, help="Tier 2 并发线程数（默认 6）")
     screen.add_argument("--fast", action="store_true", help="阶段 1：全市场批量粗筛")
     screen.add_argument("--fast-limit", type=int, default=50, help="Fast screen 输出只数")
+    screen.add_argument(
+        "--min-market-cap-yi",
+        type=float,
+        default=50.0,
+        help="港股最小总市值（亿港元，默认 50）",
+    )
     screen.add_argument("--deep", type=int, default=0, help="对 Fast 前 N 只接深度四因子")
     screen.add_argument(
         "--api-interval", type=float, default=0.35, help="API 最小间隔秒数（默认 0.35）"
     )
-    screen.add_argument("--as-of", default=None, help="筛选日期 YYYY-MM-DD（仅上市日期过滤）")
+    screen.add_argument(
+        "--as-of", default=None, help="筛选日期 YYYY-MM-DD（港股用作行情交易日；A 股仅上市日期过滤）"
+    )
     screen.add_argument(
         "--market", choices=["A", "HK"], default="A", help="筛选市场（默认 A）"
     )
@@ -3793,6 +4160,11 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent.add_argument(
         "--response", default=None, help="离线回放 LLM JSON（不发网络请求）"
     )
+    research_agent.add_argument(
+        "--roles",
+        action="store_true",
+        help="用四角色流水线（extractor/researcher/writer/auditor），失败自动回退单角色",
+    )
 
     snapshot = sub.add_parser("snapshot", help="生成不可变 ReportSnapshot manifest")
     snapshot.add_argument("code", help="股票代码")
@@ -3908,6 +4280,32 @@ def build_parser() -> argparse.ArgumentParser:
         help="确定性/研究流程允许无 qualitative.json",
     )
 
+    brief = sub.add_parser("brief", help="生成每日运行简报（Markdown/纯文本）")
+    brief.add_argument("--date", default="", help="数据日，默认今天（HKT）")
+    brief.add_argument("--runs-root", default="", help="运行目录根，默认 .runs/daily")
+    brief.add_argument("--format", choices=("md", "txt", "both"), default="both")
+    brief.add_argument("--limit", type=int, default=6, help="重点结论/港股候选条数")
+    brief.add_argument("--out", default="", help="输出到指定文件（默认写当日目录）")
+    brief.add_argument("--push", action="store_true", help="同时推送到 TURTLE_BRIEFING_WEBHOOK")
+
+    backtest = sub.add_parser("backtest", help="归档回放与前视审计（只读）")
+    backtest.add_argument("--runs-root", default="", help="运行目录根，默认 .runs/daily")
+    backtest.add_argument("--out", default="", help="回放报告输出路径（默认打印）")
+    backtest.add_argument("--limit", type=int, default=15, help="翻转表最多行数")
+    backtest.add_argument("--json", action="store_true", help="同时导出 JSON 面板")
+
+    holdings = sub.add_parser("holdings", help="持仓卖出规则检查（只读回放）")
+    holdings.add_argument("--file", required=True, help="持仓 JSON（见 configs/holdings.example.json）")
+    holdings.add_argument("--date", required=True, help="数据日 YYYY-MM-DD")
+    holdings.add_argument("--runs-root", default="", help="运行目录根，默认 .runs/daily")
+    holdings.add_argument("--strict", action="store_true", help="出现卖出信号时返回码 1")
+    holdings.add_argument(
+        "--confirm",
+        type=int,
+        default=1,
+        help="软规则（结论降级）需连续确认的天数，默认 1；>1 时回看最近 N 个归档日",
+    )
+
     golden = sub.add_parser("golden", help="黄金集标注模板与评分")
     golden.add_argument("--init", default=None, help="写出模板 CSV 路径")
     golden.add_argument("--codes", default="", help="逗号分隔的股票代码")
@@ -4021,6 +4419,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.api_interval,
                 args.as_of,
                 args.market,
+                args.min_market_cap_yi,
             )
         if args.command == "golden":
             return _golden_cmd(args.init, args.codes, args.score, args.threshold)
@@ -4030,6 +4429,21 @@ def main(argv: list[str] | None = None) -> int:
                 args.write,
                 args.json_out,
                 args.allow_missing_qualitative,
+            )
+        if args.command == "brief":
+            return _brief_cmd(
+                args.date,
+                args.runs_root,
+                args.format,
+                args.limit,
+                args.out,
+                args.push,
+            )
+        if args.command == "backtest":
+            return _backtest_cmd(args.runs_root, args.out, args.limit, args.json)
+        if args.command == "holdings":
+            return _holdings_cmd(
+                args.file, args.date, args.runs_root, args.strict, args.confirm
             )
         if args.command == "narrative":
             return _narrative_cmd(args.code, args.file)
@@ -4183,6 +4597,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.min_dimensions,
                 args.response,
                 args.max_input_tokens,
+                args.roles,
             )
         if args.command == "snapshot":
             return _snapshot_cmd(

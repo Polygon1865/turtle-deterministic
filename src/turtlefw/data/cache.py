@@ -48,6 +48,22 @@ class FileCache:
         except (OSError, json.JSONDecodeError):
             return None
 
+    def get_any(self, key: str) -> Any | None:
+        """Return the cached value ignoring TTL.
+
+        Used as a last resort when a rate-limited endpoint (e.g. ``hk_daily``,
+        one call per hour) cannot be refreshed: the exact-key snapshot fetched
+        earlier is still the right data for that trade date.
+        """
+
+        path = self._path(key)
+        if not path.is_file():
+            return None
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+
     def put(self, key: str, value: Any) -> None:
         path = self._path(key)
         tmp = path.with_suffix(".json.tmp")

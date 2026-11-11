@@ -29,7 +29,31 @@ def _inline(text: str) -> str:
 
 
 def _cells(line: str) -> list[str]:
-    return [cell.strip() for cell in line.strip().strip("|").split("|")]
+    """Split a table row on unescaped pipes (``\\|`` is literal text)."""
+
+    body = line.strip()
+    if body.startswith("|"):
+        body = body[1:]
+    if body.endswith("|") and not body.endswith("\\|"):
+        body = body[:-1]
+    cells: list[str] = []
+    current: list[str] = []
+    index = 0
+    while index < len(body):
+        char = body[index]
+        if char == "\\" and index + 1 < len(body) and body[index + 1] == "|":
+            current.append("|")
+            index += 2
+            continue
+        if char == "|":
+            cells.append("".join(current).strip())
+            current = []
+            index += 1
+            continue
+        current.append(char)
+        index += 1
+    cells.append("".join(current).strip())
+    return cells
 
 
 def _is_separator(line: str) -> bool:
@@ -121,12 +145,16 @@ _REPORT_SCRIPT = """<script>
 </script>"""
 
 
+_SECTION_NUMBER = re.compile(r"^[一二三四五六七八九十百]+、\s*")
+
+
 def _panel_for(text: str) -> str:
-    if text.startswith(("一、结论", "六、因子 4", "七、估值指标与底价", "九、投资论点卡")):
+    title = _SECTION_NUMBER.sub("", text)
+    if title.startswith(("结论", "因子 4", "估值指标与底价", "投资论点卡")):
         return "decision"
-    if text.startswith(("二、因子 1A", "三、因子 1B", "四、因子 2", "五、因子 3")):
+    if title.startswith(("因子 1A", "因子 1B", "因子 2", "因子 3")):
         return "factors"
-    if text.startswith(("行业分类", "研究摘要", "十一、研究判断")):
+    if title.startswith(("行业分类", "行业模板", "研究摘要", "研究判断")):
         return "research"
     return "appendix"
 
@@ -195,7 +223,10 @@ def markdown_to_html(
     back_href: str = "/",
 ) -> str:
     raw_lines = markdown_text.splitlines()
-    has_research = "## 研究摘要" in markdown_text and "**研究覆盖**" in markdown_text
+    has_research = (
+        re.search(r"^##\s+(?:[一二三四五六七八九十]+、\s*)?研究摘要", markdown_text, re.M)
+        is not None
+    ) and "**研究覆盖**" in markdown_text
     quick = _quick_read(markdown_text, has_research=has_research)
     body: list[str] = []
     headings: list[tuple[int, str, str]] = []
