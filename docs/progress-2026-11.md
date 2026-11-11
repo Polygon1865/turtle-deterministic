@@ -25,17 +25,35 @@
 | C6 卖出规则 / 组合层 | ✅ 完成（软规则需连续确认） | 新增 `src/turtlefw/holdings.py`：`Holding`/`Snapshot`/`SellSignal`，五条确定性规则——`verdict_downgrade`（买入→观察/排除/减持）、`margin_lost`（margin<0）、`value_trap`（≥2 项）、`stop_loss`（相对买入价回撤超阈值）、`floor_break`（现价<底价，watch 不强制卖）；`snapshot_from_run()` 只读归档（`snapshot/metrics.json` + 报告首行 + `snapshot/verdict.json`），不调用数据源；`check()` 单日、`check_window(confirm=N)` 要求**软规则连续 N 天**成立才算卖出信号，硬规则（margin/trap/止损）立即触发。CLI `holdings --file --date --runs-root --strict --confirm`，示例 `configs/holdings.example.json`。回放证据（11-02 买入 03877/00270，9 个归档日）：单日口径 `verdict_downgrade` 触发 **4 次/4 天**（两只各被“卖出”两次又买回）；`--confirm 2` 后 **0 次**——证明单日结论翻转是噪声，卖出纪律必须带持续性。测试 `tests/test_holdings.py` 9 例。边界：持仓文件手工维护；不处理加仓/仓位再平衡；`stop_loss` 只按成本价算，不跟踪最高价。 |
 
 
+## W 段（roadmap 前置）
+
+| 项 | 状态 | 产物与证据 |
+|---|---|---|
+| W0.0 基线冻结 | ✅ 完成 | 新增 `scripts/freeze_baseline.py`：`collect(day_dir)` 汇总每只的 verdict/reason/r/gg/ii/margin/floor/price/qa/claims/params + 报告 sha256；`freeze(date)` 写 `baseline/summary-<date>.csv`、`hashes-<date>.json`、`meta-<date>.json`，并把报告/指标/qa 副本放到 `.runs/baseline/<date>/`（git-ignored）；`check(date)` 与基线 diff（数值列带 Δ，含新增/消失标的）。已冻结 `.runs/daily/2026-11-10`：40 只、`baseline/summary-2026-11-10.csv`（7,788B），自检 `check` 一致。测试 `tests/test_freeze_baseline.py` 5 例。 |
+
 ## 本轮验证
 
 ```
 .\.venv\Scripts\python.exe -m pytest -o addopts= -q -p no:cacheprovider
-→ 716 passed in 246.18s
+→ 721 passed in 253.02s
 
 .\.venv\Scripts\python.exe -m ruff check --select F401,F601,F841 src
 → All checks passed!
 
+.\.venv\Scripts\python.exe -m ruff check --select F401,F601,F841 scripts\freeze_baseline.py tests\test_freeze_baseline.py
+→ All checks passed!
+
 .\.venv\Scripts\python.exe -m mypy src\turtlefw\report\format.py src\turtlefw\report\pack.py src\turtlefw\report\analysis.py src\turtlefw\report\snapshot.py src\turtlefw\backtest.py src\turtlefw\qa.py src\turtlefw\agent\pipeline.py src\turtlefw\agent\roles.py src\turtlefw\agent\budget.py src\turtlefw\agent\research_agent.py src\turtlefw\holdings.py
 → Success: no issues found（`cli.py` 15 条、`tushare_provider.py` 41 条为既存告警，CI 名单不含这两个文件）
+
+.\.venv\Scripts\python.exe -m mypy scripts\freeze_baseline.py
+→ Success: no issues found
+
+# W0.0：冻结并自检 2026-11-10 运行
+.\.venv\Scripts\python.exe scripts\freeze_baseline.py freeze --date 2026-11-10
+→ 基线已冻结 2026-11-10：40 只 → baseline\summary-2026-11-10.csv
+.\.venv\Scripts\python.exe scripts\freeze_baseline.py check --date 2026-11-10
+→ 与基线一致：2026-11-10
 
 # 聚焦：缓存共享 + 发布门
 .\.venv\Scripts\python.exe -m pytest tests\test_cache_root.py tests\test_daily.py tests\test_cache_refresh.py -q
