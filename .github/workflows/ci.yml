@@ -58,6 +58,7 @@ jobs:
             src/turtlefw/agent/pipeline.py \
             src/turtlefw/metrics/source_resolver.py \
             src/turtlefw/numeric_audit.py \
+            src/turtlefw/citations.py \
             src/turtlefw/data/sec.py \
             src/turtlefw/data/coverage.py \
             src/turtlefw/data/hkexnews.py \
