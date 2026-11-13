@@ -39,8 +39,10 @@ Task Scheduler 19:00
 - 运行状态会记录 `trade_date`、`as_of`、`screen_source` 和 `llm_usage`；
   站点 `health.txt` 同步输出数据源与 LLM 统计；`finished_at` 在构建站点前写入，
   发布后的 release 会再收到一份包含 `site` 路径的最终 `status.json`；
-- 全部股票失败或站点构建失败时 `site/current` 保持旧版本；部分失败是否发布由
-  `publish_partial` 控制；
+- 全部股票失败或站点构建失败时 `site/current` 保持旧版本；部分失败默认**不发布**
+  （ADR-04，2026-11-12 起 `publish_partial = false`），需要发布残缺榜单时用
+  `--publish-partial` 显式放行；被阻断时 `status.site` 记
+  `blocked: N failed; partial publishing disabled`；
 - Caddy 只监听 `127.0.0.1`，公网入口只经过 Cloudflare Access。
 
 ## 目录
@@ -139,7 +141,7 @@ retry_seconds = 1800
 report_workers = 4
 resume = true
 refresh_market = true
-publish_partial = true
+publish_partial = false
 briefing = true
 briefing_limit = 6
 ```
@@ -382,8 +384,9 @@ credentials file，所以用日志里的 `Registered tunnel connection` 判断�
 
 - 每次成功构建写 `site/releases/<date>/`；当天重复构建会写 `<date>-1` 等后缀，
   不删除旧 release；`site/current` 是 junction/symlink；
-- 默认 `publish_partial = true`：部分股票失败时仍发布成功股票，首页/health 标出
-  失败；设 `publish_partial = false` 则任一股票失败都保留旧站点；
+- 默认 `publish_partial = false`（ADR-04，2026-11-12）：任一股票失败都保留旧站点，
+  `status.site` 记 `blocked: N failed`；需要发布残缺榜单时用 `--publish-partial`
+  显式放行（发布后 `status.site` 以 `partial:` 开头，首页/health 标出失败）；
 - 全部股票失败或构建失败时不切换 `current`；
 - 手工回滚：删除 `current`，对目标 release 重建 junction，或运行
   `build_site.py` 从旧 day 目录重建；

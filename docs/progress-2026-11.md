@@ -30,12 +30,18 @@
 | 项 | 状态 | 产物与证据 |
 |---|---|---|
 | W0.0 基线冻结 | ✅ 完成 | 新增 `scripts/freeze_baseline.py`：`collect(day_dir)` 汇总每只的 verdict/reason/r/gg/ii/margin/floor/price/qa/claims/params + 报告 sha256；`freeze(date)` 写 `baseline/summary-<date>.csv`、`hashes-<date>.json`、`meta-<date>.json`，并把报告/指标/qa 副本放到 `.runs/baseline/<date>/`（git-ignored）；`check(date)` 与基线 diff（数值列带 Δ，含新增/消失标的）。已冻结 `.runs/daily/2026-11-10`：40 只、`baseline/summary-2026-11-10.csv`（7,788B），自检 `check` 一致。测试 `tests/test_freeze_baseline.py` 5 例。 |
+| W0.1 发布策略（ADR-04） | ✅ 完成（用户批准：默认关闭） | `DailyConfig.publish_partial` 默认 `False`；`configs/daily.toml` 改 `publish_partial = false`；`scripts/daily_pipeline.py` 新增 `--publish-partial`（`default=None`，显式放行）；被阻断时 `status.site` 记 `blocked: N failed; partial publishing disabled`。测试 `tests/test_publish_policy.py` 4 例（默认值、阻断、显式放行、CLI 覆盖）。 |
+| W0.3 快照版本（ADR-08） | ✅ 完成（用户批准：只读归档、不迁移） | `verify_manifest` 在 `snapshot_version`/`formula_version` 不匹配时输出「旧版本快照为只读归档，不自动迁移；请保留原报告，或从原始数据重新生成快照」，不再只报裸 hash mismatch；`facts.py` 常量处补 ADR-08 语义注释。测试 `tests/test_snapshot_version.py` 3 例。 |
 
 ## 本轮验证
 
 ```
 .\.venv\Scripts\python.exe -m pytest -o addopts= -q -p no:cacheprovider
-→ 721 passed in 253.02s
+→ 728 passed in 251.94s
+
+# ADR-04 / ADR-08 决策落地
+.\.venv\Scripts\python.exe -m pytest tests\test_publish_policy.py tests\test_snapshot_version.py tests\test_daily.py tests\test_snapshot.py -q
+→ 60 passed
 
 .\.venv\Scripts\python.exe -m ruff check --select F401,F601,F841 src
 → All checks passed!

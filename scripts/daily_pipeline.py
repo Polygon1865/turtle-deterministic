@@ -48,6 +48,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--codes", default="", help="comma-separated codes; bypass screen")
     parser.add_argument("--skip-screen", action="store_true")
     parser.add_argument("--no-publish", action="store_true")
+    parser.add_argument(
+        "--publish-partial",
+        action="store_true",
+        default=None,
+        help="ADR-04: 允许部分标的失败时仍发布站点（默认关闭）",
+    )
     parser.add_argument("--allow-stale", action="store_true")
     parser.add_argument("--retry-seconds", type=int, default=None)
     parser.add_argument("--screen-attempts", type=int, default=None)
@@ -86,6 +92,7 @@ def main(argv: list[str] | None = None) -> int:
         "screen_attempts": args.screen_attempts,
         "stock_timeout_seconds": args.stock_timeout,
         "allow_stale": args.allow_stale,
+        "publish_partial": args.publish_partial,
         "project_root": str(ROOT),
     }
     config = _apply_overrides(config, overrides)

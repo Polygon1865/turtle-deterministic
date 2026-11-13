@@ -544,7 +544,7 @@ def test_run_daily_does_not_publish_partial_failure(tmp_path: Path) -> None:
         sleep=lambda seconds: None,
     )
     assert result["ok"] is False
-    assert result["site"].startswith("skipped: failed stocks")
+    assert result["site"].startswith("blocked: 1 failed")
     assert not (paths.site_root / "current").exists()
 
 

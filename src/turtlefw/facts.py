@@ -22,6 +22,9 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+# ADR-08 (2026-11-12): frozen snapshots carry the version that produced them.
+# Older versions are read-only archives — never migrate them in place, because a
+# migration would rewrite historical verdicts without evidence.
 SNAPSHOT_VERSION = 1
 FORMULA_VERSION = "2026-10-20.3"
 

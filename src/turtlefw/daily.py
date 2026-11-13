@@ -112,7 +112,9 @@ class DailyConfig:
     screen_timeout_seconds: int = 1_800
     refresh_market: bool = True
     allow_stale: bool = False
-    publish_partial: bool = True
+    # ADR-04 (2026-11-12): a failed stock blocks publishing by default so the
+    # site never silently loses names.  Opt in with ``--publish-partial``.
+    publish_partial: bool = False
     resume: bool = False
     briefing: bool = True
     briefing_limit: int = 6
@@ -887,15 +889,15 @@ def run_daily(
             # Weekend runs only prove the scheduler is alive.  A manual
             # --allow-stale run earlier the same day already produced reports
             # and a site release; never clobber that status with a no-op record.
-            prior: dict[str, Any] = {}
+            prior_status: dict[str, Any] = {}
             if paths.status_path.is_file():
                 try:
-                    prior = json.loads(paths.status_path.read_text(encoding="utf-8"))
+                    prior_status = json.loads(paths.status_path.read_text(encoding="utf-8"))
                 except (OSError, json.JSONDecodeError):
-                    prior = {}
-            if prior.get("ok") and prior.get("site"):
+                    prior_status = {}
+            if prior_status.get("ok") and prior_status.get("site"):
                 _archive_attempt(paths, status)
-                return prior
+                return prior_status
             status.update(
                 {
                     "screen": "skipped",
@@ -1122,7 +1124,9 @@ def run_daily(
                 "blocked: report_structure failed (" + ", ".join(structural[:5]) + ")"
             )
         elif publish and failed_stocks:
-            status["site"] = "skipped: failed stocks; previous release preserved"
+            status["site"] = (
+                "blocked: " + f"{len(failed_stocks)} failed; partial publishing disabled"
+            )
         elif publish:
             status["site"] = "skipped: no successful stock"
 

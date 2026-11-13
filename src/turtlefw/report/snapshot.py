@@ -21,6 +21,7 @@ from ..data.protocol import StatementRow
 from ..factors.engine import FactorContext, final_verdict, run
 from ..facts import (
     FORMULA_VERSION,
+    SNAPSHOT_VERSION,
     ReportManifest,
     config_payload,
     content_hash,
@@ -420,17 +421,27 @@ def verify_manifest(
     """Return human-readable mismatches for a frozen snapshot render."""
     root = Path(snapshot_dir)
     errors: list[str] = []
+    # ADR-08 (2026-11-12): old snapshots are version-labelled read-only archives.
+    # Never migrate them in place — a migration would silently rewrite historical
+    # verdicts.  Re-rendering is allowed only from a fresh snapshot of the same
+    # version, so state that explicitly instead of a bare hash mismatch.
+    if manifest.snapshot_version != SNAPSHOT_VERSION:
+        errors.append(
+            f"snapshot_version {manifest.snapshot_version} != {SNAPSHOT_VERSION}: "
+            "旧版本快照为只读归档，不自动迁移；请保留原报告，或从原始数据重新生成快照"
+        )
+    if manifest.formula_version != FORMULA_VERSION:
+        errors.append(
+            "formula_version mismatch: "
+            f"manifest={manifest.formula_version} current={FORMULA_VERSION}; "
+            "旧版本快照只读，不自动迁移；需要重算时从原始数据重新生成快照"
+        )
     if manifest.code != inputs.code:
         errors.append(f"code: manifest={manifest.code} inputs={inputs.code}")
     if manifest.as_of != inputs.as_of:
         errors.append(f"as_of: manifest={manifest.as_of} inputs={inputs.as_of}")
     if manifest.currency != inputs.currency:
         errors.append(f"currency: manifest={manifest.currency} inputs={inputs.currency}")
-    if manifest.formula_version != FORMULA_VERSION:
-        errors.append(
-            "formula_version mismatch: "
-            f"manifest={manifest.formula_version} current={FORMULA_VERSION}; regenerate snapshot"
-        )
     effective_rows = apply_document_facts(list(inputs.rows), inputs.document_facts)
     actual_facts = content_hash(statement_payload(effective_rows))
     if actual_facts != manifest.facts_hash:

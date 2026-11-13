@@ -41,11 +41,11 @@
 | ADR-01 口径单一源 | payout/市值/币种/单位各只有一个 owner 函数，screener/report/cleanroom 全部调用；报告头打印口径 | 今天实测 01513 100% vs 1.13%，同一家公司两个答案 |
 | ADR-02 结论生命周期 | claim 带 `evidence_hash`；证据不变不得改判；judgment 变更写 `verdict_history` 并在站点显示“变更原因” | 00270 四天两次翻转，用户无法信任 |
 | ADR-03 数据新鲜度 | 缓存可跨天，但必须 `trade_date` 断言 + 报告头 `stale` 标记；stale 不得静默当 fresh | 1033 那次“服务在跑但隧道断”就是静默降级 |
-| ADR-04 质量门分层 | 硬门（数字/证据/一致性）阻断发布；软门（研究深度/回退率）只告警；`publish_partial` 默认改成 False | 现在 fallback 21/40 仍 PASS，错误不可见 |
+| ADR-04 质量门分层 | 硬门（数字/证据/一致性）阻断发布；软门（研究深度/回退率）只告警；`publish_partial` 默认改成 False（2026-11-12 已批准，见 `daily.py` 与 `configs/daily.toml`） | 现在 fallback 21/40 仍 PASS，错误不可见 |
 | ADR-05 Agent 四角色 | Extractor/Researcher/Writer/Auditor，schema + 工具白名单；单角色模式保留为回退 | 设计 §4.2 的要求，但现在只有一次 research 调用 |
 | ADR-06 成本预算 | 每日 token 上限（默认 500k）、调用上限、超限降级为“只跑确定性报告”；记录实际用量 | 当前 40 只 ≈ 370k/日，四角色会翻倍 |
 | ADR-07 可观测性 | 每日指标（coverage/fallback/drift/runtime/cost）+ health.txt + 阈值告警 | 现在只有 health.txt 几个字段 |
-| ADR-08 快照版本 | manifest 增 `snapshot_version`；旧快照不迁移，归档 HTML 只读；新版本才能重渲染 | 保留全部历史渲染器不现实 |
+| ADR-08 快照版本 | manifest 增 `snapshot_version`；旧快照不迁移，归档 HTML 只读；新版本才能重渲染（2026-11-12 已批准，`verify_manifest` 输出「只读归档」说明） | 保留全部历史渲染器不现实 |
 | ADR-09 多市场矩阵 | 一张表：期间/币种/分红/治理/税档/底价/门槛的差异，直接生成 config 默认值与测试 | 现在 A/HK 差异散落在代码里 |
 | ADR-10 研究质量 | 证据等级（一手>交易所>媒体）、一手来源比例、rubric 抽检；不达标只降级不伪造 | “有证据”不等于“证据对” |
 | ADR-11 golden 协议 | golden 变更必须单独提交并写明原因；禁止批量重生成；CI 对比失败优先当 bug | 否则基线会被“顺手更新”抹掉 |
@@ -129,7 +129,7 @@
 | W5.2 | citation audit（URL 可达 + 引文 + 页码） | 8 | 断链即 FAIL |
 | W5.3 | consistency audit（结论/仓位 vs claims；跨产物） | 6 | 不一致即 FAIL |
 | W5.4 | clean-room 抽样进 QA | 5 | 每日 2 只 |
-| W5.5 | 发布策略（硬门/软门/publish_partial） | 3 | 需用户批准 |
+| W5.5 | 发布策略（硬门/软门/publish_partial） | 3 | ✅ 2026-11-12 用户批准：默认关闭部分发布；ADR-08 采用版本标签+只读归档 |
 
 ### W6 质量基础设施（≈30 人日，第 26–28 周）
 

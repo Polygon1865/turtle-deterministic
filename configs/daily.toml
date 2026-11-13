@@ -34,9 +34,9 @@ screen_timeout_seconds = 1800
 
 refresh_market = true
 allow_stale = false
-# Publish successful stocks even when another stock failed. Set false to keep
-# the previous site whenever any selected stock fails.
-publish_partial = true
+# ADR-04（2026-11-12）：任一标的失败即不发布站点，避免页面缺名。
+# 需要部分发布时用 `--publish-partial` 显式放行。
+publish_partial = false
 
 # 跑完自动生成 daily briefing（.runs/daily/<date>/briefing.md 与 briefing.txt）
 briefing = true
