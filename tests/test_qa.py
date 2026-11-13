@@ -325,3 +325,73 @@ def test_research_audit_artifact_is_required(tmp_path):
     )
     rows = qa.run_qa("600887.SH", root=tmp_path)
     assert "research_audit" not in qa.failed(rows)
+
+
+def _research_payload(evidence, confidence="high"):
+    return {
+        "evidence": evidence,
+        "claims": [
+            {
+                "claim_id": "D1.business_model",
+                "dimension": "D1",
+                "statement": "主营稳健",
+                "judgment": "positive",
+                "confidence": confidence,
+                "evidence_ids": [item["id"] for item in evidence],
+            }
+        ],
+    }
+
+
+def test_research_grade_flags_high_claims_without_primary_source(tmp_path):
+    base = setup_run(tmp_path)
+    (base / "research.json").write_text(
+        json.dumps(
+            _research_payload(
+                [{"id": "ev1", "source_type": "data", "quote": "数据包：主营空调"}]
+            )
+        ),
+        encoding="utf-8",
+    )
+    rows = qa.run_qa("600887.SH", root=tmp_path)
+    status = {name: state for name, state, _ in rows}
+    assert status["research_grade"] == "warn"
+    detail = next(detail for name, _, detail in rows if name == "research_grade")
+    assert "无 A/B 来源" in detail
+
+
+def test_research_grade_accepts_primary_source(tmp_path):
+    base = setup_run(tmp_path)
+    (base / "research.json").write_text(
+        json.dumps(
+            _research_payload(
+                [
+                    {
+                        "id": "ev1",
+                        "url": "https://www.cninfo.com.cn/new/disclosure/detail",
+                        "quote": "公司主营空调",
+                    }
+                ]
+            )
+        ),
+        encoding="utf-8",
+    )
+    rows = qa.run_qa("600887.SH", root=tmp_path)
+    status = {name: state for name, state, _ in rows}
+    assert status["research_grade"] == "PASS"
+
+
+def test_research_grade_warns_when_all_evidence_is_data(tmp_path):
+    base = setup_run(tmp_path)
+    (base / "research.json").write_text(
+        json.dumps(
+            _research_payload(
+                [{"id": "ev1", "source_type": "data", "quote": "数据包：主营空调"}],
+                confidence="medium",
+            )
+        ),
+        encoding="utf-8",
+    )
+    rows = qa.run_qa("600887.SH", root=tmp_path)
+    status = {name: state for name, state, _ in rows}
+    assert status["research_grade"] == "warn"

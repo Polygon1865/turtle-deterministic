@@ -37,12 +37,22 @@
 | W5.1 numeric audit 来源类 | ✅ 完成（第一切片） | `src/turtlefw/numeric_audit.py` 新增 `_CLASS_BY_NAME`/`_source_class(path)`（`metrics.json→metric`、`inputs.json→financial`、`data_pack→pack`、`research*→research`、`qualitative→qualitative`、`evidence 或 pdf→pdf`），`audit()` 返回新增 `by_class`（按优先级 metric>financial>pdf>research>qualitative 归类）、`multi_class`（同时被 ≥2 个权威类支持）、`pack_only`（只在渲染后的数据包里出现、不在任何源产物里）、`unattributed`（=unknown）；`pack` 不计入归属，避免「渲染产物自证」。CLI `numeric-audit` 在 stderr 打印来源类摘要。真实样例（2026-11-10 / 00270.HK，634 个数字 token）：`by_class={metric:336, research:236}`、`multi_class=245`、`pack_only=57`、`unattributed=0`；非 strict 再加 `financial:47`。测试 `tests/test_numeric_audit.py` 新增 3 例（分类归属、多源、pack_only）。 |
 | W6.4 指标定义与口径 | ✅ 完成（一页纸） | 新增 `docs/metrics.md`：来源优先级（metrics > inputs > research > 渲染产物）、20+ 核心指标的定义/公式/单位/来源/校验（r/gg/ii/margin/floor/premium/payout/price/market_cap/pb/ev_ebitda/fcf_yield/net_cash/capex_da_ratio/ocf_ni_ratio/aa_2y/k_star/lambda/hh/rf）、三处易混口径（支付率三法、市值币种、底价 vs 安全边际）、容差与门（numeric/report/payout/citation/pit/golden）、变更流程（ADR→单一源→本文→golden）。`lint_report` 自检仅 5 条 `heading.unnumbered`（文档按「1. 2.」编号），无 `table.ragged`。 |
 | W0.2 市值/币种单一源 | ✅ 完成 | 港股 `total_market_cap`（HKD）在 `screener/hk.py` 里乘 `fx.cny_per_hkd`：门槛 `--min-market-cap-yi`、榜单 `market_cap`、报告市值统一为 CNY，`market_cap_hkd` 保留原值；R/GG/FCF 的分子同步转 CNY（比例不变）；站内 screener 的港股面板新增「市值（亿元）」列。`tests/test_hk_screen.py` 30 例通过（原有门槛/排序断言未变）。 |
+| W3.2 证据分级 | ✅ 完成（可见性门） | 新增 `src/turtlefw/research_grading.py`（A=披露/监管/PDF，B=具编辑审核媒体，C=其他链接，data=数据包复述，unknown）；`research.quality()` 输出 `evidence_grades`/`external_evidence`/`high_without_external`；QA 行 `research_grade`：high 判断无 A/B 来源 → warn 并列出 claim、有外部来源 → pass、全 data → warn。真实样例（2026-11-10 / 00270.HK）：`warn 证据全部来自数据包/无外部来源（data 13）`——这正是 `.runs/daily` 682 份 research、15,813 条证据里只有 84 条 http URL 的日常形态。测试 `tests/test_research_grading.py` 5 例 + `tests/test_qa.py` 3 例。 |
 
 ## 本轮验证
 
 ```
 .\.venv\Scripts\python.exe -m pytest -o addopts= -q -p no:cacheprovider
-→ 746 passed in 257.04s
+→ 753 passed in 263.37s
+
+# W0.2 港股市值统一 CNY + W3.2 证据分级
+.\.venv\Scripts\python.exe -m pytest tests\test_hk_screen.py tests\test_site.py tests\test_research_grading.py tests\test_qa.py -q
+→ 49 passed
+
+# W3.2 真实样例（2026-11-10 / 00270.HK）
+.\.venv\Scripts\python.exe -c "from pathlib import Path; from turtlefw import qa; [print(n, s, d[:60]) for n, s, d in qa.run_qa('00270.HK', root=Path('.runs/daily/2026-11-10')) if n == 'research_grade']"
+→ research_grade warn 证据全部来自数据包/无外部来源（data 13）
+
 
 # ADR-04 / ADR-08 决策落地
 .\.venv\Scripts\python.exe -m pytest tests\test_publish_policy.py tests\test_snapshot_version.py tests\test_daily.py tests\test_snapshot.py -q

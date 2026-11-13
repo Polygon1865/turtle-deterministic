@@ -514,6 +514,43 @@ def run_qa(code: str, root: Path | str | None = None, *, allow_missing_qualitati
                 f"claims={claims} dimensions={dimensions} "
                 f"coverage={coverage:.1%}",
             )
+            grades = (
+                quality.get("evidence_grades", {})
+                if isinstance(quality, dict)
+                else {}
+            )
+            external = (
+                int(quality.get("external_evidence", 0))
+                if isinstance(quality, dict)
+                else 0
+            )
+            unsupported = (
+                list(quality.get("high_without_external", []))
+                if isinstance(quality, dict)
+                else []
+            )
+            grade_text = "、".join(
+                f"{key} {value}" for key, value in sorted(dict(grades).items())
+            ) or "无证据"
+            if unsupported:
+                add_status(
+                    "research_grade",
+                    "warn",
+                    f"{len(unsupported)} 条 high 判断无 A/B 来源（仅数据包）："
+                    + "、".join(unsupported[:5]),
+                )
+            elif external:
+                add(
+                    "research_grade",
+                    True,
+                    f"外部来源 {external} 条（{grade_text}）",
+                )
+            else:
+                add_status(
+                    "research_grade",
+                    "warn",
+                    f"证据全部来自数据包/无外部来源（{grade_text}）",
+                )
         except Exception as exc:
             add("research_refs", False, str(exc))
     add("payout_consistency", *_payout_consistency(base, str(code)))

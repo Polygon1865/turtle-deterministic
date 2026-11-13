@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from .facts import ResearchClaim, ResearchDecision, ResearchParam, file_hash
+from .research_grading import grade_document
 
 DIMENSIONS = {
     "D1": "商业模式与资本特征",
@@ -233,6 +234,7 @@ def quality(document: ResearchDocument) -> dict[str, Any]:
     non_unknown = len(document.claims) - unknown
     total = len(document.claims)
     claim_coverage = evidence_backed / total if total else 1.0
+    grades = grade_document(document.claims, document.evidence)
     return {
         "claims": total,
         "dimensions": dimensions,
@@ -249,6 +251,9 @@ def quality(document: ResearchDocument) -> dict[str, Any]:
         "params": len(document.params),
         "decisions": len(document.decisions),
         "evidence": len(document.evidence),
+        "evidence_grades": dict(grades.counts),
+        "external_evidence": grades.external,
+        "high_without_external": list(grades.high_without_external),
     }
 
 

@@ -124,6 +124,22 @@ LLM 只写 ResearchDocument（claims/params/decisions），不写最终报告数
   “看不懂”读取 `understandability`。D5（MD&A/前瞻信号）仍只作为研究文本，
   不直接改变 veto。
 
+## Phase 8（完成）：证据分级
+
+- `src/turtlefw/research_grading.py` 给每条 evidence 打来源等级：
+  `A` 披露/监管（HKEXnews、cninfo、SEC、部委官网）与 PDF 年报；`B` 具编辑
+  审核的财经媒体（Reuters、AASTOCKS、证券时报、东方财富…）；`C` 其他
+  http 链接；`data` 数据包复述；`unknown` 无来源。
+- `research.quality()` 增 `evidence_grades`、`external_evidence`、
+  `high_without_external`；QA 新增 `research_grade` 行：
+  - 有 `high` 置信度 claim 但只靠数据包支撑 → **warn** 并列出 claim id
+    （历史上下限是“看起来有证据”的根源：同一批 claim 被当成独立确认）；
+  - 有 A/B 外部来源 → pass 并显示等级分布；
+  - 全部为数据包来源 → warn（`.runs/daily` 682 份 research 中仅 84 条 http
+    URL，这个分支是常态）。
+- 该行是“可见性”门而非阻断门：升级为 fail 前，需要先让研究层真正拿到外部
+  来源（workflow 里的 pdf/web 证据），否则每天都会红。
+
 ## 红线
 
 1. 报告数字只能来自 Metric/DocumentFact。
