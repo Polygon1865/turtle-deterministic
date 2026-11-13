@@ -87,6 +87,39 @@ def _table_rows(text: str, *, limit_lines: int = 80) -> dict[str, str]:
     return rows
 
 
+def _citation_audit_check(base: Path) -> tuple[bool, str]:
+    """W5.2: surface unreachable citations recorded by ``turtlefw.cli citations``.
+
+    The audit itself needs network access, so it runs as a separate command and
+    writes ``<day>/citations.json``.  QA only reads that cache: a missing file
+    means the audit was not run (PASS with a note), not that citations are good.
+    """
+
+    path = base.parent / "citations.json"
+    if not path.is_file():
+        return True, "未运行引用审计（python -m turtlefw.cli citations）"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except ValueError:
+        return False, "citations.json 无法解析"
+    urls = payload.get("urls") if isinstance(payload, dict) else None
+    if not isinstance(urls, dict):
+        return True, "citations.json 无 urls 记录"
+    code = base.name
+    entries = [
+        (url, entry)
+        for url, entry in urls.items()
+        if isinstance(entry, dict) and str(entry.get("code") or code) == code
+    ]
+    if not entries:
+        return True, "该标的无可审计的 http(s) 引用"
+    failed = [url for url, entry in entries if not entry.get("ok")]
+    if failed:
+        sample = "、".join(failed[:3])
+        return False, f"{len(failed)}/{len(entries)} 条引用不可达：{sample}"
+    return True, f"{len(entries)} 条引用可达"
+
+
 def _report_consistency_check(base: Path, report: Path) -> tuple[bool, str]:
     """Cross-artifact invariant: the report must not disagree with its metrics.
 
@@ -195,6 +228,7 @@ def run_qa(code: str, root: Path | str | None = None, *, allow_missing_qualitati
         add("report_structure", not findings, lint_summary(findings))
     add("verdict_record", *_verdict_record_check(base, report))
     add("report_consistency", *_report_consistency_check(base, report))
+    add("citation_audit", *_citation_audit_check(base))
     add("pit_lookahead", *_pit_lookahead_check(base))
     add_status("research_fallback_rate", *_research_fallback_row(base))
 

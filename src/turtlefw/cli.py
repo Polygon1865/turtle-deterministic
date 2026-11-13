@@ -979,6 +979,37 @@ def _brief_cmd(
     return 0
 
 
+def _citations_cmd(
+    date_raw: str, runs_root: str, limit: int, timeout: float, max_age: int, out: str
+) -> int:
+    """W5.2: check every cited http(s) URL for one archived day."""
+
+    from .citations import audit_day, summarize
+
+    date_key = date_raw.strip().replace("-", "")
+    base = Path(runs_root) if runs_root.strip() else output_root() / "daily"
+    day_dir = (
+        base / f"{date_key[:4]}-{date_key[4:6]}-{date_key[6:]}"
+        if len(date_key) == 8
+        else base / date_raw
+    )
+    if not day_dir.is_dir():
+        print(f"没有找到运行目录：{day_dir}", file=sys.stderr)
+        return 2
+    results = audit_day(day_dir, timeout=timeout, max_age_days=max_age, limit=limit)
+    lines = [item.line() for item in results]
+    ok, detail = summarize(results)
+    for line in lines:
+        print(line)
+    print(detail)
+    if out.strip():
+        path = Path(out)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("\n".join(lines) + f"\n{detail}\n", encoding="utf-8")
+        print(f"  已写入 {path.resolve()}")
+    return 0 if ok else 1
+
+
 def _backtest_cmd(runs_root: str, out: str, limit: int, as_json: bool) -> int:
     from .backtest import load_panel, panel_payload, render_markdown, write_report
 
@@ -4306,6 +4337,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="软规则（结论降级）需连续确认的天数，默认 1；>1 时回看最近 N 个归档日",
     )
 
+    citations = sub.add_parser("citations", help="引用 URL 可达性审计（W5.2，只读）")
+    citations.add_argument("--date", required=True, help="数据日 YYYY-MM-DD")
+    citations.add_argument("--runs-root", default="", help="运行目录根，默认 .runs/daily")
+    citations.add_argument("--limit", type=int, default=30, help="本次最多检查的 URL 数")
+    citations.add_argument("--timeout", type=float, default=10.0, help="单条请求超时（秒）")
+    citations.add_argument("--max-age", type=int, default=7, help="缓存结果的有效天数")
+    citations.add_argument("--out", default="", help="把结果写到文件（默认只打印）")
+
     golden = sub.add_parser("golden", help="黄金集标注模板与评分")
     golden.add_argument("--init", default=None, help="写出模板 CSV 路径")
     golden.add_argument("--codes", default="", help="逗号分隔的股票代码")
@@ -4444,6 +4483,10 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "holdings":
             return _holdings_cmd(
                 args.file, args.date, args.runs_root, args.strict, args.confirm
+            )
+        if args.command == "citations":
+            return _citations_cmd(
+                args.date, args.runs_root, args.limit, args.timeout, args.max_age, args.out
             )
         if args.command == "narrative":
             return _narrative_cmd(args.code, args.file)

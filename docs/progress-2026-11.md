@@ -33,12 +33,13 @@
 | W0.1 发布策略（ADR-04） | ✅ 完成（用户批准：默认关闭） | `DailyConfig.publish_partial` 默认 `False`；`configs/daily.toml` 改 `publish_partial = false`；`scripts/daily_pipeline.py` 新增 `--publish-partial`（`default=None`，显式放行）；被阻断时 `status.site` 记 `blocked: N failed; partial publishing disabled`。测试 `tests/test_publish_policy.py` 4 例（默认值、阻断、显式放行、CLI 覆盖）。 |
 | W0.3 快照版本（ADR-08） | ✅ 完成（用户批准：只读归档、不迁移） | `verify_manifest` 在 `snapshot_version`/`formula_version` 不匹配时输出「旧版本快照为只读归档，不自动迁移；请保留原报告，或从原始数据重新生成快照」，不再只报裸 hash mismatch；`facts.py` 常量处补 ADR-08 语义注释。测试 `tests/test_snapshot_version.py` 3 例。 |
 | W5.3 跨产物一致性审计 | ✅ 完成（第一切片） | `src/turtlefw/qa.py` 新增 QA 行 `report_consistency`：`_report_consistency_check(base, report)` 解析报告开头 80 行的 `\| 标签 \| 值 \|` 行，把 `粗算回报率 R/精算回报率 GG/门槛 II/安全边际/底价（综合）` 与 `snapshot/metrics.json` 的 `display` 逐字比对，并核对报告结论行、汇总表「结论」、`snapshot/verdict.json` 三者一致；不一致即 FAIL 并列出差异（最多 4 条）。真实样例（2026-11-10 / 00270.HK）：`report_consistency PASS 5 项数字/结论一致`。测试 `tests/test_qa_report_consistency.py` 5 例（一致、数字漂移、汇总表结论不符、verdict.json 不符、缺指标跳过）。 |
+| W5.2 引用审计 | ✅ 完成（第一切片） | 新增 `src/turtlefw/citations.py`：`check_url`（非 http(s) 拒绝、2xx/3xx 通过、异常归为「请求失败」）、`audit_day`（扫 `*/snapshot/research.json`、7 天缓存到 `<day>/citations.json`、`--limit` 截断）、`summarize`；CLI `citations --date --runs-root --limit --timeout --max-age --out`；QA 行 `citation_audit` 只读缓存（缺失 PASS 并注明「未运行引用审计」，不可达 FAIL）。测试 `tests/test_citations.py` 10 例。实测：手动跑过的 `.runs/06862.HK`（18 条 URL）6/6 可达；而 `.runs/daily` 下 682 份 research.json 的 15,813 条证据里只有 84 条带 http URL（仅 4 天、全部是手工运行的 06862/00700 等），日常 LLM 研究证据全部是 `source_type=data` 且 `url` 为空——审计目前几乎无外部链接可查，这个「研究层不引用外部来源」是下一层缺口（W3.2 evidence grading）。 |
 
 ## 本轮验证
 
 ```
 .\.venv\Scripts\python.exe -m pytest -o addopts= -q -p no:cacheprovider
-→ 733 passed in 255.37s
+→ 743 passed in 250.61s
 
 # ADR-04 / ADR-08 决策落地
 .\.venv\Scripts\python.exe -m pytest tests\test_publish_policy.py tests\test_snapshot_version.py tests\test_daily.py tests\test_snapshot.py -q
@@ -48,13 +49,19 @@
 .\.venv\Scripts\python.exe -m pytest tests\test_qa_report_consistency.py tests\test_qa.py tests\test_qa_payout_consistency.py -q
 → 26 passed
 
+# W5.2 引用审计（离线单测 + 真实网络）
+.\.venv\Scripts\python.exe -m pytest tests\test_citations.py -q
+→ 10 passed
+.\.venv\Scripts\python.exe -m turtlefw.cli citations --date . --runs-root tmp/cit_demo --limit 8
+→ 6 条引用全部可达（06862.HK 手工研究的 6 个 web 来源全部 HTTP 200）
+
 .\.venv\Scripts\python.exe -m ruff check --select F401,F601,F841 src
 → All checks passed!
 
 .\.venv\Scripts\python.exe -m ruff check --select F401,F601,F841 scripts\freeze_baseline.py tests\test_freeze_baseline.py
 → All checks passed!
 
-.\.venv\Scripts\python.exe -m mypy src\turtlefw\report\format.py src\turtlefw\report\pack.py src\turtlefw\report\analysis.py src\turtlefw\report\snapshot.py src\turtlefw\backtest.py src\turtlefw\qa.py src\turtlefw\agent\pipeline.py src\turtlefw\agent\roles.py src\turtlefw\agent\budget.py src\turtlefw\agent\research_agent.py src\turtlefw\holdings.py
+.\.venv\Scripts\python.exe -m mypy src\turtlefw\report\format.py src\turtlefw\report\pack.py src\turtlefw\report\analysis.py src\turtlefw\report\snapshot.py src\turtlefw\backtest.py src\turtlefw\qa.py src\turtlefw\citations.py src\turtlefw\agent\pipeline.py src\turtlefw\agent\roles.py src\turtlefw\agent\budget.py src\turtlefw\agent\research_agent.py src\turtlefw\holdings.py
 → Success: no issues found（`cli.py` 15 条、`tushare_provider.py` 41 条为既存告警，CI 名单不含这两个文件）
 
 .\.venv\Scripts\python.exe -m mypy scripts\freeze_baseline.py
