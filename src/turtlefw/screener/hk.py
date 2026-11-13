@@ -72,6 +72,7 @@ class HkScreenRow:
     pb: Decimal | None
     period: str
     return_period: str = ""
+    market_cap_local: Decimal | None = None
     source: str = (
         "tushare:hk_basic+hk_daily+hk_fina_indicator+hk_cashflow"
     )
@@ -95,6 +96,7 @@ class HkScreenRow:
             "price": text(self.price),
             "turnover": text(self.turnover),
             "market_cap": text(self.market_cap),
+            "market_cap_hkd": text(self.market_cap_local),
             "currency": self.currency,
             "roe": text(self.roe),
             "net_margin": text(self.net_margin),
@@ -218,8 +220,12 @@ def screen_hk(
 ) -> list[HkScreenRow]:
     """Screen the listed HK market and return the top ``limit`` rows.
 
-    ``min_market_cap`` drops listings whose total market cap (as reported by
-    ``hk_fina_indicator.total_market_cap``, in HKD) is below the threshold.
+    ``min_market_cap`` drops listings whose total market cap is below the
+    threshold **in CNY**.  Tushare reports ``hk_fina_indicator.total_market_cap``
+    in HKD, so the screen converts it with ``settings.fx.cny_per_hkd`` before
+    comparing; the row keeps both values (``market_cap`` CNY / ``market_cap_local``
+    HKD).  Comparing raw HKD against a CNY threshold made HK look cheaper than it
+    was and left the ranking CSV disagreeing with the report's CNY market cap.
 
     ``candidate_limit`` caps the number of per-stock financial calls after the
     market filter.  Set it to ``0`` to fetch indicators for every surviving
@@ -326,10 +332,13 @@ def screen_hk(
         if not _is_annual(indicator):
             bump("drop_no_annual")
             continue
-        market_cap = _dec(indicator.get("total_market_cap"))
-        if market_cap is None:
+        market_cap_local = _dec(indicator.get("total_market_cap"))
+        if market_cap_local is None:
             bump("drop_no_market_cap")
             continue
+        # Tushare reports total_market_cap in HKD; the threshold and the ranking
+        # CSV are in CNY so both sides of the comparison match the report.
+        market_cap = market_cap_local * fx
         if market_cap < min_market_cap:
             bump("drop_market_cap")
             continue
@@ -367,7 +376,6 @@ def screen_hk(
         currency = (
             Currency.CNY if currency_text in {"CNY", "人民币", "RMB"} else Currency.HKD
         )
-        fx_div = fx if currency is Currency.CNY else Decimal(1)
         payout, payout_ok = _payout(indicator, currency=currency, fx=fx)
         fy_end = _date(indicator.get("end_date"))
         if fy_end is None:
@@ -389,14 +397,17 @@ def screen_hk(
             else latest_fcf
         )
 
-        net_income_hkd = profit / fx_div
-        fcf_hkd = latest_fcf / fx_div
-        average_fcf_hkd = average_fcf / fx_div
-        r_pct = net_income_hkd * payout / 100 / market_cap * 100
-        gg_pct = average_fcf_hkd * payout / 100 / market_cap * 100
+        # R/GG divide a CNY market cap, so the numerator must be CNY as well;
+        # the ratio is unchanged for HKD reporters (one factor cancels out).
+        fx_mul = Decimal(1) if currency is Currency.CNY else fx
+        net_income_cny = profit * fx_mul
+        fcf_cny = latest_fcf * fx_mul
+        average_fcf_cny = average_fcf * fx_mul
+        r_pct = net_income_cny * payout / 100 / market_cap * 100
+        gg_pct = average_fcf_cny * payout / 100 / market_cap * 100
         ii_pct = settings.returns.threshold(rf_pct, stock)
         margin = gg_pct - ii_pct
-        fcf_yield = fcf_hkd / market_cap * 100
+        fcf_yield = fcf_cny / market_cap * 100
 
         price = _dec(quote.get("close")) or Decimal(0)
         turnover = _dec(quote.get("amount")) or Decimal(0)
@@ -415,6 +426,7 @@ def screen_hk(
                 price=price,
                 turnover=turnover,
                 market_cap=market_cap,
+                market_cap_local=market_cap_local,
                 currency=currency_text or "HKD",
                 roe=roe,
                 net_margin=net_margin,

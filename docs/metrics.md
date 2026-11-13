@@ -28,7 +28,7 @@
 | `payout` | 支付率（报告展示） | 近三年 `payout.latest` 均值 | % | metrics | `payout_consistency`（港股榜单 0.01） |
 | `payout.latest` | 最近年度支付率 | `divi_ratio` → `dps/eps` → 事件合计，三选一 | % | `metrics/payout.py` | 同上；>100% 截断且 `reliable=false` |
 | `price` | 当前价（报表币种） | 港股为 `close × fx`，`quote.close_local` 保留原币 | 元/股 | metrics | 报告头显示「CNY（报价 HKD）」 |
-| `market_cap` | 总市值 | 港股 `total_market_cap`（HKD 原值） | 百万元 | metrics | 榜单与报告币种需一致（W0.2 待做） |
+| `market_cap` | 总市值 | 港股 `total_market_cap × fx`（CNY）；`market_cap_hkd` 保留 HKD 原值 | 元 | metrics / `screener/hk.py` | 榜单与报告同为 CNY（W0.2）；`payout_consistency` 不覆盖此项 |
 | `pb` / `ev_ebitda` / `fcf_yield` | 估值倍数与收益率 | 见 `metrics/valuation.py` | 倍 / % | metrics | numeric audit |
 | `net_cash` | 净现金 | 货币资金 + 交易性资产 − 有息负债 | 百万元 | metrics | 现金桥不可用时标 unknown |
 | `capex_da_ratio` | 资本消耗强度 | `capex / D&A` | 倍 | metrics | <1 视为轻资产 |
@@ -40,7 +40,7 @@
 ## 3. 三处易混口径
 
 1. **支付率**：榜单/报告一律以 `payout.latest` 为可比口径；`payout`（三年均值）只用于展示。二者差异由 `payout_consistency` 行暴露，不允许同日两产物出现两个值。
-2. **市值币种**：港股 `hk_fina_indicator.total_market_cap` 是 HKD，报告市值按 `fx` 折 CNY。任何把两者并列的表格必须标币种（当前 `ranking_hk.csv` 仍为 HKD，属已知未统一项）。
+2. **市值币种**：港股 `hk_fina_indicator.total_market_cap` 是 HKD；榜单（`ranking_hk.csv` 的 `market_cap`）与报告统一按 `fx.cny_per_hkd` 折成 CNY，另存 `market_cap_hkd` 供核对。市值门槛 `--min-market-cap-yi` 也是 CNY 口径。
 3. **底价 vs 安全边际**：`premium` 是价格相对底价的溢价；`margin` 是 GG 相对门槛的余量。二者不可互相替代，报告结论按 `margin` 与价值陷阱判定。
 
 ## 4. 容差与门

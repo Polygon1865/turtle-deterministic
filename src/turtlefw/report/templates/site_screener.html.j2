@@ -76,7 +76,7 @@
             <th class="num">#</th><th>代码</th><th>名称</th>
             <th class="num">R</th><th class="num">GG</th><th class="num">II</th>
             <th class="num">安全边际</th><th class="num">PE</th><th class="num">PB</th>
-            <th>报告结论</th>
+            <th class="num">市值</th><th>报告结论</th>
           </tr>
         </thead>
         <tbody>
@@ -91,6 +91,7 @@
             <td class="num">{{ row.margin or '—' }}</td>
             <td class="num">{{ row.pe or '—' }}</td>
             <td class="num">{{ row.pb or '—' }}</td>
+            <td class="num">{{ row.market_cap or '—' }}</td>
             <td>{% if row.verdict %}<a href="{{ row.stock_href }}"><span class="badge {{ row.verdict_class }}">{{ row.verdict }}</span></a>{% else %}<span class="dim">—</span>{% endif %}</td>
           </tr>
           {% endfor %}

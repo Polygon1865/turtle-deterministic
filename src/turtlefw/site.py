@@ -101,6 +101,7 @@ class Candidate:
     margin: str = ""
     pe: str = ""
     pb: str = ""
+    market_cap: str = ""
     score: str = ""
     turnover: str = ""
     verdict: str = ""
@@ -198,6 +199,17 @@ def _number(value: str) -> str:
     try:
         return f"{float(value):,.2f}"
     except ValueError:
+        return value
+
+
+def _cap_yi(value: str) -> str:
+    """Render a CNY market cap (raw yuan) as ``亿元`` for tables."""
+
+    if not value:
+        return ""
+    try:
+        return f"{float(value) / 100_000_000:,.1f} 亿"
+    except (TypeError, ValueError):
         return value
 
 
@@ -486,6 +498,7 @@ def collect_candidates(day_dir: Path) -> list[Candidate]:
                         margin=_percent(_row_value(row, "margin")),
                         pe=_number(_row_value(row, "pe")),
                         pb=_number(_row_value(row, "pb")),
+                        market_cap=_row_value(row, "market_cap"),
                         score=_number(_row_value(row, "score")),
                         turnover=_number(_row_value(row, "turnover")),
                         verdict=_row_value(row, "verdict"),
@@ -552,6 +565,7 @@ def _candidate_from_payload(payload: dict[str, Any]) -> Candidate | None:
         margin=str(payload.get("margin") or ""),
         pe=str(payload.get("pe") or ""),
         pb=str(payload.get("pb") or ""),
+        market_cap=str(payload.get("market_cap") or ""),
         score=str(payload.get("score") or ""),
         turnover=str(payload.get("turnover") or ""),
         verdict=str(payload.get("verdict") or ""),
@@ -738,6 +752,7 @@ def _candidate_row(
         "margin_number": _numeric(candidate.margin),
         "pe": candidate.pe,
         "pb": candidate.pb,
+        "market_cap": _cap_yi(candidate.market_cap),
         "turnover": candidate.turnover,
         "verdict": verdict,
         "verdict_class": _verdict_class(verdict),
