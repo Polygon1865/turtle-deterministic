@@ -19,6 +19,29 @@ _ISO_DATE = re.compile(r"\b(?:19|20)\d{2}-\d{2}-\d{2}\b")
 _COMPACT_DATE = re.compile(r"\b(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\b")
 _RESEARCH_COLLECTIONS = ("claims", "params", "decisions", "evidence")
 
+# W5.1: every number in the report should be attributable to a source class, not
+# merely "present somewhere".  The classes below are coarse on purpose: they map
+# to the four artifacts a reader can be pointed at (frozen metrics, statements,
+# research document, PDF/evidence facts) plus the rendered data pack.
+_CLASS_BY_NAME = (
+    ("metrics.json", "metric"),
+    ("inputs.json", "financial"),
+    ("data_pack", "pack"),
+    ("research", "research"),
+    ("qualitative", "qualitative"),
+    ("evidence", "pdf"),
+    ("pdf", "pdf"),
+)
+
+
+def _source_class(path: Path) -> str:
+    name = path.name
+    for prefix, label in _CLASS_BY_NAME:
+        if name.startswith(prefix):
+            return label
+    return "other"
+
+
 
 def _text_sources(paths: Iterable[Path | str]) -> list[str]:
     texts: list[str] = []
@@ -73,17 +96,47 @@ def audit(
     text = _ISO_DATE.sub("", text)
     text = _COMPACT_DATE.sub("", text)
     allowed = set()
+    class_tokens: dict[str, set[str]] = {}
     source_paths = [Path(source) for source in sources]
     if strict:
         # Strict mode excludes raw statement rows; evidence/data-pack/PDF facts
         # remain valid, but an arbitrary raw input value is not a metric.
         source_paths = [source for source in source_paths if source.name != "inputs.json"]
-    for source_text in _text_sources(source_paths):
-        allowed.update(tokens(source_text))
+    for source_path in source_paths:
+        label = _source_class(source_path)
+        bucket = class_tokens.setdefault(label, set())
+        for source_text in _text_sources([source_path]):
+            bucket.update(tokens(source_text))
+        allowed.update(bucket)
     for source in source_paths:
-        allowed.update(_research_counts(source))
+        counts = _research_counts(source)
+        if counts:
+            class_tokens.setdefault("research", set()).update(counts)
+        allowed.update(counts)
     unknown = [token for token in unknown_numbers(text, allowed) if not _YEAR.match(token)]
     total = len(tokens(text))
+
+    # Attribute each report token to the authoritative artifacts that back it.
+    # ``pack`` is excluded: it is a rendered product of the metrics, so counting
+    # it as evidence would make every number look doubly sourced.  A token that
+    # only exists in the data pack but not in any source artifact is suspicious
+    # and reported separately as ``pack_only``.
+    authoritative = ("metric", "financial", "pdf", "research", "qualitative")
+    by_class: dict[str, int] = {}
+    multi = 0
+    pack_only = 0
+    for token in tokens(text):
+        hits = [
+            label
+            for label in authoritative
+            if label in class_tokens and token in class_tokens[label]
+        ]
+        if hits:
+            by_class[hits[0]] = by_class.get(hits[0], 0) + 1
+            if len(hits) > 1:
+                multi += 1
+        elif "pack" in class_tokens and token in class_tokens["pack"]:
+            pack_only += 1
     return {
         "report": str(report),
         "strict": strict,
@@ -91,4 +144,8 @@ def audit(
         "unknown": unknown,
         "coverage": round((total - len(unknown)) / total, 4) if total else 1.0,
         "status": "pass" if not unknown else "review",
+        "by_class": {label: count for label, count in sorted(by_class.items()) if count},
+        "multi_class": multi,
+        "pack_only": pack_only,
+        "unattributed": len(unknown),
     }

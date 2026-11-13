@@ -1643,6 +1643,14 @@ def _numeric_audit_cmd(
         print(f"numeric audit 失败：{exc}", file=sys.stderr)
         return 2
     text = json.dumps(result, ensure_ascii=False, indent=2)
+    classes = result.get("by_class") or {}
+    if classes:
+        summary = "、".join(f"{label} {count}" for label, count in classes.items())
+        print(
+            f"来源类：{summary} ｜ 多源 {result.get('multi_class', 0)}"
+            f" ｜ 无归属 {result.get('unattributed', 0)}",
+            file=sys.stderr,
+        )
     if out:
         target = Path(out)
         target.parent.mkdir(parents=True, exist_ok=True)
