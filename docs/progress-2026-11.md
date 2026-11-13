@@ -32,16 +32,21 @@
 | W0.0 基线冻结 | ✅ 完成 | 新增 `scripts/freeze_baseline.py`：`collect(day_dir)` 汇总每只的 verdict/reason/r/gg/ii/margin/floor/price/qa/claims/params + 报告 sha256；`freeze(date)` 写 `baseline/summary-<date>.csv`、`hashes-<date>.json`、`meta-<date>.json`，并把报告/指标/qa 副本放到 `.runs/baseline/<date>/`（git-ignored）；`check(date)` 与基线 diff（数值列带 Δ，含新增/消失标的）。已冻结 `.runs/daily/2026-11-10`：40 只、`baseline/summary-2026-11-10.csv`（7,788B），自检 `check` 一致。测试 `tests/test_freeze_baseline.py` 5 例。 |
 | W0.1 发布策略（ADR-04） | ✅ 完成（用户批准：默认关闭） | `DailyConfig.publish_partial` 默认 `False`；`configs/daily.toml` 改 `publish_partial = false`；`scripts/daily_pipeline.py` 新增 `--publish-partial`（`default=None`，显式放行）；被阻断时 `status.site` 记 `blocked: N failed; partial publishing disabled`。测试 `tests/test_publish_policy.py` 4 例（默认值、阻断、显式放行、CLI 覆盖）。 |
 | W0.3 快照版本（ADR-08） | ✅ 完成（用户批准：只读归档、不迁移） | `verify_manifest` 在 `snapshot_version`/`formula_version` 不匹配时输出「旧版本快照为只读归档，不自动迁移；请保留原报告，或从原始数据重新生成快照」，不再只报裸 hash mismatch；`facts.py` 常量处补 ADR-08 语义注释。测试 `tests/test_snapshot_version.py` 3 例。 |
+| W5.3 跨产物一致性审计 | ✅ 完成（第一切片） | `src/turtlefw/qa.py` 新增 QA 行 `report_consistency`：`_report_consistency_check(base, report)` 解析报告开头 80 行的 `\| 标签 \| 值 \|` 行，把 `粗算回报率 R/精算回报率 GG/门槛 II/安全边际/底价（综合）` 与 `snapshot/metrics.json` 的 `display` 逐字比对，并核对报告结论行、汇总表「结论」、`snapshot/verdict.json` 三者一致；不一致即 FAIL 并列出差异（最多 4 条）。真实样例（2026-11-10 / 00270.HK）：`report_consistency PASS 5 项数字/结论一致`。测试 `tests/test_qa_report_consistency.py` 5 例（一致、数字漂移、汇总表结论不符、verdict.json 不符、缺指标跳过）。 |
 
 ## 本轮验证
 
 ```
 .\.venv\Scripts\python.exe -m pytest -o addopts= -q -p no:cacheprovider
-→ 728 passed in 251.94s
+→ 733 passed in 255.37s
 
 # ADR-04 / ADR-08 决策落地
 .\.venv\Scripts\python.exe -m pytest tests\test_publish_policy.py tests\test_snapshot_version.py tests\test_daily.py tests\test_snapshot.py -q
 → 60 passed
+
+# W5.3 跨产物一致性
+.\.venv\Scripts\python.exe -m pytest tests\test_qa_report_consistency.py tests\test_qa.py tests\test_qa_payout_consistency.py -q
+→ 26 passed
 
 .\.venv\Scripts\python.exe -m ruff check --select F401,F601,F841 src
 → All checks passed!

@@ -65,6 +65,82 @@ def _verdict_record_check(base: Path, report: Path) -> tuple[bool, str]:
     return True, f"{verdict} · evidence {str(record['evidence_hash'])[:10]}"
 
 
+_REPORT_METRIC_LABELS: tuple[tuple[str, str], ...] = (
+    ("粗算回报率 R", "r"),
+    ("精算回报率 GG", "gg"),
+    ("门槛 II", "ii"),
+    ("安全边际", "margin"),
+    ("底价（综合）", "floor"),
+)
+
+
+def _table_rows(text: str, *, limit_lines: int = 80) -> dict[str, str]:
+    """First ``| label | value |`` row per label in the report's opening table."""
+    rows: dict[str, str] = {}
+    for line in text.splitlines()[:limit_lines]:
+        match = re.match(r"^\|\s*(?P<label>[^|]+?)\s*\|\s*(?P<value>[^|]*?)\s*\|\s*$", line)
+        if not match:
+            continue
+        label = match.group("label").strip()
+        if label not in rows:
+            rows[label] = match.group("value").strip()
+    return rows
+
+
+def _report_consistency_check(base: Path, report: Path) -> tuple[bool, str]:
+    """Cross-artifact invariant: the report must not disagree with its metrics.
+
+    W5.3: every number and the final verdict appear in several artifacts (report
+    header, summary table, factor tables, metrics.json, verdict.json).  This row
+    compares the report's summary rows against the frozen ``display`` values so a
+    renderer that reads a different source (or edits one table) becomes visible.
+    """
+
+    metrics_path = base / "snapshot" / "metrics.json"
+    if not report.is_file() or not metrics_path.is_file():
+        return True, "缺少报告或指标，跳过一致性检查"
+    try:
+        metrics = json.loads(metrics_path.read_text(encoding="utf-8-sig"))
+    except ValueError as exc:
+        return False, f"metrics.json 无法解析：{exc}"
+    text = report.read_text(encoding="utf-8-sig")
+    rows = _table_rows(text)
+    problems: list[str] = []
+    checked = 0
+    for label, key in _REPORT_METRIC_LABELS:
+        shown = rows.get(label)
+        point = metrics.get(key)
+        if shown is None or not isinstance(point, dict):
+            continue
+        expected = str(point.get("display") or "").strip()
+        if not expected:
+            continue
+        checked += 1
+        if shown != expected:
+            problems.append(f"{label} 报告 {shown} ≠ 指标 {expected}")
+    verdict_line = re.search(r"\*\*(买入|观察|排除|减持)\*\*", text)
+    verdict_record = base / "snapshot" / "verdict.json"
+    expected_verdict = ""
+    if verdict_record.is_file():
+        try:
+            record = json.loads(verdict_record.read_text(encoding="utf-8-sig"))
+        except ValueError:
+            record = {}
+        expected_verdict = str(record.get("verdict") or "")
+    summary_verdict = rows.get("结论", "")
+    if verdict_line and summary_verdict and summary_verdict in {"买入", "观察", "排除", "减持"}:
+        checked += 1
+        if verdict_line.group(1) != summary_verdict:
+            problems.append(f"结论行 {verdict_line.group(1)} ≠ 汇总表 {summary_verdict}")
+    if expected_verdict and verdict_line and verdict_line.group(1) != expected_verdict:
+        problems.append(f"结论行 {verdict_line.group(1)} ≠ verdict.json {expected_verdict}")
+    if problems:
+        return False, "；".join(problems[:4])
+    return True, f"{checked} 项数字/结论一致"
+
+
+
+
 _RESEARCH_FALLBACK_WARN = 0.10
 
 
@@ -118,6 +194,7 @@ def run_qa(code: str, root: Path | str | None = None, *, allow_missing_qualitati
         findings = lint_report(report.read_text(encoding="utf-8-sig"))
         add("report_structure", not findings, lint_summary(findings))
     add("verdict_record", *_verdict_record_check(base, report))
+    add("report_consistency", *_report_consistency_check(base, report))
     add("pit_lookahead", *_pit_lookahead_check(base))
     add_status("research_fallback_rate", *_research_fallback_row(base))
 
