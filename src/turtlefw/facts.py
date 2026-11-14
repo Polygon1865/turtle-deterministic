@@ -43,6 +43,11 @@ def source_rank(kind: str) -> int:
     return SOURCE_RANKS.get(str(kind).lower(), 9)
 
 
+def _plain(value: Decimal | None) -> str:
+    """Fallback rendering for a MetricPoint without a display string."""
+    return "—" if value is None else f"{value:,.2f}"
+
+
 def _canonical(value: Any) -> Any:
     if isinstance(value, Decimal):
         return str(value)
@@ -150,12 +155,37 @@ class MetricRegistry:
     """The only numbers a research/report composer should resolve."""
 
     points: dict[str, MetricPoint]
+    conflicts: list[dict[str, Any]]
 
     def __init__(self) -> None:
         self.points = {}
+        self.conflicts = []
 
     def add(self, point: MetricPoint) -> None:
+        """Add a metric; duplicates keep the last write but are recorded.
+
+        The same id can be produced twice (e.g. ``payout.<year>`` emitted by
+        two pack helpers, or a rounded display point followed by an exact one).
+        Resolution stays last-write-wins so rendering is unchanged; the
+        conflict list is what makes the duplicate visible instead of silent.
+        Rank-based resolution needs to know which source is authoritative for
+        each id, which is W1.7's job.
+        """
+        existing = self.points.get(point.id)
         self.points[point.id] = point
+        if existing is None:
+            return
+        if existing.value == point.value and existing.display == point.display:
+            return
+        self.conflicts.append(
+            {
+                "id": point.id,
+                "kept": point.display or _plain(point.value),
+                "dropped": existing.display or _plain(existing.value),
+                "kept_rank": point.source_rank,
+                "dropped_rank": existing.source_rank,
+            }
+        )
 
     def get(self, metric_id: str) -> MetricPoint | None:
         return self.points.get(metric_id)
