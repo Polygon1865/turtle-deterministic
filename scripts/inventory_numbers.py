@@ -68,6 +68,13 @@ def _function_for(line: int, spans: Sequence[tuple[int, int, str]]) -> str:
     return best[0] or "<module>"
 
 
+_REGISTRY_CALLS = ("add_metric(", "metric_ledger.add(", "registry.add(", "MetricPoint(")
+
+
+def _paren_delta(line: str) -> int:
+    return line.count("(") - line.count(")")
+
+
 def scan_source(text: str, path: str) -> list[Finding]:
     """Return every numeric render that bypasses the metric ledger."""
     try:
@@ -76,9 +83,20 @@ def scan_source(text: str, path: str) -> list[Finding]:
         tree = ast.Module(body=[], type_ignores=[])
     spans = _function_spans(tree)
     findings: list[Finding] = []
+    registry_depth = 0
     for number, raw in enumerate(text.splitlines(), start=1):
         line = raw.strip()
+        if registry_depth > 0:
+            # Inside an add_metric(...) call the display string is *meant* to be
+            # preformatted — that value is registered, not rendered ad hoc.
+            registry_depth += _paren_delta(line)
+            continue
         if not line or line.startswith("#"):
+            continue
+        if any(marker in line for marker in _REGISTRY_CALLS):
+            depth = _paren_delta(line)
+            if depth > 0:
+                registry_depth = depth
             continue
         if any(marker in line for marker in _LEDGER_MARKERS):
             continue

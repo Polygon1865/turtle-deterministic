@@ -65,3 +65,22 @@ def test_css_pseudo_selectors_are_not_counted() -> None:
     module = _module()
     css = "  .table-wrap table.kv td:first-child{width:38%;color:var(--muted)}"
     assert module.scan_source(css, "html.py") == []
+
+
+def test_registry_registration_is_not_a_finding() -> None:
+    module = _module()
+    sample = '''
+def render(ledger, value):
+    add_metric("r", "ROE", value, f"{value:.2f}%")
+    metric_ledger.add(
+        "gg",
+        "GG",
+        value,
+        f"{value:.2f}%",
+    )
+    text = f"{value:.2f}%"
+'''
+    findings = module.scan_source(sample, "pack.py")
+    # only the last line renders outside a registry call
+    assert len(findings) == 1
+    assert findings[0].kind == "fstring"

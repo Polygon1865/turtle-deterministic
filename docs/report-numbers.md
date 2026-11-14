@@ -4,17 +4,17 @@
 口径：f-string 数字格式、`Decimal.quantize`、`format()`、以及 `_pct/_m/_ratio_pct/_num/_x` 等共享格式化函数；
 已走 `metric_ledger.display()` 或 `{{metric:…}}` 的行不计入。
 
-合计：**119** 处，分布在 5 个文件。
+合计：**89** 处，分布在 5 个文件。
 
 | 文件 | 处数 | 最集中的函数 |
 | --- | --- | --- |
-| `pack.py` | 62 | `render_data_pack` (61) |
+| `pack.py` | 32 | `render_data_pack` (31) |
 | `market.py` | 26 | `_flow_section` (7) |
 | `extras.py` | 17 | `_indicator_section` (7) |
 | `analysis.py` | 11 | `render_analysis` (7) |
 | `html.py` | 3 | `markdown_to_html` (3) |
 
-## `pack.py`（62 处）
+## `pack.py`（32 处）
 
 | 行 | 函数 | 方式 | 片段 |
 | --- | --- | --- | --- |
@@ -22,15 +22,15 @@
 | 242 | `render_data_pack` | helper | `_m(aa_bridge[year].surplus),` |
 | 280 | `render_data_pack` | helper | `f"均值 {_num(stats.mean)} ｜ 中位数 {_num(stats.median)} ｜ "` |
 | 281 | `render_data_pack` | helper | `f"分歧 {_pct(stats.divergence)}（{status_label}）｜ 采用{method_label}"` |
-| 339 | `render_data_pack` | helper | `add_metric("r", "穿透回报率 R", r_value, _pct(r_value), unit="%", formula="returns.penetration_return")` |
-| 340 | `render_data_pack` | helper | `add_metric("gg", "精算回报率 GG", gg_value, _pct(gg_value), unit="%", formula="returns.refined_return")` |
-| 341 | `render_data_pack` | helper | `add_metric("ii", "门槛 II", ii, _pct(ii), unit="%", formula="returns.threshold_ii")` |
-| 342 | `render_data_pack` | helper | `add_metric("floor", "底价（采用）", composite, _num(composite), unit=currency.value, formula="valuation.composite")` |
-| 343 | `render_data_pack` | helper | `add_metric("price", "当前价", price, _num(price), unit=currency.value, formula="market.price")` |
-| 344 | `render_data_pack` | helper | `add_metric("premium", "底价溢价", premium, _pct(premium), unit="%", formula="valuation.premium")` |
-| 345 | `render_data_pack` | helper | `add_metric("revenue.cagr", "营业收入 CAGR", statements.revenue_cagr(rows), _ratio_pct(statements.revenue_cagr(rows)), unit="` |
-| 346 | `render_data_pack` | helper | `add_metric("net_income.cagr", "归母净利润 CAGR", statements.net_income_cagr(rows), _ratio_pct(statements.net_income_cagr(rows` |
-| … | | | 其余 50 处 |
+| 385 | `render_data_pack` | helper | `("eps", eps, lambda value: _num(value, 2), "元"),` |
+| 450 | `render_data_pack` | fstring | `f"{ocf[y] / net_income[y] * 100:.2f}%"` |
+| 475 | `render_data_pack` | helper | `_m(raw),` |
+| 476 | `render_data_pack` | helper | `_m(raw * factor) if raw is not None else "—",` |
+| 481 | `render_data_pack` | fstring | `f"年化系数 ×{factor:.2f}；仅作参考，不替代年报。"` |
+| 493 | `render_data_pack` | helper | `ttm_rows.append([label, _m(value)])` |
+| 518 | `render_data_pack` | helper | `dps_display = _num(bucket["dps"], 4) if bucket["dps_reliable"] else "—"` |
+| 569 | `render_data_pack` | helper | `["股份支付 SBC（百万元）", _m(sbc_amount) if sbc_amount else "—"],` |
+| … | | | 其余 20 处 |
 
 ## `market.py`（26 处）
 
@@ -76,13 +76,13 @@
 | 96 | `_pdf_value` | helper | `return _m(value) if abs(value) >= Decimal("1000") else _num(value, 4)` |
 | 122 | `_dps_check_text` | fstring | `f"DPS 核对：{check.status}；PDF {check.pdf_dps:.4f} / "` |
 | 123 | `_dps_check_text` | fstring | `f"供应商 {check.provider_dps:.4f}，差异 {check.diff_pct:.2f}%"` |
-| 221 | `render_analysis` | helper | `f"均值 {_num(stats.mean)} ｜ 中位数 {_num(stats.median)} ｜ "` |
-| 222 | `render_analysis` | helper | `f"分歧 {_pct(stats.divergence)}（{status_label}）｜ 采用{method_label}"` |
-| 287 | `render_analysis` | helper | `floor_rows = [[b.name, _num(b.value), b.formula] for b in baselines]` |
-| 415 | `render_analysis` | helper | `_pct(ctx.pledge_pct),` |
-| 522 | `render_analysis` | helper | `"rf": _pct(ctx.rf_pct),` |
-| 526 | `render_analysis` | helper | `"market_cap": _m(ctx.market_cap.amount),` |
-| 578 | `render_analysis` | helper | `"payout": _pct(mean_payout),` |
+| 222 | `render_analysis` | helper | `f"均值 {_num(stats.mean)} ｜ 中位数 {_num(stats.median)} ｜ "` |
+| 223 | `render_analysis` | helper | `f"分歧 {_pct(stats.divergence)}（{status_label}）｜ 采用{method_label}"` |
+| 288 | `render_analysis` | helper | `floor_rows = [[b.name, _num(b.value), b.formula] for b in baselines]` |
+| 416 | `render_analysis` | helper | `_pct(ctx.pledge_pct),` |
+| 523 | `render_analysis` | helper | `"rf": _pct(ctx.rf_pct),` |
+| 527 | `render_analysis` | helper | `"market_cap": _m(ctx.market_cap.amount),` |
+| 579 | `render_analysis` | helper | `"payout": _pct(mean_payout),` |
 
 ## `html.py`（3 处）
 

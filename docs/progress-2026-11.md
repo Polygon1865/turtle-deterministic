@@ -41,7 +41,7 @@
 | W6.1 全市场 golden | ✅ 完成 | `scripts/golden.py` 增 `freeze --days N`（补缺失日期、不覆盖）与 `check --all`（跳过缺失日、按天汇总差异）；冻结 2026-11-08→11-13 共 6 天（各 40 只，约 240 个股票日），`check --all` 6/6 一致；新增 `docs/golden.md` 更新协议（ADR-11：先解释差异再重冻、格式改动不更新、容差 0.01/0.05）。测试 `tests/test_golden_baseline.py` 10 例。 |
 | W1.1 数据源协议 v2 + 工厂 | ✅ 完成 | `src/turtlefw/data/protocol.py` 由 7 个方法扩到 30 个成员（含 `issues`/`hk_market_source` 两个属性、`market_statements`/`market_fina_indicator` 批量端点、HK 三个方法），签名与 `TushareProvider` 逐参数一致；新增 `src/turtlefw/data/factory.py::build_provider(kind/token/cache_dir/ttl_seconds/min_interval/max_retries)`，类型取 `kind` → `TURTLE_PROVIDER` → `tushare`，未知类型抛 `ProviderError`；`src/turtlefw/cli.py` 的 7 处 `TushareProvider(get_token())` 全部收敛到工厂（含 `min_interval=api_interval` 那一处）。测试 `tests/test_provider_protocol.py` 35 例：每个成员签名逐参数比对、工厂构建/未知类型/环境变量、源码禁止直接构造 `TushareProvider(`、协议必须覆盖所有 `provider.<method>` 调用。 |
 | W1.2 缓存跨天共享 + stale 语义 | ✅ 完成 | T5 已把缓存根统一到 `paths.cache_root()`（`TURTLE_CACHE_DIR`），本次补两件：①`TushareProvider` 新增 `_stale_endpoints` 与只读属性 `stale_endpoints`，`_stale_frame()` 命中旧快照时标记端点，`hk_market_snapshot()` 据此把 `hk_market_source` 标成 `stale-cache:hk_daily`（而不是假装刷新成功）；②`_keep_trade_date()` 丢弃 `trade_date` 与请求不一致的行并记 `FetchIssue("hk_daily", …, "丢弃 N 行非 <date> 交易日数据")`——Tushare 会用最近交易日应答，原实现会把旧价格当成当日价格；`screen --market HK` 输出加「⚠ 缓存快照：…（刷新失败，使用当日缓存；trade_date 已核验）」。协议同步加 `stale_endpoints`。测试 `tests/test_hk_market_snapshot.py` 3 例（日期不符丢弃+报错、日期一致保留、stale 源标记），`tests/test_provider_protocol.py` 覆盖新属性。 |
-| W2.0 code-rendered 数字盘点 | ✅ 完成（基线 119） | 新增 `scripts/inventory_numbers.py`：AST 找函数范围、逐行识别四种绕过 `MetricRegistry` 的渲染（f-string 数字格式、`Decimal.quantize`、`format()`、`_pct/_m/_ratio_pct/_num/_x` 共享格式化函数），跳过已走 `metric_ledger.display()` / `{{metric:…}}` 的行与内联 CSS；输出 `docs/report-numbers.md`（按文件/函数汇总 + 每处行号片段 + 归属建议）。基线 **119 处**：`pack.py` 62（`render_data_pack` 61）、`market.py` 26（`_flow_section` 7）、`extras.py` 17（`_indicator_section` 7）、`analysis.py` 11（`render_analysis` 7）、`html.py` 3。测试 `tests/test_number_inventory.py` 4 例（三种 kind 识别、函数/行号、仓库扫描与渲染、CSS 伪类不误报）。每次迁移后重跑，数字应单调下降，W2.1 验收是降到 0。 |
+| W2.0 code-rendered 数字盘点 | ✅ 完成（基线 89，已剔除注册行） | 新增 `scripts/inventory_numbers.py`：AST 找函数范围、逐行识别四种绕过 `MetricRegistry` 的渲染（f-string 数字格式、`Decimal.quantize`、`format()`、`_pct/_m/_ratio_pct/_num/_x` 共享格式化函数），跳过已走 `metric_ledger.display()` / `{{metric:…}}` 的行与内联 CSS；输出 `docs/report-numbers.md`（按文件/函数汇总 + 每处行号片段 + 归属建议）。基线 **89 处**：`pack.py` 32（`render_data_pack` 31）、`market.py` 26（`_flow_section` 7）、`extras.py` 17（`_indicator_section` 7）、`analysis.py` 11（`render_analysis` 7）、`html.py` 3。测试 `tests/test_number_inventory.py` 5 例（三种 kind 识别、函数/行号、仓库扫描与渲染、CSS 伪类不误报、`add_metric`/`metric_ledger.add` 注册行不计入）。每次迁移后重跑，数字应单调下降，W2.1 验收是降到 0。 |
 | W1.7 重复指标可见性 | ✅ 完成 | `MetricRegistry.add()` 的重复解析分两步：①`source_rank` 高者胜（审计过的报表行 rank=3 压过派生/四舍五入值 rank=0，同 rank 仍 last-write-wins 以保持渲染不变）；②每次分歧写入 `registry.conflicts`，渲染时落 `snapshot/metric_conflicts.json`，QA 新增 `metric_conflicts` 行（有冲突 WARN 并列出前 3 条的 kept/dropped rank，文件损坏 FAIL）。同时修正 `failed()/warned()/payload()` 对大小写敏感的问题（`research_grade` 的小写 warn 之前不会影响整体状态）。测试 `tests/test_metric_conflicts.py` 5 例、`tests/test_qa.py` 3 例。 |
 | W6.3 质量看板 | ✅ 完成 | 新增 `src/turtlefw/quality.py`：`DayQuality`/`Dashboard`、`build_dashboard(runs_root, days=15)`、`render`、`write_dashboard`；逐日汇总股票数、QA 通过、研究 on/回退、重复指标数、QA WARN/FAIL 行、结论分布与站点状态，告警条件为「回退率 >10%」「存在 QA FAIL」「存在重复指标」。CLI `quality --runs-root --days --out`（默认 `.runs/daily`、15 天、打印到 stdout）。真实样例（6 个数据日 / 200 只次）：各日 40/40 QA PASS、11-12 有 2 只回退、结论合计 买入 12 / 观察 67 / 排除 121，告警为空；周末空跳日显示「无运行」。测试 `tests/test_quality.py` 8 例（计数、三类告警、干净无告警、表格/周末行/站点名、写文件、CLI 正常与缺目录）。 |
 | W2.4 公式登记表 | ✅ 完成 | 新增 `src/turtlefw/metrics/formulas.py`：`Formula(formula_id, expression, inputs, owner, note)`、`EXPLICIT` 20 条、`PREFIXES` 8 条（`statement.`/`balance.`/`factor.`/`policy.`/`tax.`/`scenario.`/`extras.`/`.pdf`）、`resolve`/`unknown`/`describe`。测试 `tests/test_formula_registry.py` 6 例：源码中所有 `formula_id="…"` 字面量必须能解析、动态前缀必须已登记、生成 id 抽样、未知 id 排序、显式条目完整性、`describe` 文案。`docs/metrics.md` 增「公式登记表」一节。新增 id 未登记时测试直接失败。 |
@@ -51,7 +51,7 @@
 
 ```
 .\.venv\Scripts\python.exe -m pytest -o addopts= -q -p no:cacheprovider
-→ 824 passed（W6.3 之后；上一轮 808）
+→ 825 passed（W2.0 盘点器精度修正之后；上一轮 824）
 
 # W6.3 质量看板
 .\.venv\Scripts\python.exe -m turtlefw.cli quality --days 6 --out tmp\quality.md
@@ -63,7 +63,7 @@
 
 # W2.0 数字盘点（基线）
 .\.venv\Scripts\python.exe scripts\inventory_numbers.py --out docs\report-numbers.md
-→ 盘点 119 处（pack.py 62 / market.py 26 / extras.py 17 / analysis.py 11 / html.py 3）
+→ 盘点 89 处（pack.py 32 / market.py 26 / extras.py 17 / analysis.py 11 / html.py 3；已排除注册调用内部行）
 
 # W1.1 数据源协议 v2 + 工厂 / W1.2 stale 语义
 .\.venv\Scripts\python.exe -m pytest tests\test_provider_protocol.py tests\test_hk_market_snapshot.py -q
