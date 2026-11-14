@@ -73,6 +73,12 @@ EXPLICIT: dict[str, Formula] = {
         ("quote",),
         "report/analysis.py:price",
     ),
+    "market.market_cap": Formula(
+        "market.market_cap",
+        "总市值 = 收盘价（折算后）× 总股本；报告以百万元展示",
+        ("quote", "total_share"),
+        "metrics/registry.py:market_cap",
+    ),
     "market.risk_free": Formula(
         "market.risk_free",
         "Rf = 10 年国债收益率，取不到回退配置默认 1.8%",

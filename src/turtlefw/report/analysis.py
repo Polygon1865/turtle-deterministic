@@ -219,8 +219,9 @@ def render_analysis(
     ]
     method_label = "中位数" if settings.valuation.composite_method == "median" else "均值"
     floor_note = (
-        f"均值 {_num(stats.mean)} ｜ 中位数 {_num(stats.median)} ｜ "
-        f"分歧 {_pct(stats.divergence)}（{status_label}）｜ 采用{method_label}"
+        f"均值 {metric_ledger.display('floor.mean')} ｜ "
+        f"中位数 {metric_ledger.display('floor.median')} ｜ "
+        f"分歧 {metric_ledger.display('floor.divergence')}（{status_label}）｜ 采用{method_label}"
     )
     if len(baselines) < 5:
         floor_note += f"；有效锚点 {len(baselines)}/5（缺失或非正已剔除）"
@@ -520,11 +521,11 @@ def render_analysis(
         "snapshot_id": snapshot_id,
         "verdict": verdict,
         "reason": reason,
-        "rf": _pct(ctx.rf_pct),
+        "rf": metric_ledger.display("rf"),
         "rf_source": rf_source,
         "price": metric_ledger.display("price"),
         "price_text": _price_text(metric_ledger.display("price"), quote, ctx.market_cap.currency.value),
-        "market_cap": _m(ctx.market_cap.amount),
+        "market_cap": metric_ledger.display("market_cap"),
         "metric": metric_ledger.display,
         "metric_registry": metric_ledger,
         "industry_md": industry_md,
@@ -576,7 +577,7 @@ def render_analysis(
         "premium": metric_ledger.display("premium"),
         "floor_note": floor_note,
         "method_label": method_label,
-        "payout": _pct(mean_payout),
+        "payout": metric_ledger.display("payout.mean"),
         "unknown_md": unknown_md,
         "disclaimer": disclaimer,
         "thesis_core": thesis_core,

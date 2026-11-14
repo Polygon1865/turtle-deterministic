@@ -198,6 +198,21 @@ def build(
         period=period,
         source=("market.risk_free",),
     )
+    if ctx.market_cap.amount > 0:
+        market_cap_display = f"{ctx.market_cap.amount / Decimal('1000000'):,.2f}"
+    else:
+        market_cap_display = "—"
+    _add(
+        registry,
+        "market_cap",
+        "总市值",
+        ctx.market_cap.amount if ctx.market_cap.amount > 0 else None,
+        unit=ctx.market_cap.currency.value,
+        formula_id="market.market_cap",
+        period=period,
+        source=("market.cap",),
+        display=market_cap_display,
+    )
     for metric_id, name, value, unit in (
         ("policy.pledge_threshold", "质押率阈值", ctx.settings.screening.max_pledge_pct, "%"),
         ("policy.floor_premium_veto", "底价溢价否决阈值", Decimal("150"), "%"),

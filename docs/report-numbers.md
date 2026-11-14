@@ -4,14 +4,14 @@
 口径：f-string 数字格式、`Decimal.quantize`、`format()`、以及 `_pct/_m/_ratio_pct/_num/_x` 等共享格式化函数；
 已走 `metric_ledger.display()` 或 `{{metric:…}}` 的行不计入。
 
-合计：**89** 处，分布在 5 个文件。
+合计：**84** 处，分布在 5 个文件。
 
 | 文件 | 处数 | 最集中的函数 |
 | --- | --- | --- |
 | `pack.py` | 32 | `render_data_pack` (31) |
 | `market.py` | 26 | `_flow_section` (7) |
 | `extras.py` | 17 | `_indicator_section` (7) |
-| `analysis.py` | 11 | `render_analysis` (7) |
+| `analysis.py` | 6 | `render_analysis` (2) |
 | `html.py` | 3 | `markdown_to_html` (3) |
 
 ## `pack.py`（32 处）
@@ -68,7 +68,7 @@
 | 120 | `_forecast_section` | helper | `_pct(_d(row.get("roe"))),` |
 | … | | | 其余 5 处 |
 
-## `analysis.py`（11 处）
+## `analysis.py`（6 处）
 
 | 行 | 函数 | 方式 | 片段 |
 | --- | --- | --- | --- |
@@ -76,13 +76,8 @@
 | 96 | `_pdf_value` | helper | `return _m(value) if abs(value) >= Decimal("1000") else _num(value, 4)` |
 | 122 | `_dps_check_text` | fstring | `f"DPS 核对：{check.status}；PDF {check.pdf_dps:.4f} / "` |
 | 123 | `_dps_check_text` | fstring | `f"供应商 {check.provider_dps:.4f}，差异 {check.diff_pct:.2f}%"` |
-| 222 | `render_analysis` | helper | `f"均值 {_num(stats.mean)} ｜ 中位数 {_num(stats.median)} ｜ "` |
-| 223 | `render_analysis` | helper | `f"分歧 {_pct(stats.divergence)}（{status_label}）｜ 采用{method_label}"` |
-| 288 | `render_analysis` | helper | `floor_rows = [[b.name, _num(b.value), b.formula] for b in baselines]` |
-| 416 | `render_analysis` | helper | `_pct(ctx.pledge_pct),` |
-| 523 | `render_analysis` | helper | `"rf": _pct(ctx.rf_pct),` |
-| 527 | `render_analysis` | helper | `"market_cap": _m(ctx.market_cap.amount),` |
-| 579 | `render_analysis` | helper | `"payout": _pct(mean_payout),` |
+| 289 | `render_analysis` | helper | `floor_rows = [[b.name, _num(b.value), b.formula] for b in baselines]` |
+| 417 | `render_analysis` | helper | `_pct(ctx.pledge_pct),` |
 
 ## `html.py`（3 处）
 
