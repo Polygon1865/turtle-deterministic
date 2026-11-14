@@ -286,6 +286,52 @@ def _research_fallback_row(base: Path) -> tuple[str, str]:
     return "PASS", f"研究回退 {len(fallback)}/{len(stocks)}（{rate:.0%}）"
 
 
+DEPTH_MIN_CLAIMS = 10
+DEPTH_MIN_EVIDENCE_RATIO = 1.5
+
+
+def _research_depth(base: Path) -> tuple[str, str]:
+    """W3.1: is the research layer deep enough to trust, not just present?
+
+    A document with six claims and six evidence rows passes the existing
+    structure checks but cannot carry a conclusion — 06862.HK shipped exactly
+    that shape for two weeks.  This row makes the depth visible; it warns
+    instead of failing because thin research is a quality signal, not a bug.
+    """
+
+    path = base / "research.json"
+    if not path.is_file():
+        path = base / "snapshot" / "research.json"
+    if not path.is_file():
+        return "PASS", "未使用 research（无研究文档）"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError) as exc:
+        return "FAIL", f"research.json 无法解析：{type(exc).__name__}"
+    if not isinstance(payload, dict):
+        return "FAIL", "research.json 结构不是对象"
+    claims = payload.get("claims")
+    evidence = payload.get("evidence")
+    claims_n = len(claims) if isinstance(claims, list) else 0
+    evidence_n = len(evidence) if isinstance(evidence, list) else 0
+    if claims_n == 0:
+        return "WARN", "研究文档没有 claims"
+    ratio = evidence_n / claims_n
+    if claims_n < DEPTH_MIN_CLAIMS:
+        return (
+            "WARN",
+            f"{claims_n} 条判断 < {DEPTH_MIN_CLAIMS}"
+            f"（证据 {evidence_n} 条，{ratio:.1f} 条/判断）",
+        )
+    if ratio < DEPTH_MIN_EVIDENCE_RATIO:
+        return (
+            "WARN",
+            f"证据/判断 {ratio:.1f} < {DEPTH_MIN_EVIDENCE_RATIO}"
+            f"（{claims_n} 条判断 / {evidence_n} 条证据）",
+        )
+    return "PASS", f"{claims_n} 条判断 / {evidence_n} 条证据（{ratio:.1f} 条/判断）"
+
+
 def run_qa(code: str, root: Path | str | None = None, *, allow_missing_qualitative: bool = False) -> list[tuple[str, str, str]]:
     base = (Path(root) if root is not None else output_root()) / str(code)
     rows: list[tuple[str, str, str]] = []
@@ -634,6 +680,7 @@ def run_qa(code: str, root: Path | str | None = None, *, allow_missing_qualitati
                 )
         except Exception as exc:
             add("research_refs", False, str(exc))
+    add_status("research_depth", *_research_depth(base))
     add("payout_consistency", *_payout_consistency(base, str(code)))
     return rows
 

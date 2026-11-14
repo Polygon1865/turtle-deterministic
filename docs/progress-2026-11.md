@@ -47,11 +47,17 @@
 | W2.4 公式登记表 | ✅ 完成 | 新增 `src/turtlefw/metrics/formulas.py`：`Formula(formula_id, expression, inputs, owner, note)`、`EXPLICIT` 20 条、`PREFIXES` 8 条（`statement.`/`balance.`/`factor.`/`policy.`/`tax.`/`scenario.`/`extras.`/`.pdf`）、`resolve`/`unknown`/`describe`。测试 `tests/test_formula_registry.py` 6 例：源码中所有 `formula_id="…"` 字面量必须能解析、动态前缀必须已登记、生成 id 抽样、未知 id 排序、显式条目完整性、`describe` 文案。`docs/metrics.md` 增「公式登记表」一节。新增 id 未登记时测试直接失败。 |
 | W0.3 结论漂移留痕 | ✅ 完成 | QA 新增 `verdict_drift` 行：对比同标的上一**数据日**的 `snapshot/verdict.json`——证据哈希相同但结论变化 → FAIL（判断变了却没有新证据）；证据哈希变化且结论变化 → WARN 并给出 `买入→观察` 与两边的 evidence 前缀；其余 PASS。真实样例（11-13/00270.HK）输出「证据更新，结论维持 买入」。测试 `tests/test_qa.py` 3 例（同哈希不同结论、同哈希同结论、证据更新换结论）。 |
 
+| W3.1 研究深度可见性 | ✅ 完成（第一切片） | QA 新增 `research_depth` 行（`src/turtlefw/qa.py::_research_depth`）：读 `base/research.json`（缺失回退 `snapshot/research.json`），按 `DEPTH_MIN_CLAIMS=10`、`DEPTH_MIN_EVIDENCE_RATIO=1.5` 判定——claims <10 或 证据/判断 <1.5 → WARN 并给出实际数字；无研究文档 → PASS「未使用 research」；文件坏 → FAIL。真实样例：`.runs/daily/2026-11-13` 的 00270.HK → `WARN 6 条判断 < 10（证据 11 条，1.8 条/判断）`，06862.HK → `PASS 10 条判断 / 15 条证据（1.5 条/判断）`。只做可见性、不阻断（生成阈值仍是配置项，避免把「研究略薄」直接变成回退）。测试 `tests/test_qa.py` 4 例（薄文档、证据比不足、达标、无研究）。 |
+
 ## 本轮验证
 
 ```
 .\.venv\Scripts\python.exe -m pytest -o addopts= -q -p no:cacheprovider
-→ 825 passed（W2.0 盘点器精度修正之后；上一轮 824）
+→ 829 passed（W3.1 研究深度之后；上一轮 825）
+
+# W3.1 研究深度（真实样例）
+.\.venv\Scripts\python.exe -c "from pathlib import Path; from turtlefw import qa; print([r for r in qa.run_qa('00270.HK', root=Path('.runs/daily/2026-11-13')) if r[0]=='research_depth'])"
+→ research_depth WARN 6 条判断 < 10（证据 11 条，1.8 条/判断）
 
 # W6.3 质量看板
 .\.venv\Scripts\python.exe -m turtlefw.cli quality --days 6 --out tmp\quality.md

@@ -506,3 +506,64 @@ def _replace_verdict(base, verdict, evidence_hash):
     (base / "snapshot" / "verdict.json").write_text(
         json.dumps(_verdict_record(verdict, evidence_hash)), encoding="utf-8"
     )
+
+
+def _depth_doc(claims: int, evidence: int) -> dict:
+    return {
+        "claims": [
+            {
+                "claim_id": f"D1.{index}",
+                "dimension": "D1",
+                "statement": f"判断 {index}",
+                "judgment": "neutral",
+                "confidence": "medium",
+                "evidence_ids": [],
+            }
+            for index in range(claims)
+        ],
+        "evidence": [
+            {"id": f"ev{index}", "url": "https://example.com", "quote": "原文"}
+            for index in range(evidence)
+        ],
+    }
+
+
+def test_research_depth_warns_on_thin_document(tmp_path):
+    base = tmp_path / "600887.SH"
+    base.mkdir()
+    (base / "research.json").write_text(
+        json.dumps(_depth_doc(6, 10), ensure_ascii=False), encoding="utf-8"
+    )
+    status, detail = qa._research_depth(base)
+    assert status == "WARN"
+    assert "6 条判断" in detail
+
+
+def test_research_depth_warns_on_low_evidence_ratio(tmp_path):
+    base = tmp_path / "600887.SH"
+    base.mkdir()
+    (base / "research.json").write_text(
+        json.dumps(_depth_doc(12, 12), ensure_ascii=False), encoding="utf-8"
+    )
+    status, detail = qa._research_depth(base)
+    assert status == "WARN"
+    assert "证据/判断" in detail
+
+
+def test_research_depth_passes_on_deep_document(tmp_path):
+    base = tmp_path / "600887.SH"
+    base.mkdir()
+    (base / "research.json").write_text(
+        json.dumps(_depth_doc(12, 24), ensure_ascii=False), encoding="utf-8"
+    )
+    status, detail = qa._research_depth(base)
+    assert status == "PASS"
+    assert "2.0 条/判断" in detail
+
+
+def test_research_depth_skips_without_research(tmp_path):
+    base = tmp_path / "600887.SH"
+    base.mkdir()
+    status, detail = qa._research_depth(base)
+    assert status == "PASS"
+    assert "未使用 research" in detail
