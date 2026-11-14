@@ -979,6 +979,24 @@ def _brief_cmd(
     return 0
 
 
+def _quality_cmd(runs_root: str, days: int, out: str) -> int:
+    """W6.3: print a quality dashboard over archived daily runs."""
+
+    from .quality import build_dashboard, render, write_dashboard
+
+    base = Path(runs_root) if runs_root.strip() else output_root() / "daily"
+    if not base.is_dir():
+        print(f"没有找到运行目录：{base}", file=sys.stderr)
+        return 2
+    dashboard = build_dashboard(base, days=max(days, 1))
+    text = render(dashboard)
+    print(text)
+    if out.strip():
+        path, _ = write_dashboard(base, Path(out), days=max(days, 1))
+        print(f"  已写入 {path.resolve()}")
+    return 0
+
+
 def _citations_cmd(
     date_raw: str, runs_root: str, limit: int, timeout: float, max_age: int, out: str
 ) -> int:
@@ -4359,6 +4377,11 @@ def build_parser() -> argparse.ArgumentParser:
     citations.add_argument("--max-age", type=int, default=7, help="缓存结果的有效天数")
     citations.add_argument("--out", default="", help="把结果写到文件（默认只打印）")
 
+    quality = sub.add_parser("quality", help="质量看板（W6.3，只读归档）")
+    quality.add_argument("--runs-root", default="", help="运行目录根，默认 .runs/daily")
+    quality.add_argument("--days", type=int, default=15, help="回看的数据日数量")
+    quality.add_argument("--out", default="", help="写到文件（默认打印到 stdout）")
+
     golden = sub.add_parser("golden", help="黄金集标注模板与评分")
     golden.add_argument("--init", default=None, help="写出模板 CSV 路径")
     golden.add_argument("--codes", default="", help="逗号分隔的股票代码")
@@ -4502,6 +4525,8 @@ def main(argv: list[str] | None = None) -> int:
             return _citations_cmd(
                 args.date, args.runs_root, args.limit, args.timeout, args.max_age, args.out
             )
+        if args.command == "quality":
+            return _quality_cmd(args.runs_root, args.days, args.out)
         if args.command == "narrative":
             return _narrative_cmd(args.code, args.file)
         if args.command == "verify":
