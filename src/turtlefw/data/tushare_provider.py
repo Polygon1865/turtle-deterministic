@@ -261,6 +261,10 @@ class TushareProvider:
         self._hk_universe_cache: list[dict] | None = None
         self._hk_market_cache: dict[str, list[dict]] = {}
         self._hk_market_source = "tushare:hk_daily"
+        # Endpoints that answered from a stale cache after a failed refresh.
+        # Exposed so the screen/daily can say "quotes are cached" instead of
+        # pretending a fresh fetch happened (roadmap W1.2 stale semantics).
+        self._stale_endpoints: set[str] = set()
         self._hk_indicator_cache: dict[str, dict | None] = {}
         self._us_yf: dict[str, Any] = {}
         self._profile_cache: dict[str, dict[str, str]] = {}
@@ -282,6 +286,11 @@ class TushareProvider:
     @property
     def hk_market_source(self) -> str:
         return self._hk_market_source
+
+    @property
+    def stale_endpoints(self) -> tuple[str, ...]:
+        """Endpoints served from a stale cache after a failed refresh."""
+        return tuple(sorted(self._stale_endpoints))
 
     def _client(self):
         """One Tushare client per thread; the shared session is not thread-safe."""
@@ -314,6 +323,7 @@ class TushareProvider:
         if stale is None:
             return None
         with self._lock:
+            self._stale_endpoints.add(endpoint)
             self._issues.append(
                 FetchIssue(
                     endpoint=endpoint,
@@ -486,14 +496,40 @@ class TushareProvider:
             return list(self._hk_market_cache[key])
         frame = self._safe("hk_daily", trade_date=key, fields=HK_DAILY_FIELDS)
         rows = frame.to_dict("records") if not frame.empty else []
+        rows = self._keep_trade_date(rows, key)
         if rows:
-            self._hk_market_source = "tushare:hk_daily"
+            self._hk_market_source = (
+                "stale-cache:hk_daily" if "hk_daily" in self._stale_endpoints else "tushare:hk_daily"
+            )
         elif allow_yfinance:
             rows = self._yf_hk_market_snapshot(key)
             if rows:
                 self._hk_market_source = "yfinance:hk_daily"
         self._hk_market_cache[key] = rows
         return list(rows)
+
+    def _keep_trade_date(self, rows: list[dict], key: str) -> list[dict]:
+        """Drop rows whose ``trade_date`` is not the one the caller asked for.
+
+        Tushare sometimes answers a request for date X with the latest cached
+        trading day.  Silently accepting those rows makes a screen look like it
+        ran on X while the prices are from an older session, so filter here and
+        surface the drop as a fetch issue (roadmap W1.2 trade-date assertion).
+        """
+        if not rows or "trade_date" not in rows[0]:
+            return rows
+        kept = [row for row in rows if str(row.get("trade_date")) == key]
+        if len(kept) != len(rows):
+            with self._lock:
+                self._issues.append(
+                    FetchIssue(
+                        endpoint="hk_daily",
+                        code="*",
+                        message=f"丢弃 {len(rows) - len(kept)} 行非 {key} 交易日数据",
+                        retryable=False,
+                    )
+                )
+        return kept
 
     def _yf_hk_market_snapshot(self, trade_date: str) -> list[dict]:
         """Best-effort HK quote snapshot from Yahoo Finance.

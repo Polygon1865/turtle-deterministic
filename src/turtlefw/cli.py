@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
-from .config import Settings, get_token, load_settings
+from .config import Settings, load_settings
 from .data.protocol import StatementRow
 from .data.store import StatementStore
 from .metrics import cashflow, grids, owner_earnings, returns, statements, valuation
@@ -594,11 +594,11 @@ def _live_analyze(
     rf_source: str | None = None,
     ttm: bool = False,
 ) -> int:
-    from .data.tushare_provider import TushareProvider
+    from .data.factory import build_provider
 
     settings = load_settings()
     code = StockCode.parse(raw_code)
-    provider = TushareProvider(get_token())
+    provider = build_provider()
     unit = _unit_for(code, currency, provider)
 
     rows = provider.statements(code, currency=unit)
@@ -689,12 +689,12 @@ def _pack(
     as_of: str | None = None,
     pit: bool = False,
 ) -> int:
-    from .data.tushare_provider import TushareProvider
+    from .data.factory import build_provider
     from .report.pack import render_data_pack
 
     settings = load_settings()
     code = StockCode.parse(raw_code)
-    provider = TushareProvider(get_token())
+    provider = build_provider()
     unit = _unit_for(code, currency, provider)
     if pit and not as_of:
         print("--pit 必须与 --as-of 一起使用", file=sys.stderr)
@@ -1177,12 +1177,12 @@ def _state_cmd(
 def _audit(raw_code: str, doc_path: str, write_path: str | None, threshold: float) -> int:
     import json
 
-    from .data.tushare_provider import TushareProvider
+    from .data.factory import build_provider
     from .metrics import statements
     from .metrics.audit import compare, parse_doc_items
 
     code = StockCode.parse(raw_code)
-    provider = TushareProvider(get_token())
+    provider = build_provider()
     unit = _unit_for(code, None, provider)
     rows = provider.statements(code, currency=unit)
     if not rows:
@@ -1273,14 +1273,14 @@ def _valuation(
     pit: bool = False,
 ) -> int:
     """Deterministic DCF/DDM/PE-band/PEG/PS valuation snapshot."""
-    from .data.tushare_provider import TushareProvider
+    from .data.factory import build_provider
     from .metrics import dividends as div_metrics
     from .metrics import peer_valuation, sotp, statements, valuation_models
     from .metrics.dividends import average_dps
 
     settings = load_settings()
     code = StockCode.parse(raw_code)
-    provider = TushareProvider(get_token())
+    provider = build_provider()
     unit = _unit_for(code, currency, provider)
     rows = provider.statements(code, currency=unit)
     if not rows:
@@ -1706,14 +1706,14 @@ def _pit_cmd(
 ) -> int:
     import json
 
-    from .data.tushare_provider import TushareProvider
+    from .data.factory import build_provider
     from .metrics import statements
     from .pit import PitError, PitStore, rows_payload
 
     code = StockCode.parse(code_raw)
     store = PitStore()
     if action == "freeze":
-        provider = TushareProvider(get_token())
+        provider = build_provider()
         rows = provider.statements(code, currency=_unit_for(code, None, provider))
         if not rows:
             print("未取到报表数据。", file=sys.stderr)
@@ -3102,7 +3102,7 @@ def _report(
     allow_research_decisions: bool = False,
     research_note: str = "",
 ) -> int:
-    from .data.tushare_provider import TushareProvider
+    from .data.factory import build_provider
     from .metrics import statements
     from .report import snapshot as snap
     from .report.manifest import build_manifest
@@ -3151,7 +3151,7 @@ def _report(
     else:
         settings = load_settings()
         code = StockCode.parse(raw_code)
-        provider = TushareProvider(get_token())
+        provider = build_provider()
         unit = _unit_for(code, currency, provider)
         rows = provider.statements(code, currency=unit)
         if not rows:
@@ -3728,13 +3728,13 @@ def _screen(
     market: str = "A",
     min_market_cap_yi: float = 50.0,
 ) -> int:
-    from .data.tushare_provider import TushareProvider
+    from .data.factory import build_provider
     from .data.universe import listed_as_of
     from .screener import tier1 as tier1_mod
     from .screener.tier2 import run_tier2
 
     settings = load_settings()
-    provider = TushareProvider(get_token(), min_interval=api_interval)
+    provider = build_provider(min_interval=api_interval)
 
     if market == "HK":
         from .screener.hk import HkScreenError, screen_hk, write_ranking
@@ -3767,6 +3767,12 @@ def _screen(
         print(f"交易日: {trade_date}")
         print("\n=== 港股全市场 screen（穿透回报率 R/GG/II，按安全边际排序） ===")
         print(_hk_funnel_text(hk_stats))
+        if provider.stale_endpoints:
+            print(
+                "⚠ 缓存快照："
+                + "、".join(provider.stale_endpoints)
+                + "（刷新失败，使用当日缓存；trade_date 已核验）"
+            )
         total = hk_stats.get("rows", 0)
         if total > len(rows):
             print(f"（合格 {total} 只，仅展示前 {len(rows)} 只；完整列表用 --csv 导出）")
