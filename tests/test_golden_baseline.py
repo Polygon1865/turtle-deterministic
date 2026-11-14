@@ -186,3 +186,79 @@ def test_compare_reports_added_and_removed(tmp_path: Path) -> None:
     saved["stocks"]["99999.HK"] = {"name": "旧票", "verdict": "买入"}
     changes = golden.compare(saved, golden.collect(day))
     assert ("99999.HK", "stock", "存在", "消失") in changes
+
+
+def _clone_day(tmp_path: Path, date: str) -> Path:
+    import shutil
+
+    source = tmp_path / "2026-11-10"
+    target = tmp_path / date
+    shutil.copytree(source, target)
+    status_path = target / "status.json"
+    status = json.loads(status_path.read_text(encoding="utf-8"))
+    status["date"] = date
+    status["trade_date"] = date.replace("-", "")
+    status_path.write_text(json.dumps(status, ensure_ascii=False), encoding="utf-8")
+    return target
+
+
+def test_freeze_days_writes_newest_days(tmp_path: Path) -> None:
+    _make_day(tmp_path)
+    _clone_day(tmp_path, "2026-11-09")
+    _clone_day(tmp_path, "2026-11-08")
+    out = tmp_path / "golden"
+
+    assert golden.freeze_days(runs_root=tmp_path, out_dir=out, days=2) == 0
+    assert sorted(path.name for path in out.glob("golden-daily-*.json")) == [
+        "golden-daily-2026-11-09.json",
+        "golden-daily-2026-11-10.json",
+    ]
+    # 已有的 golden 不重复覆盖
+    assert golden.freeze_days(runs_root=tmp_path, out_dir=out, days=2) == 0
+
+
+def test_check_all_reports_each_day(tmp_path: Path) -> None:
+    _make_day(tmp_path)
+    _clone_day(tmp_path, "2026-11-09")
+    out = tmp_path / "golden"
+    golden.freeze_days(runs_root=tmp_path, out_dir=out, days=2)
+
+    assert (
+        golden.check_all(
+            runs_root=tmp_path, golden_dir=out, tol=0.01, fail_on_diff=True
+        )
+        == 0
+    )
+
+    day = tmp_path / "2026-11-09"
+    _write(day / "00270.HK" / "snapshot" / "metrics.json", {"r": 7.5, "gg": 10.32})
+    assert (
+        golden.check_all(
+            runs_root=tmp_path, golden_dir=out, tol=0.01, fail_on_diff=True
+        )
+        == 1
+    )
+    assert (
+        golden.check_all(
+            runs_root=tmp_path, golden_dir=out, tol=0.01, fail_on_diff=False
+        )
+        == 0
+    )
+
+
+def test_check_all_skips_missing_days(tmp_path: Path) -> None:
+    _make_day(tmp_path)
+    out = tmp_path / "golden"
+    out.mkdir()
+    day = tmp_path / "2026-11-10"
+    golden.freeze(
+        "2026-11-10", runs_root=tmp_path, out=out / "golden-daily-2026-11-10.json"
+    )
+    _write(out / "golden-daily-2026-11-11.json", golden.collect(day))
+
+    assert (
+        golden.check_all(
+            runs_root=tmp_path, golden_dir=out, tol=0.01, fail_on_diff=True
+        )
+        == 0
+    )

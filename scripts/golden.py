@@ -1,15 +1,20 @@
-"""Freeze and verify a daily-run golden baseline (roadmap T1).
+"""Freeze and verify a daily-run golden baseline (roadmap T1 / W6.1).
 
 The golden file is a small JSON summary of one daily run: per-stock verdict,
 key valuation metrics, QA/research state and claim counts.  It intentionally
 ignores formatting, so a template change does not fail the baseline; only
 conclusions or numbers do.
 
+Besides a single day, ``freeze --days N`` freezes the newest N archived runs and
+``check --all`` replays every frozen day, which is what a full-market regression
+needs: one day only covers the names that happened to be screened that day.
+
 Usage::
 
     python scripts/golden.py freeze --date 2026-11-10
+    python scripts/golden.py freeze --days 5
     python scripts/golden.py check --date 2026-11-10
-    python scripts/golden.py check --date 2026-11-10 --tol 0.05
+    python scripts/golden.py check --all --tol 0.05
 """
 
 from __future__ import annotations
@@ -195,17 +200,87 @@ def check(date: str, *, runs_root: Path, golden_path: Path, tol: float, fail_on_
     return 1 if fail_on_diff else 0
 
 
+def archived_days(runs_root: Path) -> list[str]:
+    """Return archived run dates (``<runs_root>/<date>/status.json``), oldest first."""
+
+    if not runs_root.is_dir():
+        return []
+    return sorted(
+        path.name
+        for path in runs_root.iterdir()
+        if path.is_dir() and (path / "status.json").is_file()
+    )
+
+
+def freeze_days(*, runs_root: Path, out_dir: Path, days: int) -> int:
+    """Freeze the newest ``days`` archived runs; skip days already frozen."""
+
+    names = archived_days(runs_root)[-days:]
+    if not names:
+        print(f"没有找到可冻结的运行目录：{runs_root}", file=sys.stderr)
+        return 1
+    written = 0
+    for date in names:
+        out = out_dir / f"golden-daily-{date}.json"
+        if out.is_file():
+            print(f"跳过 {date}（已存在 {out.name}）")
+            continue
+        if freeze(date, runs_root=runs_root, out=out) != 0:
+            return 1
+        written += 1
+    print(f"共冻结 {written} 天（候选 {len(names)} 天）。")
+    return 0
+
+
+def check_all(
+    *,
+    runs_root: Path,
+    golden_dir: Path,
+    tol: float,
+    fail_on_diff: bool,
+) -> int:
+    """Replay every frozen golden day; missing run dirs are skipped with a note."""
+
+    files = sorted(golden_dir.glob("golden-daily-*.json"))
+    if not files:
+        print(f"没有找到 golden 文件：{golden_dir}", file=sys.stderr)
+        return 2
+    failed = 0
+    checked = 0
+    for path in files:
+        date = path.stem.removeprefix("golden-daily-")
+        if not (runs_root / date).is_dir():
+            print(f"跳过 {date}（没有运行目录）")
+            continue
+        check(
+            date,
+            runs_root=runs_root,
+            golden_path=path,
+            tol=tol,
+            fail_on_diff=False,
+        )
+        checked += 1
+        golden = json.loads(path.read_text(encoding="utf-8"))
+        current = collect(runs_root / date)
+        if compare(golden, current, tol=tol):
+            failed += 1
+    print(f"回放 {checked} 天：{checked - failed} 天一致，{failed} 天有差异。")
+    return 1 if failed and fail_on_diff else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Freeze/compare a daily-run golden baseline")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    freeze_parser = sub.add_parser("freeze", help="write a golden file for one day")
-    freeze_parser.add_argument("--date", required=True)
+    freeze_parser = sub.add_parser("freeze", help="write golden files for one day or the newest N days")
+    freeze_parser.add_argument("--date", default="")
+    freeze_parser.add_argument("--days", type=int, default=0)
     freeze_parser.add_argument("--runs-root", default=str(DEFAULT_RUNS))
     freeze_parser.add_argument("--out", default="")
 
-    check_parser = sub.add_parser("check", help="compare a day against its golden file")
-    check_parser.add_argument("--date", required=True)
+    check_parser = sub.add_parser("check", help="compare one day or every frozen day")
+    check_parser.add_argument("--date", default="")
+    check_parser.add_argument("--all", action="store_true", dest="all")
     check_parser.add_argument("--runs-root", default=str(DEFAULT_RUNS))
     check_parser.add_argument("--golden", default="")
     check_parser.add_argument("--tol", type=float, default=0.01)
@@ -214,8 +289,25 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     runs_root = Path(args.runs_root)
     if args.command == "freeze":
+        if args.days:
+            out_dir = Path(args.out) if args.out else DEFAULT_GOLDEN
+            return freeze_days(runs_root=runs_root, out_dir=out_dir, days=args.days)
+        if not args.date:
+            print("freeze 需要 --date 或 --days", file=sys.stderr)
+            return 2
         out = Path(args.out) if args.out else DEFAULT_GOLDEN / f"golden-daily-{args.date}.json"
         return freeze(args.date, runs_root=runs_root, out=out)
+    if args.all:
+        golden_dir = Path(args.golden) if args.golden else DEFAULT_GOLDEN
+        return check_all(
+            runs_root=runs_root,
+            golden_dir=golden_dir,
+            tol=args.tol,
+            fail_on_diff=not args.no_fail,
+        )
+    if not args.date:
+        print("check 需要 --date 或 --all", file=sys.stderr)
+        return 2
     golden_path = Path(args.golden) if args.golden else DEFAULT_GOLDEN / f"golden-daily-{args.date}.json"
     return check(
         args.date,

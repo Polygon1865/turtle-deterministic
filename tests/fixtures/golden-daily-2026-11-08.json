@@ -1,0 +1,12 @@
+{
+  "date": "2026-11-08",
+  "trade_date": "",
+  "ok": true,
+  "counts": {
+    "stocks": 0,
+    "ok": 0,
+    "qa_pass": 0,
+    "research_on": 0
+  },
+  "stocks": {}
+}

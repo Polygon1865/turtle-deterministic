@@ -38,12 +38,19 @@
 | W6.4 指标定义与口径 | ✅ 完成（一页纸） | 新增 `docs/metrics.md`：来源优先级（metrics > inputs > research > 渲染产物）、20+ 核心指标的定义/公式/单位/来源/校验（r/gg/ii/margin/floor/premium/payout/price/market_cap/pb/ev_ebitda/fcf_yield/net_cash/capex_da_ratio/ocf_ni_ratio/aa_2y/k_star/lambda/hh/rf）、三处易混口径（支付率三法、市值币种、底价 vs 安全边际）、容差与门（numeric/report/payout/citation/pit/golden）、变更流程（ADR→单一源→本文→golden）。`lint_report` 自检仅 5 条 `heading.unnumbered`（文档按「1. 2.」编号），无 `table.ragged`。 |
 | W0.2 市值/币种单一源 | ✅ 完成 | 港股 `total_market_cap`（HKD）在 `screener/hk.py` 里乘 `fx.cny_per_hkd`：门槛 `--min-market-cap-yi`、榜单 `market_cap`、报告市值统一为 CNY，`market_cap_hkd` 保留原值；R/GG/FCF 的分子同步转 CNY（比例不变）；站内 screener 的港股面板新增「市值（亿元）」列。`tests/test_hk_screen.py` 30 例通过（原有门槛/排序断言未变）。 |
 | W3.2 证据分级 | ✅ 完成（可见性门） | 新增 `src/turtlefw/research_grading.py`（A=披露/监管/PDF，B=具编辑审核媒体，C=其他链接，data=数据包复述，unknown）；`research.quality()` 输出 `evidence_grades`/`external_evidence`/`high_without_external`；QA 行 `research_grade`：high 判断无 A/B 来源 → warn 并列出 claim、有外部来源 → pass、全 data → warn。真实样例（2026-11-10 / 00270.HK）：`warn 证据全部来自数据包/无外部来源（data 13）`——这正是 `.runs/daily` 682 份 research、15,813 条证据里只有 84 条 http URL 的日常形态。测试 `tests/test_research_grading.py` 5 例 + `tests/test_qa.py` 3 例。 |
+| W6.1 全市场 golden | ✅ 完成 | `scripts/golden.py` 增 `freeze --days N`（补缺失日期、不覆盖）与 `check --all`（跳过缺失日、按天汇总差异）；冻结 2026-11-08→11-13 共 6 天（各 40 只，约 240 个股票日），`check --all` 6/6 一致；新增 `docs/golden.md` 更新协议（ADR-11：先解释差异再重冻、格式改动不更新、容差 0.01/0.05）。测试 `tests/test_golden_baseline.py` 10 例。 |
 
 ## 本轮验证
 
 ```
 .\.venv\Scripts\python.exe -m pytest -o addopts= -q -p no:cacheprovider
-→ 753 passed in 263.37s
+→ 756 passed in 256.19s
+
+# W6.1 全市场 golden（6 天）
+.\.venv\Scripts\python.exe scripts\golden.py freeze --days 6
+→ 冻结 2026-11-08 → 11-13（各 40 只；11-10 已存在跳过）
+.\.venv\Scripts\python.exe scripts\golden.py check --all
+→ 回放 6 天：6 天一致，0 天有差异
 
 # W0.2 港股市值统一 CNY + W3.2 证据分级
 .\.venv\Scripts\python.exe -m pytest tests\test_hk_screen.py tests\test_site.py tests\test_research_grading.py tests\test_qa.py -q
