@@ -774,6 +774,7 @@ def render(
         research_thesis_md = thesis_markdown(
             research_document, metric_map, fact_map
         )
+    metric_conflicts: list[dict[str, Any]] = []
     markdown = render_analysis(
         ctx,
         results,
@@ -789,6 +790,7 @@ def render(
         research_thesis_md=research_thesis_md,
         research_note=inputs.research_note,
         metrics_out=metrics_out,
+        conflicts_out=metric_conflicts,
         resolved_md=resolve_markdown(inputs.resolved_facts),
         document_facts=inputs.document_facts,
         fact_rows=inputs.fact_rows,
@@ -819,4 +821,10 @@ def render(
             json.dumps(record, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
+        if metric_conflicts:
+            (Path(snapshot_dir) / "metric_conflicts.json").write_text(
+                json.dumps(metric_conflicts, ensure_ascii=False, indent=2, sort_keys=True)
+                + "\n",
+                encoding="utf-8",
+            )
     return markdown, dict(results["4"].metrics).get("结论", "观察")

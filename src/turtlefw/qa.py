@@ -87,6 +87,31 @@ def _table_rows(text: str, *, limit_lines: int = 80) -> dict[str, str]:
     return rows
 
 
+def _metric_conflict_row(base: Path) -> tuple[str, str]:
+    """W1.7: surface duplicate metric ids recorded during the render.
+
+    The registry keeps the more authoritative point (higher source_rank) and
+    records every disagreement in ``snapshot/metric_conflicts.json``.  A missing
+    file means the render never saw a duplicate — PASS with a note.
+    """
+
+    path = base / "snapshot" / "metric_conflicts.json"
+    if not path.is_file():
+        return "PASS", "未记录重复指标"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except ValueError:
+        return "FAIL", "metric_conflicts.json 无法解析"
+    if not isinstance(payload, list) or not payload:
+        return "PASS", "未记录重复指标"
+    heads = [
+        f"{item.get('id')}（保留 rank={item.get('kept_rank')}，丢弃 rank={item.get('dropped_rank')}）"
+        for item in payload[:3]
+        if isinstance(item, dict)
+    ]
+    return "WARN", f"{len(payload)} 个重复指标取权威源：{'；'.join(heads)}"
+
+
 def _citation_audit_check(base: Path) -> tuple[bool, str]:
     """W5.2: surface unreachable citations recorded by ``turtlefw.cli citations``.
 
@@ -228,6 +253,7 @@ def run_qa(code: str, root: Path | str | None = None, *, allow_missing_qualitati
         add("report_structure", not findings, lint_summary(findings))
     add("verdict_record", *_verdict_record_check(base, report))
     add("report_consistency", *_report_consistency_check(base, report))
+    add_status("metric_conflicts", *_metric_conflict_row(base))
     add("citation_audit", *_citation_audit_check(base))
     add("pit_lookahead", *_pit_lookahead_check(base))
     add_status("research_fallback_rate", *_research_fallback_row(base))
@@ -609,7 +635,7 @@ def _payout_consistency(base: Path, code: str) -> tuple[bool, str]:
 def payload(code: str, rows: list[tuple[str, str, str]]) -> dict[str, object]:
     if failed(rows):
         status = "fail"
-    elif any(row_status == "WARN" for _, row_status, _ in rows):
+    elif any(str(row_status).upper() == "WARN" for _, row_status, _ in rows):
         status = "warn"
     else:
         status = "pass"
@@ -645,8 +671,8 @@ def write_json(
 
 
 def failed(rows: list[tuple[str, str, str]]) -> list[str]:
-    return [name for name, status, _ in rows if status == "FAIL"]
+    return [name for name, status, _ in rows if str(status).upper() == "FAIL"]
 
 
 def warned(rows: list[tuple[str, str, str]]) -> list[str]:
-    return [name for name, status, _ in rows if status == "WARN"]
+    return [name for name, status, _ in rows if str(status).upper() == "WARN"]

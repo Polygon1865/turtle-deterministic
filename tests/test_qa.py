@@ -395,3 +395,48 @@ def test_research_grade_warns_when_all_evidence_is_data(tmp_path):
     rows = qa.run_qa("600887.SH", root=tmp_path)
     status = {name: state for name, state, _ in rows}
     assert status["research_grade"] == "warn"
+
+
+def _write_metric_conflicts(base, payload):
+    (base / "snapshot" / "metric_conflicts.json").write_text(
+        json.dumps(payload), encoding="utf-8"
+    )
+
+
+def test_metric_conflicts_row_warns_on_duplicate_metric(tmp_path):
+    base = setup_run(tmp_path)
+    _write_metric_conflicts(
+        base,
+        [
+            {
+                "id": "payout.2025",
+                "kept": "87.78%",
+                "dropped": "66.97%",
+                "kept_rank": 3,
+                "dropped_rank": 0,
+            }
+        ],
+    )
+    rows = qa.run_qa("600887.SH", root=tmp_path)
+    status = {name: state for name, state, _ in rows}
+    detail = {name: text for name, _, text in rows}
+    assert status["metric_conflicts"] == "WARN"
+    assert "payout.2025" in detail["metric_conflicts"]
+    assert "rank=3" in detail["metric_conflicts"]
+    assert "metric_conflicts" in qa.warned(rows)
+
+
+def test_metric_conflicts_row_passes_without_file(tmp_path):
+    setup_run(tmp_path)
+    rows = qa.run_qa("600887.SH", root=tmp_path)
+    status = {name: state for name, state, _ in rows}
+    assert status["metric_conflicts"] == "PASS"
+
+
+def test_metric_conflicts_row_fails_on_broken_json(tmp_path):
+    base = setup_run(tmp_path)
+    (base / "snapshot" / "metric_conflicts.json").write_text("{", encoding="utf-8")
+    rows = qa.run_qa("600887.SH", root=tmp_path)
+    status = {name: state for name, state, _ in rows}
+    assert status["metric_conflicts"] == "FAIL"
+    assert "metric_conflicts" in qa.failed(rows)

@@ -141,6 +141,7 @@ def render_analysis(
     research_thesis_md: str = "",
     resolved_md: str = "",
     metrics_out: dict[str, object] | None = None,
+    conflicts_out: list[dict[str, Any]] | None = None,
     document_facts: Sequence[dict[str, Any]] = (),
     fact_rows: Sequence[dict[str, Any]] = (),
     industry_peers: Sequence[dict[str, Any]] = (),
@@ -598,5 +599,7 @@ def render_analysis(
     env = Environment(loader=FileSystemLoader(TEMPLATE_DIR), autoescape=False)
     if metrics_out is not None:
         metrics_out.update(metric_ledger.to_dict())
+    if conflicts_out is not None:
+        conflicts_out.extend(metric_ledger.conflicts)
     rendered = env.get_template("analysis.md.j2").render(**context)
     return renumber(rendered)

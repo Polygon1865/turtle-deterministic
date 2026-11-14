@@ -162,28 +162,35 @@ class MetricRegistry:
         self.conflicts = []
 
     def add(self, point: MetricPoint) -> None:
-        """Add a metric; duplicates keep the last write but are recorded.
+        """Add a metric, preferring the more authoritative source.
 
         The same id can be produced twice (e.g. ``payout.<year>`` emitted by
         two pack helpers, or a rounded display point followed by an exact one).
-        Resolution stays last-write-wins so rendering is unchanged; the
-        conflict list is what makes the duplicate visible instead of silent.
-        Rank-based resolution needs to know which source is authoritative for
-        each id, which is W1.7's job.
+        When the two points carry different ``source_rank`` values the higher
+        rank wins (an audited statement row beats a derived or rounded value);
+        equal ranks stay last-write-wins so rendering is unchanged.  Every
+        disagreement is still recorded in ``conflicts``.
         """
         existing = self.points.get(point.id)
-        self.points[point.id] = point
         if existing is None:
+            self.points[point.id] = point
             return
         if existing.value == point.value and existing.display == point.display:
+            self.points[point.id] = point
             return
+        winner, dropped = (
+            (existing, point)
+            if existing.source_rank > point.source_rank
+            else (point, existing)
+        )
+        self.points[point.id] = winner
         self.conflicts.append(
             {
                 "id": point.id,
-                "kept": point.display or _plain(point.value),
-                "dropped": existing.display or _plain(existing.value),
-                "kept_rank": point.source_rank,
-                "dropped_rank": existing.source_rank,
+                "kept": winner.display or _plain(winner.value),
+                "dropped": dropped.display or _plain(dropped.value),
+                "kept_rank": winner.source_rank,
+                "dropped_rank": dropped.source_rank,
             }
         )
 
