@@ -43,12 +43,17 @@
 | W1.2 缓存跨天共享 + stale 语义 | ✅ 完成 | T5 已把缓存根统一到 `paths.cache_root()`（`TURTLE_CACHE_DIR`），本次补两件：①`TushareProvider` 新增 `_stale_endpoints` 与只读属性 `stale_endpoints`，`_stale_frame()` 命中旧快照时标记端点，`hk_market_snapshot()` 据此把 `hk_market_source` 标成 `stale-cache:hk_daily`（而不是假装刷新成功）；②`_keep_trade_date()` 丢弃 `trade_date` 与请求不一致的行并记 `FetchIssue("hk_daily", …, "丢弃 N 行非 <date> 交易日数据")`——Tushare 会用最近交易日应答，原实现会把旧价格当成当日价格；`screen --market HK` 输出加「⚠ 缓存快照：…（刷新失败，使用当日缓存；trade_date 已核验）」。协议同步加 `stale_endpoints`。测试 `tests/test_hk_market_snapshot.py` 3 例（日期不符丢弃+报错、日期一致保留、stale 源标记），`tests/test_provider_protocol.py` 覆盖新属性。 |
 | W2.0 code-rendered 数字盘点 | ✅ 完成（基线 119） | 新增 `scripts/inventory_numbers.py`：AST 找函数范围、逐行识别四种绕过 `MetricRegistry` 的渲染（f-string 数字格式、`Decimal.quantize`、`format()`、`_pct/_m/_ratio_pct/_num/_x` 共享格式化函数），跳过已走 `metric_ledger.display()` / `{{metric:…}}` 的行与内联 CSS；输出 `docs/report-numbers.md`（按文件/函数汇总 + 每处行号片段 + 归属建议）。基线 **119 处**：`pack.py` 62（`render_data_pack` 61）、`market.py` 26（`_flow_section` 7）、`extras.py` 17（`_indicator_section` 7）、`analysis.py` 11（`render_analysis` 7）、`html.py` 3。测试 `tests/test_number_inventory.py` 4 例（三种 kind 识别、函数/行号、仓库扫描与渲染、CSS 伪类不误报）。每次迁移后重跑，数字应单调下降，W2.1 验收是降到 0。 |
 | W1.7 重复指标可见性（第一切片） | ✅ 完成 | `MetricRegistry.add()` 保持 last-write-wins（渲染不变），但同一个 id 出现不同值/展示时写入 `registry.conflicts`（`id/kept/dropped/kept_rank/dropped_rank`）——先让「同一事实两个答案」可见，按 rank 选源留给 W1.7 的完整实现（需要每个 id 的权威源定义）。测试 `tests/test_metric_conflicts.py` 3 例（相同值不报、不同值记录且后写者生效、缺 display 回退）。 |
+| W2.4 公式登记表 | ✅ 完成 | 新增 `src/turtlefw/metrics/formulas.py`：`Formula(formula_id, expression, inputs, owner, note)`、`EXPLICIT` 20 条、`PREFIXES` 8 条（`statement.`/`balance.`/`factor.`/`policy.`/`tax.`/`scenario.`/`extras.`/`.pdf`）、`resolve`/`unknown`/`describe`。测试 `tests/test_formula_registry.py` 6 例：源码中所有 `formula_id="…"` 字面量必须能解析、动态前缀必须已登记、生成 id 抽样、未知 id 排序、显式条目完整性、`describe` 文案。`docs/metrics.md` 增「公式登记表」一节。新增 id 未登记时测试直接失败。 |
 
 ## 本轮验证
 
 ```
 .\.venv\Scripts\python.exe -m pytest -o addopts= -q -p no:cacheprovider
-→ 802 passed in 251.88s
+→ 808 passed（W2.4 之后；上一轮 802）
+
+# W2.4 公式登记表契约
+.\.venv\Scripts\python.exe -m pytest tests\test_formula_registry.py -q
+→ 6 passed（源码里新增未登记的 formula_id 会直接失败）
 
 # W2.0 数字盘点（基线）
 .\.venv\Scripts\python.exe scripts\inventory_numbers.py --out docs\report-numbers.md

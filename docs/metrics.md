@@ -54,7 +54,25 @@
 | `pit_lookahead` | 0 违规 | `ann_date > as_of` 即 FAIL |
 | golden diff | 0.01 | 指标漂移、结论变更均报出 |
 
-## 5. 变更流程
+## 5. 公式登记表（W2.4）
+
+每个 `MetricPoint.formula_id` 都必须在 `src/turtlefw/metrics/formulas.py` 里解析到一个定义（表达式、输入、归属模块）。显式公式 20 条，另有 8 条前缀规则覆盖逐行生成的 id：
+
+| 前缀 | 覆盖 |
+|---|---|
+| `statement.` | `statement.<income\|balance\|cashflow>.<item>` 原始报表行 |
+| `balance.` | 资产负债表派生值 |
+| `factor.` | 四因子门槛/输出 |
+| `policy.` | 政策与合规阈值 |
+| `tax.` | 税档假设 |
+| `scenario.` | 营收 ±10/20/30% 敏感性 |
+| `extras.` | 补充基本面字段 |
+| `.pdf` | 年报 PDF 提取值（后缀匹配） |
+
+契约由 `tests/test_formula_registry.py` 守住：源码里新增 `formula_id=` 字面量或新的动态前缀而没登记，测试就失败。查询用 `python -c "from turtlefw.metrics.formulas import describe; print(describe('returns.safety_margin'))"`。
+
+## 6. 变更流程
+
 
 1. 写 ADR（`docs/roadmap-2026-11.md` §2）。
 2. 改 `metrics/` 与 `src/turtlefw/metrics/payout.py` 等单一源。
