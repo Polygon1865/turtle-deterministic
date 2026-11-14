@@ -53,6 +53,7 @@
 | `citation_audit` | 可达性 | 缓存中任一 URL 不可达即 FAIL |
 | `pit_lookahead` | 0 违规 | `ann_date > as_of` 即 FAIL |
 | `metric_conflicts` | 任一 | 同一 id 重复渲染时按 `source_rank` 取权威源（审计报表行 > 派生值），冲突落 `snapshot/metric_conflicts.json` 并 WARN |
+| `verdict_drift` | 逐字 | 证据哈希不变但结论变化即 FAIL；证据变化且结论变化 WARN |
 | golden diff | 0.01 | 指标漂移、结论变更均报出 |
 
 ## 5. 公式登记表（W2.4）

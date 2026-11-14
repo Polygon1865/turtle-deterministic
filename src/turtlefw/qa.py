@@ -112,6 +112,60 @@ def _metric_conflict_row(base: Path) -> tuple[str, str]:
     return "WARN", f"{len(payload)} 个重复指标取权威源：{'；'.join(heads)}"
 
 
+def _verdict_drift_row(base: Path) -> tuple[str, str]:
+    """W0.3: keep the conclusion drift explainable.
+
+    ``snapshot/verdict.json`` records the evidence hash behind each verdict.
+    If two consecutive data days have the same evidence hash but a different
+    verdict something is wrong (the judge changed without new evidence); if
+    the hash changed, the drift is explainable and only worth a WARN.
+    """
+
+    current_path = base / "snapshot" / "verdict.json"
+    if not current_path.is_file():
+        return "PASS", "无当前 verdict 记录"
+    try:
+        current = json.loads(current_path.read_text(encoding="utf-8-sig"))
+    except ValueError:
+        return "FAIL", "verdict.json 无法解析"
+    day_dir = base.parent
+    runs_root = day_dir.parent
+    previous: dict[str, object] | None = None
+    previous_day = ""
+    for candidate in sorted(runs_root.iterdir(), reverse=True):
+        if not candidate.is_dir() or candidate == day_dir:
+            continue
+        if candidate.name >= day_dir.name:
+            continue
+        path = candidate / base.name / "snapshot" / "verdict.json"
+        if path.is_file():
+            try:
+                previous = json.loads(path.read_text(encoding="utf-8-sig"))
+            except ValueError:
+                continue
+            previous_day = candidate.name
+            break
+    if previous is None:
+        return "PASS", "无上一数据日记录"
+    current_hash = str(current.get("evidence_hash") or "")
+    previous_hash = str(previous.get("evidence_hash") or "")
+    current_verdict = str(current.get("verdict") or "")
+    previous_verdict = str(previous.get("verdict") or "")
+    if current_hash and current_hash == previous_hash:
+        if current_verdict == previous_verdict:
+            return "PASS", f"证据哈希未变，结论维持 {current_verdict}"
+        return "FAIL", (
+            f"证据哈希未变但结论 {previous_verdict}→{current_verdict}"
+            f"（{previous_day} → {day_dir.name}）"
+        )
+    if current_verdict == previous_verdict:
+        return "PASS", f"证据更新，结论维持 {current_verdict}"
+    return "WARN", (
+        f"证据更新，结论 {previous_verdict}→{current_verdict}"
+        f"（{previous_day} → {day_dir.name}，evidence {previous_hash[:8] or '—'}→{current_hash[:8] or '—'}）"
+    )
+
+
 def _citation_audit_check(base: Path) -> tuple[bool, str]:
     """W5.2: surface unreachable citations recorded by ``turtlefw.cli citations``.
 
@@ -252,6 +306,7 @@ def run_qa(code: str, root: Path | str | None = None, *, allow_missing_qualitati
         findings = lint_report(report.read_text(encoding="utf-8-sig"))
         add("report_structure", not findings, lint_summary(findings))
     add("verdict_record", *_verdict_record_check(base, report))
+    add_status("verdict_drift", *_verdict_drift_row(base))
     add("report_consistency", *_report_consistency_check(base, report))
     add_status("metric_conflicts", *_metric_conflict_row(base))
     add("citation_audit", *_citation_audit_check(base))

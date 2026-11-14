@@ -7,7 +7,7 @@ from turtlefw.research import snapshot_audit
 
 def setup_run(tmp_path, with_all=True):
     base = tmp_path / "600887.SH"
-    base.mkdir(exist_ok=True)
+    base.mkdir(parents=True, exist_ok=True)
     (base / "run_state.json").write_text(
         json.dumps({"code": "600887.SH", "run_id": "x", "phase": "report"}),
         encoding="utf-8",
@@ -440,3 +440,69 @@ def test_metric_conflicts_row_fails_on_broken_json(tmp_path):
     status = {name: state for name, state, _ in rows}
     assert status["metric_conflicts"] == "FAIL"
     assert "metric_conflicts" in qa.failed(rows)
+
+
+def _verdict_record(verdict, evidence_hash):
+    return {
+        "code": "600887.SH",
+        "verdict": verdict,
+        "reason": "test",
+        "evidence_hash": evidence_hash,
+    }
+
+
+def _write_previous_day(root, date, record):
+    snapshot = root / date / "600887.SH" / "snapshot"
+    snapshot.mkdir(parents=True, exist_ok=True)
+    (snapshot / "verdict.json").write_text(json.dumps(record), encoding="utf-8")
+
+
+def test_verdict_drift_fails_when_hash_unchanged_but_verdict_moves(tmp_path):
+    today = tmp_path / "2026-11-14"
+    setup_run(today)
+    _write_previous_day(
+        tmp_path, "2026-11-13", _verdict_record("观察", "2" * 64)
+    )
+    rows = qa.run_qa("600887.SH", root=today)
+    status = {name: state for name, state, _ in rows}
+    detail = {name: text for name, _, text in rows}
+    assert status["verdict_drift"] == "FAIL"
+    assert "观察→买入" in detail["verdict_drift"]
+    assert "证据哈希未变" in detail["verdict_drift"]
+
+
+def test_verdict_drift_passes_when_hash_unchanged_and_verdict_same(tmp_path):
+    today = tmp_path / "2026-11-14"
+    setup_run(today)
+    _write_previous_day(
+        tmp_path,
+        "2026-11-13",
+        _verdict_record("买入", "2" * 64),
+    )
+    _replace_verdict(today / "600887.SH", "买入", "2" * 64)
+    rows = qa.run_qa("600887.SH", root=today)
+    status = {name: state for name, state, _ in rows}
+    assert status["verdict_drift"] == "PASS"
+
+
+def test_verdict_drift_warns_when_evidence_changed(tmp_path):
+    today = tmp_path / "2026-11-14"
+    setup_run(today)
+    _write_previous_day(
+        tmp_path,
+        "2026-11-13",
+        _verdict_record("买入", "3" * 64),
+    )
+    _replace_verdict(today / "600887.SH", "观察", "4" * 64)
+    rows = qa.run_qa("600887.SH", root=today)
+    status = {name: state for name, state, _ in rows}
+    detail = {name: text for name, _, text in rows}
+    assert status["verdict_drift"] == "WARN"
+    assert "买入→观察" in detail["verdict_drift"]
+    assert "verdict_drift" in qa.warned(rows)
+
+
+def _replace_verdict(base, verdict, evidence_hash):
+    (base / "snapshot" / "verdict.json").write_text(
+        json.dumps(_verdict_record(verdict, evidence_hash)), encoding="utf-8"
+    )
