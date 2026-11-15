@@ -54,7 +54,7 @@
 
 ```
 .\.venv\Scripts\python.exe -m pytest -o addopts= -q -p no:cacheprovider
-→ 829 passed（W2.1 第一切片之后；golden 哈希不变）
+→ 830 passed（W2.1 第一切片 + QA 重复指标降噪之后；golden 哈希不变）
 
 # W2.1 数字迁移进度
 .\.venv\Scripts\python.exe scripts\inventory_numbers.py --out docs\report-numbers.md

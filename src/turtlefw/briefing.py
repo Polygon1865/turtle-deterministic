@@ -135,6 +135,8 @@ def build_briefing(day_dir: Path, *, limit: int = 6) -> Briefing:
 
     verdicts = Counter(verdict for _, verdict, _ in rows)
     qa_ok = sum(1 for row, _, _ in rows if str(row.get("qa")) == "PASS")
+    qa_warn = sum(1 for row, _, _ in rows if str(row.get("qa")).upper() == "WARN")
+    qa_fail = sum(1 for row, _, _ in rows if str(row.get("qa")).upper() == "FAIL")
     research_on = sum(1 for row, _, _ in rows if str(row.get("research")) == "on")
     research_fallback = sum(1 for row, _, _ in rows if str(row.get("research")) == "fallback")
     research_off = sum(1 for row, _, _ in rows if str(row.get("research")) in {"off", ""})
@@ -162,7 +164,7 @@ def build_briefing(day_dir: Path, *, limit: int = 6) -> Briefing:
             (
                 "**规模**："
                 f"A股 {markets.get('A', 0)} 只 / 港股 {markets.get('HK', 0)} 只；"
-                f"QA PASS {qa_ok}/{len(rows)}；"
+                f"QA 通过 {qa_ok} · WARN {qa_warn} · 失败 {qa_fail}（共 {len(rows)} 只）；"
                 f"研究 开启 {research_on} · 回退 {research_fallback} · 关闭 {research_off}"
             ),
         ]
@@ -254,10 +256,10 @@ def build_briefing(day_dir: Path, *, limit: int = 6) -> Briefing:
     qa_missed = [
         row
         for row, _, _ in rows
-        if str(row.get("qa")) not in {"PASS"} and str(row.get("code")) not in failed_codes
+        if str(row.get("qa")).upper() == "FAIL" and str(row.get("code")) not in failed_codes
     ]
     if qa_missed:
-        notes.append("QA 未 PASS：" + "、".join(str(row.get("code")) for row in qa_missed[:8]))
+        notes.append("QA 失败：" + "、".join(str(row.get("code")) for row in qa_missed[:8]))
     if not finished:
         notes.append("管线仍在运行，本简报为阶段性快照")
     if notes:

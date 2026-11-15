@@ -63,6 +63,15 @@ def test_equal_rank_stays_last_write_wins() -> None:
     assert len(registry.conflicts) == 1
 
 
+def test_rounding_only_difference_is_not_a_conflict() -> None:
+    registry = MetricRegistry()
+    registry.add(_point("4.2077", rank=3))
+    registry.add(_point("4.21", rank=3))
+
+    assert registry.conflicts == []
+    assert registry.display("payout.2025") == "4.21%"
+
+
 def test_missing_display_falls_back_to_plain_number() -> None:
     registry = MetricRegistry()
     first = MetricPoint(id="x", name="x", value=Decimal("1.5"), display="", unit="")

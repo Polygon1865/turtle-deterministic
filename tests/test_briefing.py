@@ -85,7 +85,7 @@ def test_build_briefing_contains_run_facts(tmp_path: Path) -> None:
     assert briefing.total == 3
     text = briefing.markdown
     assert "每日运行简报 · 2026-10-30" in text
-    assert "QA PASS 2/3" in text
+    assert "QA 通过 2 · WARN 0 · 失败 1（共 3 只）" in text
     assert "研究 开启 2 · 回退 0 · 关闭 1" in text
     assert "**结论分布**：买入 1 · 观察 1 · 排除 0" in text
     assert "600519.SH 贵州茅台" in text

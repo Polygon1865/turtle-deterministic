@@ -104,12 +104,27 @@ def _metric_conflict_row(base: Path) -> tuple[str, str]:
         return "FAIL", "metric_conflicts.json 无法解析"
     if not isinstance(payload, list) or not payload:
         return "PASS", "未记录重复指标"
+    meaningful = [
+        item
+        for item in payload
+        if isinstance(item, dict) and not _same_number_text(item)
+    ]
+    if not meaningful:
+        return "PASS", "重复指标无实质分歧（仅精度/单位差异）"
     heads = [
         f"{item.get('id')}（保留 rank={item.get('kept_rank')}，丢弃 rank={item.get('dropped_rank')}）"
-        for item in payload[:3]
-        if isinstance(item, dict)
+        for item in meaningful[:3]
     ]
-    return "WARN", f"{len(payload)} 个重复指标取权威源：{'；'.join(heads)}"
+    return "WARN", f"{len(meaningful)} 个重复指标取权威源：{'；'.join(heads)}"
+
+
+def _same_number_text(item: dict[str, object]) -> bool:
+    """True when kept/dropped render the same number (unit suffix ignored)."""
+
+    def bare(value: object) -> str:
+        return str(value or "").strip().rstrip("%x倍 ").strip()
+
+    return bare(item.get("kept")) == bare(item.get("dropped"))
 
 
 def _verdict_drift_row(base: Path) -> tuple[str, str]:

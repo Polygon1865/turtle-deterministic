@@ -48,6 +48,17 @@ def _plain(value: Decimal | None) -> str:
     return "—" if value is None else f"{value:,.2f}"
 
 
+def _same_display(left: MetricPoint, right: MetricPoint) -> bool:
+    """True when two points render the same number (unit suffix ignored)."""
+    return _bare_number(left.display or _plain(left.value)) == _bare_number(
+        right.display or _plain(right.value)
+    )
+
+
+def _bare_number(text: str) -> str:
+    return text.strip().rstrip("%x倍 ").strip()
+
+
 def _canonical(value: Any) -> Any:
     if isinstance(value, Decimal):
         return str(value)
@@ -176,6 +187,11 @@ class MetricRegistry:
             self.points[point.id] = point
             return
         if existing.value == point.value and existing.display == point.display:
+            self.points[point.id] = point
+            return
+        if existing.source_rank == point.source_rank and _same_display(existing, point):
+            # Rounding difference only (4.2077 vs 4.21): the registry renders
+            # both as the same number, so it is not a conflict.
             self.points[point.id] = point
             return
         winner, dropped = (
