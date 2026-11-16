@@ -272,9 +272,20 @@ def render_data_pack(
     composite = floor.composite
     stats = floor.stats
     premium = floor.premium
-    status_label = {"stable": "口径一致", "divergent": "口径分歧", "unavailable": "不可用"}[
-        stats.status
-    ]
+    earnings_composite = floor.earnings_composite
+    earnings_premium = floor.premium_earnings
+    status_label = {
+        "stable": "口径一致",
+        "divergent": "口径分歧",
+        "unavailable": "不可用",
+        "insufficient": "锚不足",
+    }.get(stats.status, stats.status)
+    earnings_label = {
+        "stable": "口径一致",
+        "divergent": "口径分歧",
+        "unavailable": "不可用",
+        "insufficient": "锚不足",
+    }.get(floor.earnings.status, floor.earnings.status)
     method_label = "中位数" if settings.valuation.composite_method == "median" else "均值"
     floor_note = (
         f"均值 {_num(stats.mean)} ｜ 中位数 {_num(stats.median)} ｜ "
@@ -339,9 +350,11 @@ def render_data_pack(
     add_metric("r", "穿透回报率 R", r_value, _pct(r_value), unit="%", formula="returns.penetration_return")
     add_metric("gg", "精算回报率 GG", gg_value, _pct(gg_value), unit="%", formula="returns.refined_return")
     add_metric("ii", "门槛 II", ii, _pct(ii), unit="%", formula="returns.threshold_ii")
-    add_metric("floor", "底价（采用）", composite, _num(composite), unit=currency.value, formula="valuation.composite")
+    add_metric("floor", "底价（资产）", composite, _num(composite), unit=currency.value, formula="valuation.composite")
     add_metric("price", "当前价", price, _num(price), unit=currency.value, formula="market.price")
-    add_metric("premium", "底价溢价", premium, _pct(premium), unit="%", formula="valuation.premium")
+    add_metric("premium", "资产溢价", premium, _pct(premium), unit="%", formula="valuation.premium")
+    add_metric("floor.earnings", "收益价值", earnings_composite, _num(earnings_composite), unit=currency.value, formula="valuation.earnings")
+    add_metric("premium.earnings", "收益价值溢价", earnings_premium, _pct(earnings_premium), unit="%", formula="valuation.premium_earnings")
     add_metric("revenue.cagr", "营业收入 CAGR", statements.revenue_cagr(rows), _ratio_pct(statements.revenue_cagr(rows)), unit="%", formula="statement.revenue_cagr")
     add_metric("net_income.cagr", "归母净利润 CAGR", statements.net_income_cagr(rows), _ratio_pct(statements.net_income_cagr(rows)), unit="%", formula="statement.net_income_cagr")
     add_metric("payout.mean", "支付率均值", mean_payout, f"{_pct(mean_payout)}（{payout_years} 年）", unit="%", formula="dividends.mean_payout")
@@ -571,12 +584,15 @@ def render_data_pack(
         ["回购 O（百万元）", _m(buyback.amount) if buyback else "0.00"],
         ["门槛 II", pack_ledger.display("ii")],
         ["R 判定", returns.classify_return(r_value, ii, rf_pct)],
-        ["底价均值", pack_ledger.display("floor.mean")],
-        ["底价中位数", pack_ledger.display("floor.median")],
-        ["口径分歧", f"{pack_ledger.display('floor.divergence')}（{status_label}）"],
-        [f"底价（采用{method_label}）", pack_ledger.display("floor")],
+        ["资产底价均值", pack_ledger.display("floor.mean")],
+        ["资产底价中位", pack_ledger.display("floor.median")],
+        ["资产口径分歧", f"{pack_ledger.display('floor.divergence')}（{status_label}）"],
+        ["底价（资产）", pack_ledger.display("floor")],
+        ["收益价值", pack_ledger.display("floor.earnings")],
+        ["收益口径", earnings_label],
+        ["收益价值溢价", pack_ledger.display("premium.earnings")],
         ["当前价", pack_ledger.display("price")],
-        ["底价溢价", pack_ledger.display("premium")],
+        ["资产溢价", pack_ledger.display("premium")],
     ]
 
     quote_rows = [
@@ -606,9 +622,11 @@ def render_data_pack(
         ["股息率（3 年均 DPS）", _pct(snapshot.dividend_yield)],
         ["EBITDA 利润率", _pct(snapshot.ebitda_margin)],
         ["商誉/总资产", _pct(snapshot.goodwill_ratio)],
-        ["底价均值", pack_ledger.display("floor.mean")],
-        ["底价中位数", pack_ledger.display("floor.median")],
-        ["口径分歧", f"{pack_ledger.display('floor.divergence')}（{status_label}）"],
+        ["资产底价均值", pack_ledger.display("floor.mean")],
+        ["资产底价中位", pack_ledger.display("floor.median")],
+        ["收益价值", pack_ledger.display("floor.earnings")],
+        ["收益价值溢价", pack_ledger.display("premium.earnings")],
+        ["资产溢价", pack_ledger.display("premium")],
     ]
 
     consolidated_cash = cash.get(latest_year) if latest_year else None

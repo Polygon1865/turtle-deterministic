@@ -214,21 +214,33 @@ def render_analysis(
     market_section = (
         f"## 市场与宏观（{extras_label}）\n\n{market_md}\n\n" if market_md else ""
     )
-    status_label = {"stable": "口径一致", "divergent": "口径分歧", "unavailable": "不可用"}[
-        stats.status
-    ]
-    method_label = "中位数" if settings.valuation.composite_method == "median" else "均值"
+    status_label = {
+        "stable": "口径一致",
+        "divergent": "口径分歧",
+        "unavailable": "不可用",
+        "insufficient": "锚不足",
+    }.get(stats.status, stats.status)
+    earnings_label = {
+        "stable": "口径一致",
+        "divergent": "口径分歧",
+        "unavailable": "不可用",
+        "insufficient": "锚不足",
+    }.get(floor.earnings.status, floor.earnings.status)
+    method_label = "中位数"
+
+    def _amt(value: Decimal | None) -> str:
+        return "—" if value is None else f"{value:,.2f}"
+
     floor_note = (
-        f"均值 {metric_ledger.display('floor.mean')} ｜ "
-        f"中位数 {metric_ledger.display('floor.median')} ｜ "
-        f"分歧 {metric_ledger.display('floor.divergence')}（{status_label}）｜ 采用{method_label}"
+        f"资产底价 {_amt(floor.asset.median)}（{status_label}）｜ "
+        f"收益价值 {_amt(floor.earnings.median)}（{earnings_label}）｜ "
+        f"十年最低价 {_amt(floor.low_10y.value if floor.low_10y else None)}｜ "
+        f"有效锚点 {len(baselines)}/5"
     )
-    if len(baselines) < 5:
-        floor_note += f"；有效锚点 {len(baselines)}/5（缺失或非正已剔除）"
-    if stats.status == "divergent":
-        floor_note += "。均值受极值影响，建议以中位数为准，且仓位不高于「观察」。"
-    elif stats.status == "unavailable":
-        floor_note += "。底价不可用，无法据此确认安全边际。"
+    if not floor.sufficient:
+        floor_note += "；锚点不足 3 个，不计算溢价、不做底价降级"
+    elif floor.earnings.status == "divergent":
+        floor_note += "；收益价值口径分歧，仓位不高于「观察」。"
 
     def checks_table(result: FactorResult) -> str:
         return _table(
@@ -423,12 +435,14 @@ def render_analysis(
     thesis_core = (
         f"当前价 {metric_ledger.display('price')}，GG {metric_ledger.display('gg')} vs "
         f"II {metric_ledger.display('ii')}，安全边际 {metric_ledger.display('margin')}；"
-        f"底价溢价 {metric_ledger.display('premium')}，可信度 {f4_metrics.get('外推可信度', '—')}，"
+        f"资产溢价 {metric_ledger.display('premium')}、收益价值溢价 "
+        f"{f4_metrics.get('收益价值溢价', '—')}，可信度 {f4_metrics.get('外推可信度', '—')}，"
         f"价值陷阱 {f4_metrics.get('价值陷阱', '—')}。"
     )
     thesis_reasons = [
         f"穿透回报：R {metric_ledger.display('r')} / GG {metric_ledger.display('gg')}，门槛 II {metric_ledger.display('ii')}。",
-        f"估值与安全边际：EV/EBITDA {metric_ledger.display('ev_ebitda')}，FCF 收益率 {metric_ledger.display('fcf_yield')}，底价溢价 {metric_ledger.display('premium')}。",
+        f"估值与安全边际：EV/EBITDA {metric_ledger.display('ev_ebitda')}，FCF 收益率 {metric_ledger.display('fcf_yield')}，"
+        f"资产溢价 {metric_ledger.display('premium')}、收益价值溢价 {f4_metrics.get('收益价值溢价', '—')}。",
         f"分配与现金：支付率 {metric_ledger.display('payout.mean')}，净现金 {metric_ledger.display('net_cash.latest')} 百万元。",
     ]
     thesis_monitor = [
@@ -443,7 +457,7 @@ def render_analysis(
         f"分红率维持或提升（当前 {metric_ledger.display('payout.mean')}）",
         f"FCF 连续为正、净现金改善（当前 {metric_ledger.display('net_cash.latest')} 百万元）",
         "回购/增持落地" if ctx.buyback else "暂无回购/增持数据",
-        f"估值回到门槛价 {f4_metrics.get('门槛对应价', '—')} 附近",
+        f"估值回到按门槛反推价 {f4_metrics.get('按门槛反推价', '—')} 附近",
     ]
     thesis_holding = (
         "一年至两年（等待估值修复/分红兑现）"
@@ -556,8 +570,10 @@ def render_analysis(
                 ],
                 ["因子4 原始结论", dict(results["4"].metrics).get("结论", "—")],
                 ["最终结论", verdict],
-                ["底价（综合）", metric_ledger.display("floor")],
-                ["当前价溢价", metric_ledger.display("premium")],
+                ["底价（资产）", metric_ledger.display("floor")],
+                ["收益价值", dict(results["4"].metrics).get("收益价值（中位）", "—")],
+                ["按门槛反推价", dict(results["4"].metrics).get("按门槛反推价", "—")],
+                ["当前价溢价（资产）", metric_ledger.display("premium")],
             ],
             ["l", "r"],
         ),

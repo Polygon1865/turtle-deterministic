@@ -631,7 +631,7 @@ def render(
         "gg": dict(results["3"].metrics).get("精算回报率 GG", "—"),
         "ii": dict(results["2"].metrics).get("门槛 II", "—"),
         "margin": dict(results["4"].metrics).get("安全边际 KK", "—"),
-        "floor": dict(results["4"].metrics).get("底价（综合）", "—"),
+        "floor": dict(results["4"].metrics).get("资产底价（中位）", "—"),
         "price": f"{price:.2f}" if price is not None else "—",
     }
     for result in results.values():

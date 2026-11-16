@@ -1,4 +1,5 @@
 import hashlib
+import re
 from dataclasses import replace
 from decimal import Decimal
 
@@ -92,8 +93,9 @@ class TestAnalysisReport:
                 price=Decimal("28.3"),
             )
         )
-        assert "26.80" in items["底价"]
-        assert "26.80" in text
+        floor_row = re.search(r"^\| 底价（资产） \| ([\d,\.]+) \|$", text, re.MULTILINE)
+        assert floor_row, "报告缺少「底价（资产）」行"
+        assert floor_row.group(1) in items["底价"]
 
 
 class TestMetricRegistry:
@@ -101,8 +103,10 @@ class TestMetricRegistry:
         text, verdict = render()
         assert verdict == "观察"
         assert "研究依据：数据包（未使用 PDF）" in text
+        # ADR-11：2026-11-16 方案 B 拆分资产底价 / 收益价值（十年最低价退出中位数、
+        # 降级只看收益价值溢价），报告内容按设计变化，重算一次 golden。
         assert hashlib.sha256(text.encode("utf-8")).hexdigest() == (
-            "3da019ad793a3cd5939cbc63ee02559977afc2c6e498897d1453143f03391cf9"
+            "4834d7abdd692521f11b9be67e8cd8a3fb278e3ef56c60fb48cc149fdc7a0470"
         )
 
     def test_core_metric_ledger(self):

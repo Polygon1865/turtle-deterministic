@@ -70,7 +70,8 @@ _REPORT_METRIC_LABELS: tuple[tuple[str, str], ...] = (
     ("精算回报率 GG", "gg"),
     ("门槛 II", "ii"),
     ("安全边际", "margin"),
-    ("底价（综合）", "floor"),
+    ("底价（资产）", "floor"),
+    ("收益价值", "floor.earnings"),
 )
 
 

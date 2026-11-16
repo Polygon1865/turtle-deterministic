@@ -49,6 +49,7 @@
 | W0.3 结论漂移留痕 | ✅ 完成 | QA 新增 `verdict_drift` 行：对比同标的上一**数据日**的 `snapshot/verdict.json`——证据哈希相同但结论变化 → FAIL（判断变了却没有新证据）；证据哈希变化且结论变化 → WARN 并给出 `买入→观察` 与两边的 evidence 前缀；其余 PASS。真实样例（11-13/00270.HK）输出「证据更新，结论维持 买入」。测试 `tests/test_qa.py` 3 例（同哈希不同结论、同哈希同结论、证据更新换结论）。 |
 
 | W3.1 研究深度可见性 | ✅ 完成（第一切片） | QA 新增 `research_depth` 行（`src/turtlefw/qa.py::_research_depth`）：读 `base/research.json`（缺失回退 `snapshot/research.json`），按 `DEPTH_MIN_CLAIMS=10`、`DEPTH_MIN_EVIDENCE_RATIO=1.5` 判定——claims <10 或 证据/判断 <1.5 → WARN 并给出实际数字；无研究文档 → PASS「未使用 research」；文件坏 → FAIL。真实样例：`.runs/daily/2026-11-13` 的 00270.HK → `WARN 6 条判断 < 10（证据 11 条，1.8 条/判断）`，06862.HK → `PASS 10 条判断 / 15 条证据（1.5 条/判断）`。只做可见性、不阻断（生成阈值仍是配置项，避免把「研究略薄」直接变成回退）。测试 `tests/test_qa.py` 4 例（薄文档、证据比不足、达标、无研究）。 |
+| W2.6 底价拆分（方案 B）+ 港股分红真实化 | ✅ 完成（用户批准方案 B） | 底价从「五锚一个中位数」拆成两组：`floor`（资产安全垫：净流动资产/股 + 每股净资产）与 `floor.earnings`（收益价值：股息隐含价 + 悲观 FCF 资本化），十年最低价单独作 `floor.low_10y` 不进中位数；单锚组判 `insufficient` 并显示「—」，不再出现「一个锚也说口径一致」；`premium`/`premium.earnings` 分开输出，降级只看收益价值溢价（>150% 或收益组 divergent），资产溢价不再触发降级。渲染/QA/公式登记同步（`floor.earnings`、`premium.earnings`、`floor.low_10y`）。港股分红改为 yfinance `Ticker.dividends` 的真实除息事件（按除息月 ≥7 归当年，`divi_ratio` 只作 payout 兜底），`_completed_fiscal_year` 认除息日事件；实测 06862 数据包「3. 分红历史」显示 2020/2022/2023/2024/2025/2026 六个财年共 9 条事件（DPS 0.0193→0.8262，不再每年同一个 TTM 值），00506/00270 同理；已有冻结快照仍带旧的假历史，需下一次 daily 重跑才刷新。replay 11-16 的 40 只：**7 只从观察翻为买入**（000651、000755、00220、00857、03660、06862、300641），其余 33 只结论不变；QA/报告/数据包口径一致。测试全量 830 passed（`test_report_consistency` 的 golden 哈希按 ADR-11 记录差异后更新为 `4834d7ab…`）。 |
 
 ## 本轮验证
 
@@ -59,6 +60,15 @@
 # W2.1 数字迁移进度
 .\.venv\Scripts\python.exe scripts\inventory_numbers.py --out docs\report-numbers.md
 → 盘点 84 处（pack.py 32 / market.py 26 / extras.py 17 / analysis.py 6 / html.py 3）
+
+# 方案 B 回放（11-16 冻结快照重渲，不重新取数）
+.\.venv\Scripts\python.exe tmp\replay_planb.py .runs\daily\2026-11-16
+→ replayed 40 stocks, flips 7：000651/000755/00220.HK/00857.HK/03660.HK/06862.HK/300641 由「观察」变「买入」
+→ 其余 33 只结论不变（00270/03877/06069 仍买入；01378 因收益组锚点不足仍观察）
+
+# 分红历史（港股真实事件源）
+.\.venv\Scripts\python.exe -m turtlefw.cli pack 06862.HK --out tmp\c2_pack.md
+→ 3. 分红历史：9 条除息事件（2020/2022/2023/2024/2025/2026），不再每年重复同一 TTM DPS
 
 # W3.1 研究深度（真实样例）
 .\.venv\Scripts\python.exe -c "from pathlib import Path; from turtlefw import qa; print([r for r in qa.run_qa('00270.HK', root=Path('.runs/daily/2026-11-13')) if r[0]=='research_depth'])"

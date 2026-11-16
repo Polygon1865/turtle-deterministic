@@ -162,7 +162,7 @@ def build(
     _from_result(
         registry,
         "floor",
-        "底价（综合）",
+        "底价（资产）",
         _display(False, composite),
         unit=ctx.market_cap.currency.value,
         formula_id="valuation.composite",

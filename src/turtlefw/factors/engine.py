@@ -472,8 +472,12 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
     )
     baselines = floor.baselines
     composite = floor.composite
-    stats = floor.stats
+    # Group-level numbers come from the family that owns them; ``floor.stats``
+    # is left for the legacy single-composite path and is no longer displayed.
     floor_premium = floor.premium
+    earnings_composite = floor.earnings_composite
+    earnings_premium = floor.premium_earnings
+    low_10y = floor.low_10y.value if floor.low_10y is not None else None
 
     if gg is None or margin is None:
         position, verdict = "观察仓位", "观察"
@@ -496,14 +500,17 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
     else:
         position, verdict = "观察仓位", "观察"
 
+    # The cap is anchored to the earnings family only: a high book value or a
+    # ten-year low says nothing about whether the cash return is rich enough.
     caps: list[str] = []
-    if floor_premium is not None:
-        if floor_premium > Decimal("150"):
-            caps.append(f"底价溢价 {floor_premium:.2f}% > 150%")
-        elif stats.status == "divergent":
-            caps.append(f"底价口径分歧（均值/中位数偏离 {stats.divergence:.2f}%）")
-    elif stats.status == "unavailable":
-        caps.append("底价不可用")
+    if earnings_premium is not None:
+        if earnings_premium > Decimal("150"):
+            caps.append(f"收益价值溢价 {earnings_premium:.2f}% > 150%")
+        elif floor.earnings.status == "divergent":
+            caps.append(
+                "收益价值口径分歧（均值/中位数偏离 "
+                f"{floor.earnings.divergence:.2f}%）"
+            )
     if not payout_reliable:
         caps.append("支付率三法口径冲突（法2 含利息/少数股东股利，属上界）")
     if caps and verdict == "买入":
@@ -686,21 +693,27 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
                 ("外推可信度", confidence.overall),
                 ("价值陷阱", f"{traps} 项"),
                 ("股价历史分位", _pct(percentile)),
-                ("门槛对应价", _num_price(target)),
-                ("底价中位数", _num_price(stats.median)),
-                ("底价（采用）", _num_price(composite)),
-                ("底价溢价", _pct(floor_premium)),
-                ("底价口径", stats.status),
+                ("按门槛反推价", _num_price(target)),
+                ("资产底价（中位）", _num_price(floor.asset.median)),
+                ("收益价值（中位）", _num_price(floor.earnings.median)),
+                ("十年最低价", _num_price(low_10y)),
+                ("资产溢价", _pct(floor_premium)),
+                ("收益价值溢价", _pct(earnings_premium)),
+                ("底价锚数", f"{len(baselines)}/5"),
+                ("底价口径", f"资产 {floor.asset.status} / 收益 {floor.earnings.status}"),
                 ("仓位建议", position),
                 ("结论", verdict),
             ),
             values=(
                 ("margin", margin),
                 ("floor", composite),
-                ("floor.mean", stats.mean),
-                ("floor.median", stats.median),
-                ("floor.divergence", stats.divergence),
+                ("floor.mean", floor.asset.mean),
+                ("floor.median", floor.asset.median),
+                ("floor.divergence", floor.asset.divergence),
+                ("floor.earnings", earnings_composite),
+                ("floor.low_10y", low_10y),
                 ("premium", floor_premium),
+                ("premium.earnings", earnings_premium),
                 ("price", ctx.price),
                 ("ev_ebitda", ctx.snapshot.ev_ebitda),
                 ("net_debt_ebitda", ctx.snapshot.net_debt_ebitda),
@@ -719,7 +732,10 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
             ),
             notes=(
                 f"价值陷阱触发 {traps} 项（含护城河/行业/管理层三项定性陷阱，unknown 不计数）。",
-                "GG ≥ II 时『门槛对应价』是上限参考，不是必须等到的买点。",
+                "底价拆成两组：资产安全垫（净流动资产/每股净资产）与收益价值（股息隐含价/FCF 资本化）；"
+                "十年最低价只作参考，不参与中位数。",
+                "降级约束只看收益价值溢价；资产底价高溢价不再单独触发降级。",
+                "GG ≥ II 时『按门槛反推价』是上限参考，不是必须等到的买点。",
             ),
         ),
     }

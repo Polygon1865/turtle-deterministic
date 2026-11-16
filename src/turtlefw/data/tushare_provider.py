@@ -258,6 +258,7 @@ class TushareProvider:
         self._hk_daily: dict[str, list[dict]] = {}
         self._hk_failed: set[str] = set()
         self._hk_yf: dict[str, tuple[list[dict], dict]] = {}
+        self._hk_dividend_series: dict[str, list[tuple[date, Decimal]]] = {}
         self._hk_universe_cache: list[dict] | None = None
         self._hk_market_cache: dict[str, list[dict]] = {}
         self._hk_market_source = "tushare:hk_daily"
@@ -739,6 +740,73 @@ class TushareProvider:
         self._hk_yf[key] = (history, quote)
         return self._hk_yf[key]
 
+    def _hk_yf_dividends(self, code: StockCode) -> list[tuple[date, Decimal]]:
+        """Real HK distribution history from Yahoo Finance (ex-date, DPS in HKD).
+
+        ``hk_fina_indicator.dps_hkd`` is a TTM field that the vendor repeats on
+        every annual row, so it cannot answer "how much did this company pay in
+        2022". Yahoo keeps the actual ex-dividend events, which is what the
+        three-to-five-year DPS average needs.
+        """
+        key = str(code)
+        if key in self._hk_dividend_series:
+            return self._hk_dividend_series[key]
+        payload: list[tuple[date, Decimal]] = []
+        try:
+            import yfinance as yf
+
+            ticker = yf.Ticker(f"{int(code.numeric):04d}.HK")
+            series = ticker.dividends
+            if series is not None and len(series):
+                for index, value in series.items():
+                    event_date = pd.Timestamp(index).date()
+                    try:
+                        dps = Decimal(str(float(value)))
+                    except (TypeError, ValueError):
+                        continue
+                    if dps <= 0:
+                        continue
+                    payload.append((event_date, dps))
+        except Exception as exc:  # noqa: BLE001 - optional external source
+            self._issues.append(
+                FetchIssue("yfinance", key, f"HK dividends failed: {exc}")
+            )
+        payload.sort()
+        self._hk_dividend_series[key] = payload
+        return payload
+
+    def _hk_yf_dividend_events(
+        self,
+        code: StockCode,
+        *,
+        currency: Currency,
+        dps_fx: Decimal,
+        payouts: dict[int, Decimal | None],
+    ) -> list[DividendEvent]:
+        """Knit Yahoo ex-dates into fiscal years (HK year-end is usually Dec).
+
+        A distribution paid in July-December belongs to that calendar year's
+        fiscal year; one paid in January-June is the prior year's final
+        dividend. Names with a March fiscal year will be off by one year, which
+        the data-pack note makes explicit.
+        """
+        events: list[DividendEvent] = []
+        for event_date, dps in self._hk_yf_dividends(code):
+            fiscal_year = (
+                event_date.year if event_date.month >= 7 else event_date.year - 1
+            )
+            events.append(
+                DividendEvent(
+                    fiscal_year=fiscal_year,
+                    event_id=event_date.isoformat(),
+                    dps=dps * dps_fx,
+                    currency=currency,
+                    ann_date=event_date,
+                    payout_pct=payouts.get(fiscal_year),
+                )
+            )
+        return events
+
     def _yf_us(self, code: StockCode):
         key = str(code)
         if key not in self._us_yf:
@@ -1072,8 +1140,18 @@ class TushareProvider:
                 frame = self._safe("dividend", ts_code=str(code), fields=DIVIDEND_FIELDS)
             events = dividend_events(frame, currency=unit)
         elif code.market is Market.HK:
-            frame = self._safe("hk_fina_indicator", ts_code=str(code), fields=HK_DIVIDEND_FIELDS)
-            events = hk_dividend_events(frame, currency=unit, dps_fx=dps_fx)
+            frame = self._safe(
+                "hk_fina_indicator", ts_code=str(code), fields=HK_DIVIDEND_FIELDS
+            )
+            vendor_events = hk_dividend_events(frame, currency=unit, dps_fx=dps_fx)
+            payouts = {
+                event.fiscal_year: event.payout_pct for event in vendor_events
+            }
+            events = self._hk_yf_dividend_events(
+                code, currency=unit, dps_fx=dps_fx, payouts=payouts
+            )
+            if not events:
+                events = vendor_events
         elif code.market is Market.US:
             events = self._yf_us_dividends(code, years=years)
         else:

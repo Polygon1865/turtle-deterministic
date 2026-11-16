@@ -88,8 +88,19 @@ def mean_payout(
     return sum(values, Decimal("0")) / Decimal(len(values)), len(values)
 
 
-def _completed_fiscal_year(events: Sequence[DividendEvent]) -> bool:
-    """Whether the dividend rows for one fiscal year include a year-end event."""
+def _completed_fiscal_year(
+    events: Sequence[DividendEvent], *, fiscal_year: int | None = None
+) -> bool:
+    """Whether the dividend rows for one fiscal year are complete.
+
+    Two vendor shapes exist:
+
+    * A-share rows carry the fiscal period-end as the id (``2024-12-31``), so a
+      year-end row marks completion.
+    * HK rows carry the *ex-date* (``2025-06-17``). The final dividend is usually
+      paid in the following calendar year, so any dated event after the fiscal
+      year end means the year is complete.
+    """
     dated = []
     for event in events:
         raw = event.event_id.split(":", 1)[0]
@@ -98,7 +109,10 @@ def _completed_fiscal_year(events: Sequence[DividendEvent]) -> bool:
     if not dated:
         # Vendors that emit one annual DPS row use the fiscal year as the id.
         return True
-    return any(event_id[5:] == "12-31" for event_id in dated)
+    if any(event_id[5:] == "12-31" for event_id in dated):
+        return True
+    year = fiscal_year if fiscal_year is not None else int(dated[0][:4])
+    return any(int(event_id[:4]) > year for event_id in dated)
 
 
 def average_dps(dividends: Sequence[DividendEvent], years: int = 3) -> Decimal | None:
@@ -115,7 +129,9 @@ def average_dps(dividends: Sequence[DividendEvent], years: int = 3) -> Decimal |
     for event in reliable:
         per_year[event.fiscal_year].append(event)
     completed = [
-        year for year, events in per_year.items() if _completed_fiscal_year(events)
+        year
+        for year, events in per_year.items()
+        if _completed_fiscal_year(events, fiscal_year=year)
     ]
     recent = sorted(completed)[-years:]
     if not recent:

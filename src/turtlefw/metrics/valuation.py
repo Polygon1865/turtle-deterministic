@@ -178,12 +178,71 @@ def floor_stats(
     return FloorStats(mean, median, divergence, status)
 
 
+ASSET_ANCHORS = ("净流动资产/股", "每股净资产")
+EARNINGS_ANCHORS = ("股息隐含价", "悲观FCF资本化")
+MIN_ANCHORS = 3
+
+
+@dataclass(frozen=True, slots=True)
+class FloorGroup:
+    """One family of anchors (asset or earnings) with its own median.
+
+    Mixing a liquidation value with a capitalised earnings stream and then
+    taking one median is what made the old composite collapse onto book value
+    for high-ROE names. Each family is summarised only when it has at least two
+    anchors; otherwise it is ``insufficient`` and produces no premium at all.
+    """
+
+    name: str
+    baselines: tuple[Baseline, ...]
+    median: Decimal | None
+    mean: Decimal | None
+    divergence: Decimal | None
+    status: str  # insufficient | stable | divergent
+
+    @property
+    def value(self) -> Decimal | None:
+        return self.median
+
+    @property
+    def usable(self) -> bool:
+        return self.status != "insufficient" and self.median is not None
+
+
+def build_group(
+    name: str,
+    baselines: Iterable[Baseline],
+    threshold: Decimal = Decimal("20"),
+) -> FloorGroup:
+    items = tuple(
+        baseline for baseline in baselines if baseline.value > 0
+    )
+    if not items:
+        return FloorGroup(name, (), None, None, None, "insufficient")
+    if len(items) == 1:
+        # A single anchor is not a valuation, it is a data point. Reporting it
+        # as a median is how 03877 ended up "consistent" with one anchor while
+        # sitting 141% above its ten-year low.
+        return FloorGroup(name, items, None, None, None, "insufficient")
+    stats = floor_stats(items, threshold)
+    return FloorGroup(
+        name, items, stats.median, stats.mean, stats.divergence, stats.status
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class FloorResult:
     baselines: tuple[Baseline, ...]
+    asset: FloorGroup
+    earnings: FloorGroup
+    low_10y: Baseline | None
+    sufficient: bool
     composite: Decimal | None
     stats: "FloorStats"
     premium: Decimal | None
+    earnings_composite: Decimal | None
+    earnings_stats: "FloorStats"
+    premium_earnings: Decimal | None
 
 
 def compute_floor(
@@ -202,7 +261,13 @@ def compute_floor(
     composite_method: str = "median",
     divergence_threshold: Decimal = Decimal("20"),
 ) -> FloorResult:
-    """Single deterministic floor calculation for report, pack and CLI."""
+    """Single deterministic floor calculation for report, pack and CLI.
+
+    The five anchors are summarised in two families (asset / earnings). The
+    ten-year low is kept as a standalone reference and never enters a median.
+    Fewer than three valid anchors in total marks the whole result as
+    ``insufficient``: no premium, no cap.
+    """
     baselines = tuple(
         five_baselines(
             cash=cash,
@@ -217,16 +282,49 @@ def compute_floor(
             dividend_floor_pct=dividend_floor_pct,
         )
     )
-    composite, stats = choose_composite(
-        baselines,
-        composite_method,
+    asset = build_group(
+        "资产安全垫",
+        (baseline for baseline in baselines if baseline.name in ASSET_ANCHORS),
         divergence_threshold,
+    )
+    earnings = build_group(
+        "收益价值",
+        (baseline for baseline in baselines if baseline.name in EARNINGS_ANCHORS),
+        divergence_threshold,
+    )
+    low_10y = next(
+        (baseline for baseline in baselines if baseline.name == "10年最低价"), None
+    )
+    sufficient = len(baselines) >= MIN_ANCHORS and asset.usable and earnings.usable
+    # Each family keeps its own median as soon as it has two anchors; premiums
+    # are computed per family so "资产溢价" and "收益价值溢价" never borrow the
+    # other family's number.
+    composite = asset.value
+    earnings_composite = earnings.value
+    asset_stats = (
+        floor_stats(asset.baselines, divergence_threshold)
+        if asset.baselines
+        else FloorStats(None, None, None, "insufficient")
+    )
+    earnings_stats = (
+        floor_stats(earnings.baselines, divergence_threshold)
+        if earnings.baselines
+        else FloorStats(None, None, None, "insufficient")
     )
     return FloorResult(
         baselines=baselines,
+        asset=asset,
+        earnings=earnings,
+        low_10y=low_10y,
+        sufficient=sufficient,
         composite=composite,
-        stats=stats,
+        stats=asset_stats,
         premium=premium(price, composite) if price is not None else None,
+        earnings_composite=earnings_composite,
+        earnings_stats=earnings_stats,
+        premium_earnings=(
+            premium(price, earnings_composite) if price is not None else None
+        ),
     )
 
 
