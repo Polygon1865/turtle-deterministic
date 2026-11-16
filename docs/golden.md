@@ -59,3 +59,7 @@ verdict、R/GG/II/安全边际/底价/溢价/支付率/价格/PB/FCF 收益率�
   PR/提交说明里写清「方案 B 口径变更」；之后的差异才是回归信号。
 - 若要重冻结某天：删掉对应 `tests/fixtures/golden-daily-<date>.json` 再 `freeze`，
   不要手改 JSON（ADR-11 第 3、4 条）。
+- 2026-11-16 已按方案 B（含「收益组锚点不足 → 结论封顶观察」）重新运行并冻结为
+  `tests/fixtures/golden-daily-2026-11-16.json`：40 只、QA 2 PASS / 38 WARN、
+  研究 38 on / 2 回退，结论 买入 9 / 观察 12 / 排除 19。它是方案 B 之后的第一份
+  golden，可作为后续新口径差异的起点。

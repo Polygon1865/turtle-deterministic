@@ -44,7 +44,7 @@
 
 1. **支付率**：榜单/报告一律以 `payout.latest` 为可比口径；`payout`（三年均值）只用于展示。二者差异由 `payout_consistency` 行暴露，不允许同日两产物出现两个值。
 2. **市值币种**：港股 `hk_fina_indicator.total_market_cap` 是 HKD；榜单（`ranking_hk.csv` 的 `market_cap`）与报告统一按 `fx.cny_per_hkd` 折成 CNY，另存 `market_cap_hkd` 供核对。市值门槛 `--min-market-cap-yi` 也是 CNY 口径。
-3. **底价 vs 安全边际**：底价拆成两组——`floor`（资产安全垫：净流动资产/股、每股净资产）与 `floor.earnings`（收益价值：股息隐含价、悲观 FCF 资本化）；十年最低价只作参考，不进中位数。`premium` 是价格相对资产底价的溢价，`premium.earnings` 是相对收益价值的溢价；只有 `premium.earnings > 150%` 或收益组 divergent 才会把「买入」降为「观察」，资产组溢价不降级。`margin` 是 GG 相对门槛的余量（百分点）。三者不可互相替代，报告结论按 `margin` 与价值陷阱判定。
+3. **底价 vs 安全边际**：底价拆成两组——`floor`（资产安全垫：净流动资产/股、每股净资产）与 `floor.earnings`（收益价值：股息隐含价、悲观 FCF 资本化）；十年最低价只作参考，不进中位数。`premium` 是价格相对资产底价的溢价，`premium.earnings` 是相对收益价值的溢价；只有 `premium.earnings > 150%` 或收益组 divergent 才会把「买入」降为「观察」，资产组溢价不降级。收益组锚点不足两个（`insufficient`，例如近五年 FCF 有负数、或不足三个已完成财年的 DPS）时，`floor.earnings` 显示 `—`、不计算溢价，**结论封顶「观察」**：只有资产底价不足以证明现金回报达标。`margin` 是 GG 相对门槛的余量（百分点）。三者不可互相替代，报告结论按 `margin` 与价值陷阱判定。
 
 ## 4. 容差与门
 

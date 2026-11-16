@@ -123,7 +123,7 @@ class Provider(Protocol):
         code: StockCode,
         *,
         currency: Currency | None = None,
-        years: int = 6,
+        years: int = 10,
         dps_fx: Decimal = Decimal("1"),
     ) -> list[DividendEvent]: ...
 

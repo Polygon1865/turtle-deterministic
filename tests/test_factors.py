@@ -5,7 +5,7 @@ import pytest
 
 from turtlefw import demo
 from turtlefw.config import load_settings
-from turtlefw.factors.engine import FactorContext, final_verdict, run
+from turtlefw.factors.engine import FactorContext, cap_verdict, final_verdict, run
 from turtlefw.metrics.valuation import build_valuation
 from turtlefw.qualitative import Evidence, Judgment, Qualitative
 from turtlefw.types import Currency, Money
@@ -226,6 +226,66 @@ class TestEngine:
             run(replace(context(), sbc=Money(Decimal("1000000000"), Currency.CNY)))["3"].metrics
         )["精算回报率 GG"]
         assert Decimal(with_sbc.rstrip("%")) < Decimal(base.rstrip("%"))
+
+
+class TestCapVerdict:
+    def test_insufficient_earnings_caps_buy(self):
+        verdict, position, caps = cap_verdict(
+            "买入",
+            "70%",
+            earnings_status="insufficient",
+            earnings_divergence=None,
+            earnings_premium=None,
+            payout_reliable=True,
+        )
+        assert (verdict, position) == ("观察", "观察仓位")
+        assert any("收益价值锚点不足" in c for c in caps)
+
+    def test_rich_earnings_premium_caps_buy(self):
+        verdict, _, caps = cap_verdict(
+            "买入",
+            "70%",
+            earnings_status="stable",
+            earnings_divergence=Decimal("3"),
+            earnings_premium=Decimal("180"),
+            payout_reliable=True,
+        )
+        assert verdict == "观察"
+        assert any("> 150%" in c for c in caps)
+
+    def test_divergent_earnings_caps_buy(self):
+        verdict, _, caps = cap_verdict(
+            "买入",
+            "70%",
+            earnings_status="divergent",
+            earnings_divergence=Decimal("24.5"),
+            earnings_premium=Decimal("10"),
+            payout_reliable=True,
+        )
+        assert verdict == "观察"
+        assert any("口径分歧" in c for c in caps)
+
+    def test_usable_earnings_keeps_buy(self):
+        verdict, position, caps = cap_verdict(
+            "买入",
+            "70%",
+            earnings_status="stable",
+            earnings_divergence=Decimal("3"),
+            earnings_premium=Decimal("20"),
+            payout_reliable=True,
+        )
+        assert (verdict, position, caps) == ("买入", "70%", ())
+
+    def test_asset_only_warning_does_not_cap_non_buy(self):
+        verdict, position, _ = cap_verdict(
+            "观察",
+            "观察仓位",
+            earnings_status="insufficient",
+            earnings_divergence=None,
+            earnings_premium=None,
+            payout_reliable=True,
+        )
+        assert (verdict, position) == ("观察", "观察仓位")
 
 
 class TestValuationSnapshot:

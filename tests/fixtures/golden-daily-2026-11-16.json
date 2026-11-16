@@ -1,0 +1,1142 @@
+{
+  "date": "2026-11-16",
+  "trade_date": "20261116",
+  "ok": true,
+  "counts": {
+    "stocks": 40,
+    "ok": 40,
+    "qa_pass": 2,
+    "research_on": 38
+  },
+  "stocks": {
+    "000651.SZ": {
+      "name": "格力电器",
+      "market": "A",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "观察",
+      "reason": "估值或数据仍待确认",
+      "claims": 8,
+      "metrics": {
+        "r": 7.1913,
+        "gg": 6.0861,
+        "ii": 3.8,
+        "margin": 2.2861,
+        "floor": 18.2,
+        "premium": 112.38,
+        "payout": 51.7437,
+        "price": 38.66,
+        "pb": 1.4839,
+        "fcf_yield": 20.6261
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "research_grade",
+        "research_depth"
+      ]
+    },
+    "000755.SZ": {
+      "name": "山西高速",
+      "market": "A",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "买入",
+      "reason": "估值达标且未触发价值陷阱",
+      "claims": 11,
+      "metrics": {
+        "r": 3.5415,
+        "gg": 7.6831,
+        "ii": 3.8,
+        "margin": 3.8831,
+        "floor": null,
+        "premium": null,
+        "payout": 46.8154,
+        "price": 4.87,
+        "pb": 1.2947,
+        "fcf_yield": 16.1801
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "verdict_drift",
+        "metric_conflicts",
+        "research_grade"
+      ]
+    },
+    "000921.SZ": {
+      "name": "海信家电",
+      "market": "A",
+      "status": "ok",
+      "qa": "PASS",
+      "research": "fallback",
+      "coverage": "1.0",
+      "verdict": "排除",
+      "reason": "因子1B「现金上游障碍」触发否决",
+      "claims": 11,
+      "metrics": {
+        "r": 2.4502,
+        "gg": -1.1322,
+        "ii": 3.8,
+        "margin": -4.9322,
+        "floor": 13.28,
+        "premium": 68.61,
+        "payout": 51.752,
+        "price": 22.4,
+        "pb": 1.7743,
+        "fcf_yield": 11.8787
+      },
+      "structure": "PASS",
+      "qa_fail": []
+    },
+    "00220.HK": {
+      "name": "统一企业中国",
+      "market": "HK",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "买入",
+      "reason": "估值达标且未触发价值陷阱",
+      "claims": 10,
+      "metrics": {
+        "r": 4.1756,
+        "gg": 6.9303,
+        "ii": 5.0,
+        "margin": 1.9303,
+        "floor": null,
+        "premium": null,
+        "payout": 100.0,
+        "price": 7.85,
+        "pb": 2.4937,
+        "fcf_yield": 6.4861
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "verdict_drift",
+        "metric_conflicts",
+        "research_grade"
+      ]
+    },
+    "002249.SZ": {
+      "name": "大洋电机",
+      "market": "A",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "排除",
+      "reason": "因子1A「商业模式未被验证」触发否决",
+      "claims": 16,
+      "metrics": {
+        "r": 2.5069,
+        "gg": 4.5972,
+        "ii": 3.8,
+        "margin": 0.7972,
+        "floor": 2.46,
+        "premium": 221.78,
+        "payout": 66.0909,
+        "price": 7.92,
+        "pb": 1.982,
+        "fcf_yield": 6.4092
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "research_grade",
+        "research_depth"
+      ]
+    },
+    "002367.SZ": {
+      "name": "康力电梯",
+      "market": "A",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "排除",
+      "reason": "估值未通过门槛",
+      "claims": 13,
+      "metrics": {
+        "r": 4.4949,
+        "gg": 3.1944,
+        "ii": 3.8,
+        "margin": -0.6056,
+        "floor": 3.7,
+        "premium": 34.51,
+        "payout": 59.9068,
+        "price": 4.98,
+        "pb": 1.0977,
+        "fcf_yield": 12.6984
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "research_grade"
+      ]
+    },
+    "002478.SZ": {
+      "name": "常宝股份",
+      "market": "A",
+      "status": "ok",
+      "qa": "PASS",
+      "research": "fallback",
+      "coverage": "1.0",
+      "verdict": "排除",
+      "reason": "因子1B「现金上游障碍」触发否决",
+      "claims": 17,
+      "metrics": {
+        "r": 3.4085,
+        "gg": 2.7845,
+        "ii": 3.8,
+        "margin": -1.0155,
+        "floor": 5.04,
+        "premium": 6.01,
+        "payout": 33.4424,
+        "price": 5.34,
+        "pb": 0.8014,
+        "fcf_yield": 8.9227
+      },
+      "structure": "PASS",
+      "qa_fail": []
+    },
+    "002483.SZ": {
+      "name": "润邦股份",
+      "market": "A",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "排除",
+      "reason": "因子1B「现金上游障碍」触发否决",
+      "claims": 14,
+      "metrics": {
+        "r": 2.0124,
+        "gg": 3.0022,
+        "ii": 3.8,
+        "margin": -0.7978,
+        "floor": 4.61,
+        "premium": 24.4,
+        "payout": 83.9379,
+        "price": 5.73,
+        "pb": 1.122,
+        "fcf_yield": 22.721
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "research_grade"
+      ]
+    },
+    "002616.SZ": {
+      "name": "长青集团",
+      "market": "A",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "排除",
+      "reason": "因子1A「商业模式未被验证」触发否决",
+      "claims": 7,
+      "metrics": {
+        "r": -2.8877,
+        "gg": 3.9144,
+        "ii": 3.8,
+        "margin": 0.1144,
+        "floor": null,
+        "premium": null,
+        "payout": 54.3435,
+        "price": 4.74,
+        "pb": 1.125,
+        "fcf_yield": 16.5663
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "metric_conflicts",
+        "research_grade",
+        "research_depth"
+      ]
+    },
+    "00270.HK": {
+      "name": "粤海投资",
+      "market": "HK",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "观察",
+      "reason": "估值或数据仍待确认",
+      "claims": 11,
+      "metrics": {
+        "r": 6.0943,
+        "gg": 9.9946,
+        "ii": 5.0,
+        "margin": 4.9946,
+        "floor": null,
+        "premium": null,
+        "payout": 87.7767,
+        "price": 8.16,
+        "pb": 1.3769,
+        "fcf_yield": 11.9246
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "verdict_drift",
+        "metric_conflicts",
+        "research_grade"
+      ]
+    },
+    "00293.HK": {
+      "name": "国泰航空",
+      "market": "HK",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "买入",
+      "reason": "估值达标且未触发价值陷阱",
+      "claims": 7,
+      "metrics": {
+        "r": 3.1274,
+        "gg": 6.9304,
+        "ii": 5.0,
+        "margin": 1.9304,
+        "floor": null,
+        "premium": null,
+        "payout": 58.8133,
+        "price": 15.25,
+        "pb": 1.7081,
+        "fcf_yield": 15.146
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "verdict_drift",
+        "metric_conflicts",
+        "research_grade",
+        "research_depth"
+      ]
+    },
+    "00506.HK": {
+      "name": "中国食品",
+      "market": "HK",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "买入",
+      "reason": "估值达标且未触发价值陷阱",
+      "claims": 6,
+      "metrics": {
+        "r": 3.2222,
+        "gg": 8.7877,
+        "ii": 5.0,
+        "margin": 3.7877,
+        "floor": null,
+        "premium": null,
+        "payout": 52.52,
+        "price": 3.62,
+        "pb": 1.4703,
+        "fcf_yield": 21.3898
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "verdict_drift",
+        "metric_conflicts",
+        "research_grade",
+        "research_depth"
+      ]
+    },
+    "00857.HK": {
+      "name": "中国石油股份",
+      "market": "HK",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "买入",
+      "reason": "估值达标且未触发价值陷阱",
+      "claims": 7,
+      "metrics": {
+        "r": 4.6707,
+        "gg": 11.0673,
+        "ii": 5.0,
+        "margin": 6.0673,
+        "floor": null,
+        "premium": null,
+        "payout": 59.1667,
+        "price": 9.56,
+        "pb": 1.0819,
+        "fcf_yield": 23.5525
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "verdict_drift",
+        "metric_conflicts",
+        "research_grade",
+        "research_depth"
+      ]
+    },
+    "00921.HK": {
+      "name": "海信家电",
+      "market": "HK",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "买入",
+      "reason": "估值达标且未触发价值陷阱",
+      "claims": 8,
+      "metrics": {
+        "r": 6.6144,
+        "gg": 7.701,
+        "ii": 5.0,
+        "margin": 2.701,
+        "floor": 6.43,
+        "premium": 155.32,
+        "payout": 58.96,
+        "price": 16.42,
+        "pb": 1.3008,
+        "fcf_yield": 16.2028
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "verdict_drift",
+        "research_grade",
+        "research_depth"
+      ]
+    },
+    "01065.HK": {
+      "name": "天津创业环保股份",
+      "market": "HK",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "观察",
+      "reason": "估值或数据仍待确认",
+      "claims": 10,
+      "metrics": {
+        "r": 2.9628,
+        "gg": 8.9672,
+        "ii": 5.0,
+        "margin": 3.9672,
+        "floor": null,
+        "premium": null,
+        "payout": 40.3067,
+        "price": 3.51,
+        "pb": 0.538,
+        "fcf_yield": 43.0157
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "metric_conflicts",
+        "research_grade",
+        "research_depth"
+      ]
+    },
+    "01277.HK": {
+      "name": "力量发展",
+      "market": "HK",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "观察",
+      "reason": "估值或数据仍待确认",
+      "claims": 7,
+      "metrics": {
+        "r": 6.7522,
+        "gg": 5.3047,
+        "ii": 5.0,
+        "margin": 0.3047,
+        "floor": null,
+        "premium": null,
+        "payout": 61.87,
+        "price": 1.48,
+        "pb": 1.5612,
+        "fcf_yield": 6.553
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "metric_conflicts",
+        "research_grade",
+        "research_depth"
+      ]
+    },
+    "01378.HK": {
+      "name": "中国宏桥",
+      "market": "HK",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "观察",
+      "reason": "估值或数据仍待确认",
+      "claims": 8,
+      "metrics": {
+        "r": 3.3331,
+        "gg": 8.7845,
+        "ii": 5.0,
+        "margin": 3.7845,
+        "floor": 7.16,
+        "premium": 144.42,
+        "payout": 76.17,
+        "price": 17.5,
+        "pb": 1.2816,
+        "fcf_yield": 16.3842
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "research_grade",
+        "research_depth"
+      ]
+    },
+    "01513.HK": {
+      "name": "丽珠医药",
+      "market": "HK",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "买入",
+      "reason": "估值达标且未触发价值陷阱",
+      "claims": 9,
+      "metrics": {
+        "r": 7.9322,
+        "gg": 9.7613,
+        "ii": 5.0,
+        "margin": 4.7613,
+        "floor": 11.4,
+        "premium": 101.57,
+        "payout": 100.0,
+        "price": 22.98,
+        "pb": 1.4693,
+        "fcf_yield": 12.5991
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "verdict_drift",
+        "research_grade",
+        "research_depth"
+      ]
+    },
+    "01883.HK": {
+      "name": "中信国际电讯",
+      "market": "HK",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "观察",
+      "reason": "估值或数据仍待确认",
+      "claims": 7,
+      "metrics": {
+        "r": 6.4317,
+        "gg": 8.2522,
+        "ii": 5.0,
+        "margin": 3.2522,
+        "floor": null,
+        "premium": null,
+        "payout": 65.21,
+        "price": 2.38,
+        "pb": 0.8847,
+        "fcf_yield": 19.4834
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "metric_conflicts",
+        "research_grade",
+        "research_depth"
+      ]
+    },
+    "01999.HK": {
+      "name": "敏华控股",
+      "market": "HK",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "排除",
+      "reason": "粗算穿透回报率未过否决门",
+      "claims": 10,
+      "metrics": {
+        "r": null,
+        "gg": null,
+        "ii": 5.0,
+        "margin": null,
+        "floor": null,
+        "premium": null,
+        "payout": null,
+        "price": 2.24,
+        "pb": null,
+        "fcf_yield": null
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "research_grade",
+        "research_depth"
+      ]
+    },
+    "02333.HK": {
+      "name": "长城汽车",
+      "market": "HK",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "观察",
+      "reason": "估值或数据仍待确认",
+      "claims": 7,
+      "metrics": {
+        "r": 4.3631,
+        "gg": 9.9269,
+        "ii": 5.0,
+        "margin": 4.9269,
+        "floor": 6.42,
+        "premium": -17.05,
+        "payout": 25.1633,
+        "price": 5.32,
+        "pb": 0.5179,
+        "fcf_yield": 63.374
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "research_grade",
+        "research_depth"
+      ]
+    },
+    "02600.HK": {
+      "name": "中国铝业",
+      "market": "HK",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "观察",
+      "reason": "估值或数据仍待确认",
+      "claims": 7,
+      "metrics": {
+        "r": 4.5931,
+        "gg": 12.6449,
+        "ii": 5.0,
+        "margin": 7.6449,
+        "floor": null,
+        "premium": null,
+        "payout": 72.54,
+        "price": 5.98,
+        "pb": 1.4332,
+        "fcf_yield": 22.9075
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "metric_conflicts",
+        "research_grade",
+        "research_depth"
+      ]
+    },
+    "02877.HK": {
+      "name": "神威药业",
+      "market": "HK",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "观察",
+      "reason": "估值或数据仍待确认",
+      "claims": 6,
+      "metrics": {
+        "r": 10.2012,
+        "gg": 13.3125,
+        "ii": 5.0,
+        "margin": 8.3125,
+        "floor": 9.9,
+        "premium": -27.78,
+        "payout": 100.0,
+        "price": 7.15,
+        "pb": 0.6698,
+        "fcf_yield": 18.0397
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "verdict_drift",
+        "research_grade",
+        "research_depth"
+      ]
+    },
+    "03320.HK": {
+      "name": "华润医药",
+      "market": "HK",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "排除",
+      "reason": "粗算穿透回报率未过否决门",
+      "claims": 10,
+      "metrics": {
+        "r": -5.4629,
+        "gg": 17.2977,
+        "ii": 5.0,
+        "margin": 12.2977,
+        "floor": null,
+        "premium": null,
+        "payout": 35.9,
+        "price": 4.13,
+        "pb": 0.5048,
+        "fcf_yield": 65.2294
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "metric_conflicts",
+        "research_grade"
+      ]
+    },
+    "03660.HK": {
+      "name": "奇富科技-S",
+      "market": "HK",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "买入",
+      "reason": "估值达标且未触发价值陷阱",
+      "claims": 6,
+      "metrics": {
+        "r": 23.2171,
+        "gg": 43.0362,
+        "ii": 5.0,
+        "margin": 38.0362,
+        "floor": 47.82,
+        "premium": -60.56,
+        "payout": 24.63,
+        "price": 18.86,
+        "pb": 0.1902,
+        "fcf_yield": 236.4361
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "verdict_drift",
+        "research_fallback_rate",
+        "research_grade",
+        "research_depth"
+      ]
+    },
+    "03877.HK": {
+      "name": "中国船舶租赁",
+      "market": "HK",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "观察",
+      "reason": "估值或数据仍待确认",
+      "claims": 7,
+      "metrics": {
+        "r": 3.7708,
+        "gg": 12.3426,
+        "ii": 5.0,
+        "margin": 7.3426,
+        "floor": null,
+        "premium": null,
+        "payout": 49.9333,
+        "price": 2.32,
+        "pb": null,
+        "fcf_yield": 24.8929
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "verdict_drift",
+        "research_grade",
+        "research_depth"
+      ]
+    },
+    "06069.HK": {
+      "name": "盛业",
+      "market": "HK",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "观察",
+      "reason": "估值或数据仍待确认",
+      "claims": 6,
+      "metrics": {
+        "r": 5.6484,
+        "gg": 27.1411,
+        "ii": 5.0,
+        "margin": 22.1411,
+        "floor": null,
+        "premium": null,
+        "payout": 98.0567,
+        "price": 5.9,
+        "pb": 1.4363,
+        "fcf_yield": 26.9065
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "verdict_drift",
+        "metric_conflicts",
+        "research_grade",
+        "research_depth"
+      ]
+    },
+    "06862.HK": {
+      "name": "海底捞",
+      "market": "HK",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "观察",
+      "reason": "估值或数据仍待确认",
+      "claims": 6,
+      "metrics": {
+        "r": 3.72,
+        "gg": 6.7249,
+        "ii": 5.0,
+        "margin": 1.7249,
+        "floor": 1.5,
+        "premium": 539.62,
+        "payout": 85.39,
+        "price": 9.6,
+        "pb": 5.1942,
+        "fcf_yield": 7.5283
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "research_grade",
+        "research_depth"
+      ]
+    },
+    "300641.SZ": {
+      "name": "正丹股份",
+      "market": "A",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "买入",
+      "reason": "估值达标且未触发价值陷阱",
+      "claims": 13,
+      "metrics": {
+        "r": 4.4321,
+        "gg": 9.1597,
+        "ii": 3.8,
+        "margin": 5.3597,
+        "floor": 4.98,
+        "premium": 148.8,
+        "payout": 65.4095,
+        "price": 12.4,
+        "pb": 2.0295,
+        "fcf_yield": 16.0188
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "verdict_drift",
+        "research_grade"
+      ]
+    },
+    "301376.SZ": {
+      "name": "致欧科技",
+      "market": "A",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "排除",
+      "reason": "因子1A「控股股东重大负面信号」触发否决",
+      "claims": 15,
+      "metrics": {
+        "r": 0.8869,
+        "gg": 10.1515,
+        "ii": 3.8,
+        "margin": 6.3515,
+        "floor": null,
+        "premium": null,
+        "payout": 44.1433,
+        "price": 21.26,
+        "pb": 2.5336,
+        "fcf_yield": 28.4526
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "metric_conflicts",
+        "research_grade"
+      ]
+    },
+    "600096.SH": {
+      "name": "云天化",
+      "market": "A",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "排除",
+      "reason": "因子1B「现金上游障碍」触发否决",
+      "claims": 6,
+      "metrics": {
+        "r": 5.5255,
+        "gg": 6.9925,
+        "ii": 3.8,
+        "margin": 3.1925,
+        "floor": null,
+        "premium": null,
+        "payout": 45.8893,
+        "price": 26.75,
+        "pb": 1.9838,
+        "fcf_yield": 13.9514
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "metric_conflicts",
+        "research_grade",
+        "research_depth"
+      ]
+    },
+    "600480.SH": {
+      "name": "凌云股份",
+      "market": "A",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "排除",
+      "reason": "因子1B「现金上游障碍」触发否决",
+      "claims": 13,
+      "metrics": {
+        "r": 0.5226,
+        "gg": 5.4664,
+        "ii": 3.8,
+        "margin": 1.6664,
+        "floor": 4.18,
+        "premium": 89.99,
+        "payout": 51.0527,
+        "price": 7.95,
+        "pb": 1.2064,
+        "fcf_yield": 9.6387
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "research_grade"
+      ]
+    },
+    "600729.SH": {
+      "name": "重百集团",
+      "market": "A",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "排除",
+      "reason": "因子1A「商业模式未被验证」触发否决",
+      "claims": 15,
+      "metrics": {
+        "r": 7.5349,
+        "gg": 3.5372,
+        "ii": 3.8,
+        "margin": -0.2628,
+        "floor": 10.5,
+        "premium": 81.49,
+        "payout": 43.7011,
+        "price": 19.06,
+        "pb": 1.0697,
+        "fcf_yield": 19.8655
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "research_grade"
+      ]
+    },
+    "601633.SH": {
+      "name": "长城汽车",
+      "market": "A",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "排除",
+      "reason": "因子1B「现金上游障碍」触发否决",
+      "claims": 15,
+      "metrics": {
+        "r": 0.1487,
+        "gg": 2.3704,
+        "ii": 3.8,
+        "margin": -1.4296,
+        "floor": 8.07,
+        "premium": 66.72,
+        "payout": 32.3947,
+        "price": 13.45,
+        "pb": 1.3127,
+        "fcf_yield": 25.0016
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "research_grade"
+      ]
+    },
+    "601877.SH": {
+      "name": "正泰电器",
+      "market": "A",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "排除",
+      "reason": "因子1B「现金上游障碍」触发否决",
+      "claims": 11,
+      "metrics": {
+        "r": -3.9218,
+        "gg": 9.3191,
+        "ii": 3.8,
+        "margin": 5.5191,
+        "floor": null,
+        "premium": null,
+        "payout": 31.2117,
+        "price": 24.14,
+        "pb": 1.1657,
+        "fcf_yield": 40.8764
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "metric_conflicts",
+        "research_grade"
+      ]
+    },
+    "603214.SH": {
+      "name": "爱婴室",
+      "market": "A",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "排除",
+      "reason": "因子1A「商业模式未被验证」触发否决",
+      "claims": 18,
+      "metrics": {
+        "r": 2.8605,
+        "gg": 9.698,
+        "ii": 3.8,
+        "margin": 5.898,
+        "floor": 4.96,
+        "premium": 166.42,
+        "payout": 52.8585,
+        "price": 13.22,
+        "pb": 1.5512,
+        "fcf_yield": 18.2555
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "research_grade",
+        "research_depth"
+      ]
+    },
+    "603233.SH": {
+      "name": "大参林",
+      "market": "A",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "排除",
+      "reason": "因子1B「现金上游障碍」触发否决",
+      "claims": 13,
+      "metrics": {
+        "r": 0.7019,
+        "gg": 2.5016,
+        "ii": 3.8,
+        "margin": -1.2984,
+        "floor": 4.83,
+        "premium": 317.62,
+        "payout": 61.0145,
+        "price": 20.16,
+        "pb": 3.2295,
+        "fcf_yield": 20.4476
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "research_grade"
+      ]
+    },
+    "603326.SH": {
+      "name": "我乐家居",
+      "market": "A",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "排除",
+      "reason": "因子1A「商业模式未被验证」触发否决",
+      "claims": 10,
+      "metrics": {
+        "r": 4.4867,
+        "gg": 6.9351,
+        "ii": 3.8,
+        "margin": 3.1351,
+        "floor": 2.18,
+        "premium": 198.0,
+        "payout": 86.9537,
+        "price": 6.5,
+        "pb": 1.7535,
+        "fcf_yield": 3.8675
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "research_grade"
+      ]
+    },
+    "603611.SH": {
+      "name": "诺力股份",
+      "market": "A",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "排除",
+      "reason": "因子1B「现金上游障碍」触发否决",
+      "claims": 8,
+      "metrics": {
+        "r": 0.0993,
+        "gg": -0.7305,
+        "ii": 3.8,
+        "margin": -4.5305,
+        "floor": 7.65,
+        "premium": 103.37,
+        "payout": 45.0078,
+        "price": 15.56,
+        "pb": 1.2631,
+        "fcf_yield": 14.5324
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "research_grade",
+        "research_depth"
+      ]
+    },
+    "689009.SH": {
+      "name": "九号公司",
+      "market": "A",
+      "status": "ok",
+      "qa": "WARN",
+      "research": "on",
+      "coverage": "1.0",
+      "verdict": "排除",
+      "reason": "粗算穿透回报率未过否决门",
+      "claims": 10,
+      "metrics": {
+        "r": 0.5972,
+        "gg": -0.0485,
+        "ii": 3.8,
+        "margin": -3.8485,
+        "floor": 115.41,
+        "premium": -70.19,
+        "payout": 58.5236,
+        "price": 34.4,
+        "pb": 3.5352,
+        "fcf_yield": 12.7322
+      },
+      "structure": "PASS",
+      "qa_fail": [
+        "research_grade"
+      ]
+    }
+  }
+}

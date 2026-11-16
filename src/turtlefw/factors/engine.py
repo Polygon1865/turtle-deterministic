@@ -99,6 +99,40 @@ def _latest(series: dict[int, Decimal]) -> Decimal | None:
     return series[max(series)] if series else None
 
 
+def cap_verdict(
+    verdict: str,
+    position: str,
+    *,
+    earnings_status: str,
+    earnings_divergence: Decimal | None,
+    earnings_premium: Decimal | None,
+    payout_reliable: bool,
+) -> tuple[str, str, tuple[str, ...]]:
+    """Cap a ``买入`` when the earnings-value pillar is missing or rich.
+
+    Only the earnings family can cap: a high book value or a ten-year low says
+    nothing about whether the cash return is rich enough.  When the earnings
+    anchors are insufficient (fewer than two of dividend-implied price and FCF
+    capitalisation), the pillar is unknown, so a buy is capped to watch: a low
+    asset floor alone is not evidence that the cash return clears the hurdle.
+    """
+    caps: list[str] = []
+    if earnings_status == "insufficient":
+        caps.append("收益价值锚点不足（资产底价不能替代收益口径）")
+    elif earnings_premium is not None and earnings_premium > Decimal("150"):
+        caps.append(f"收益价值溢价 {earnings_premium:.2f}% > 150%")
+    elif earnings_status == "divergent" and earnings_divergence is not None:
+        caps.append(
+            "收益价值口径分歧（均值/中位数偏离 "
+            f"{earnings_divergence:.2f}%）"
+        )
+    if not payout_reliable:
+        caps.append("支付率三法口径冲突（法2 含利息/少数股东股利，属上界）")
+    if caps and verdict == "买入":
+        return "观察", "观察仓位", tuple(caps)
+    return verdict, position, tuple(caps)
+
+
 def _trend(values: Sequence[Decimal]) -> str:
     if len(values) < 2:
         return "数据不足"
@@ -502,19 +536,14 @@ def run(ctx: FactorContext) -> dict[str, FactorResult]:
 
     # The cap is anchored to the earnings family only: a high book value or a
     # ten-year low says nothing about whether the cash return is rich enough.
-    caps: list[str] = []
-    if earnings_premium is not None:
-        if earnings_premium > Decimal("150"):
-            caps.append(f"收益价值溢价 {earnings_premium:.2f}% > 150%")
-        elif floor.earnings.status == "divergent":
-            caps.append(
-                "收益价值口径分歧（均值/中位数偏离 "
-                f"{floor.earnings.divergence:.2f}%）"
-            )
-    if not payout_reliable:
-        caps.append("支付率三法口径冲突（法2 含利息/少数股东股利，属上界）")
-    if caps and verdict == "买入":
-        verdict, position = "观察", "观察仓位"
+    verdict, position, caps = cap_verdict(
+        verdict,
+        position,
+        earnings_status=floor.earnings.status,
+        earnings_divergence=floor.earnings.divergence,
+        earnings_premium=earnings_premium,
+        payout_reliable=payout_reliable,
+    )
 
     passed_4 = verdict != "排除"
 

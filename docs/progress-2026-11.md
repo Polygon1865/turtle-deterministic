@@ -61,7 +61,8 @@
 .\.venv\Scripts\python.exe scripts\inventory_numbers.py --out docs\report-numbers.md
 → 盘点 84 处（pack.py 32 / market.py 26 / extras.py 17 / analysis.py 6 / html.py 3）
 
-# 方案 B 回放（11-16 冻结快照重渲，不重新取数）
+# 方案 B 实施（用户 m12606 选 B：收益组 insufficient → 买入封顶观察）
+→ 2026-11-16 重跑：40/40 ok，结论 买入 9 / 观察 12 / 排除 19；资产/收益两组上线、港股分红为真实除息；835 passed；golden-daily-2026-11-16 已冻结
 .\.venv\Scripts\python.exe tmp\replay_planb.py .runs\daily\2026-11-16
 → replayed 40 stocks, flips 7：000651/000755/00220.HK/00857.HK/03660.HK/06862.HK/300641 由「观察」变「买入」
 → 其余 33 只结论不变（00270/03877/06069 仍买入；01378 因收益组锚点不足仍观察）
