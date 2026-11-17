@@ -5,7 +5,7 @@
   "counts": {
     "stocks": 40,
     "ok": 40,
-    "qa_pass": 2,
+    "qa_pass": 1,
     "research_on": 38
   },
   "stocks": {
@@ -13,12 +13,12 @@
       "name": "格力电器",
       "market": "A",
       "status": "ok",
-      "qa": "WARN",
-      "research": "on",
+      "qa": "PASS",
+      "research": "fallback",
       "coverage": "1.0",
       "verdict": "观察",
       "reason": "估值或数据仍待确认",
-      "claims": 8,
+      "claims": 19,
       "metrics": {
         "r": 7.1913,
         "gg": 6.0861,
@@ -32,10 +32,7 @@
         "fcf_yield": 20.6261
       },
       "structure": "PASS",
-      "qa_fail": [
-        "research_grade",
-        "research_depth"
-      ]
+      "qa_fail": []
     },
     "000755.SZ": {
       "name": "山西高速",
@@ -46,7 +43,7 @@
       "coverage": "1.0",
       "verdict": "买入",
       "reason": "估值达标且未触发价值陷阱",
-      "claims": 11,
+      "claims": 14,
       "metrics": {
         "r": 3.5415,
         "gg": 7.6831,
@@ -63,6 +60,7 @@
       "qa_fail": [
         "verdict_drift",
         "metric_conflicts",
+        "research_fallback_rate",
         "research_grade"
       ]
     },
@@ -70,8 +68,8 @@
       "name": "海信家电",
       "market": "A",
       "status": "ok",
-      "qa": "PASS",
-      "research": "fallback",
+      "qa": "WARN",
+      "research": "on",
       "coverage": "1.0",
       "verdict": "排除",
       "reason": "因子1B「现金上游障碍」触发否决",
@@ -89,7 +87,9 @@
         "fcf_yield": 11.8787
       },
       "structure": "PASS",
-      "qa_fail": []
+      "qa_fail": [
+        "research_grade"
+      ]
     },
     "00220.HK": {
       "name": "统一企业中国",
@@ -100,24 +100,25 @@
       "coverage": "1.0",
       "verdict": "买入",
       "reason": "估值达标且未触发价值陷阱",
-      "claims": 10,
+      "claims": 6,
       "metrics": {
-        "r": 4.1756,
-        "gg": 6.9303,
+        "r": 4.2276,
+        "gg": 7.0166,
         "ii": 5.0,
-        "margin": 1.9303,
+        "margin": 2.0166,
         "floor": null,
         "premium": null,
         "payout": 100.0,
-        "price": 7.85,
-        "pb": 2.4937,
-        "fcf_yield": 6.4861
+        "price": 7.76,
+        "pb": 2.463,
+        "fcf_yield": 6.5669
       },
       "structure": "PASS",
       "qa_fail": [
         "verdict_drift",
         "metric_conflicts",
-        "research_grade"
+        "research_grade",
+        "research_depth"
       ]
     },
     "002249.SZ": {
@@ -129,7 +130,7 @@
       "coverage": "1.0",
       "verdict": "排除",
       "reason": "因子1A「商业模式未被验证」触发否决",
-      "claims": 16,
+      "claims": 6,
       "metrics": {
         "r": 2.5069,
         "gg": 4.5972,
@@ -157,7 +158,7 @@
       "coverage": "1.0",
       "verdict": "排除",
       "reason": "估值未通过门槛",
-      "claims": 13,
+      "claims": 12,
       "metrics": {
         "r": 4.4949,
         "gg": 3.1944,
@@ -172,15 +173,16 @@
       },
       "structure": "PASS",
       "qa_fail": [
-        "research_grade"
+        "research_grade",
+        "research_depth"
       ]
     },
     "002478.SZ": {
       "name": "常宝股份",
       "market": "A",
       "status": "ok",
-      "qa": "PASS",
-      "research": "fallback",
+      "qa": "WARN",
+      "research": "on",
       "coverage": "1.0",
       "verdict": "排除",
       "reason": "因子1B「现金上游障碍」触发否决",
@@ -198,7 +200,9 @@
         "fcf_yield": 8.9227
       },
       "structure": "PASS",
-      "qa_fail": []
+      "qa_fail": [
+        "research_grade"
+      ]
     },
     "002483.SZ": {
       "name": "润邦股份",
@@ -208,8 +212,8 @@
       "research": "on",
       "coverage": "1.0",
       "verdict": "排除",
-      "reason": "因子1B「现金上游障碍」触发否决",
-      "claims": 14,
+      "reason": "因子1A「控股股东重大负面信号」触发否决",
+      "claims": 22,
       "metrics": {
         "r": 2.0124,
         "gg": 3.0022,
@@ -224,7 +228,8 @@
       },
       "structure": "PASS",
       "qa_fail": [
-        "research_grade"
+        "research_grade",
+        "research_depth"
       ]
     },
     "002616.SZ": {
@@ -235,8 +240,8 @@
       "research": "on",
       "coverage": "1.0",
       "verdict": "排除",
-      "reason": "因子1A「商业模式未被验证」触发否决",
-      "claims": 7,
+      "reason": "粗算穿透回报率未过否决门",
+      "claims": 12,
       "metrics": {
         "r": -2.8877,
         "gg": 3.9144,
@@ -252,8 +257,7 @@
       "structure": "PASS",
       "qa_fail": [
         "metric_conflicts",
-        "research_grade",
-        "research_depth"
+        "research_grade"
       ]
     },
     "00270.HK": {
@@ -267,22 +271,23 @@
       "reason": "估值或数据仍待确认",
       "claims": 11,
       "metrics": {
-        "r": 6.0943,
-        "gg": 9.9946,
+        "r": 6.1017,
+        "gg": 10.0068,
         "ii": 5.0,
-        "margin": 4.9946,
+        "margin": 5.0068,
         "floor": null,
         "premium": null,
         "payout": 87.7767,
-        "price": 8.16,
-        "pb": 1.3769,
-        "fcf_yield": 11.9246
+        "price": 8.15,
+        "pb": 1.3752,
+        "fcf_yield": 11.9393
       },
       "structure": "PASS",
       "qa_fail": [
         "verdict_drift",
         "metric_conflicts",
-        "research_grade"
+        "research_grade",
+        "research_depth"
       ]
     },
     "00293.HK": {
@@ -294,18 +299,18 @@
       "coverage": "1.0",
       "verdict": "买入",
       "reason": "估值达标且未触发价值陷阱",
-      "claims": 7,
+      "claims": 6,
       "metrics": {
-        "r": 3.1274,
-        "gg": 6.9304,
+        "r": 3.0243,
+        "gg": 6.7019,
         "ii": 5.0,
-        "margin": 1.9304,
+        "margin": 1.7019,
         "floor": null,
         "premium": null,
         "payout": 58.8133,
-        "price": 15.25,
-        "pb": 1.7081,
-        "fcf_yield": 15.146
+        "price": 15.77,
+        "pb": 1.7663,
+        "fcf_yield": 14.6466
       },
       "structure": "PASS",
       "qa_fail": [
@@ -324,18 +329,18 @@
       "coverage": "1.0",
       "verdict": "买入",
       "reason": "估值达标且未触发价值陷阱",
-      "claims": 6,
+      "claims": 7,
       "metrics": {
-        "r": 3.2222,
-        "gg": 8.7877,
+        "r": 3.2304,
+        "gg": 8.81,
         "ii": 5.0,
-        "margin": 3.7877,
+        "margin": 3.81,
         "floor": null,
         "premium": null,
         "payout": 52.52,
         "price": 3.62,
-        "pb": 1.4703,
-        "fcf_yield": 21.3898
+        "pb": 1.4665,
+        "fcf_yield": 21.4442
       },
       "structure": "PASS",
       "qa_fail": [
@@ -354,18 +359,18 @@
       "coverage": "1.0",
       "verdict": "买入",
       "reason": "估值达标且未触发价值陷阱",
-      "claims": 7,
+      "claims": 6,
       "metrics": {
-        "r": 4.6707,
-        "gg": 11.0673,
+        "r": 4.8049,
+        "gg": 11.3851,
         "ii": 5.0,
-        "margin": 6.0673,
+        "margin": 6.3851,
         "floor": null,
         "premium": null,
         "payout": 59.1667,
-        "price": 9.56,
-        "pb": 1.0819,
-        "fcf_yield": 23.5525
+        "price": 9.29,
+        "pb": 1.0517,
+        "fcf_yield": 24.2288
       },
       "structure": "PASS",
       "qa_fail": [
@@ -382,24 +387,23 @@
       "qa": "WARN",
       "research": "on",
       "coverage": "1.0",
-      "verdict": "买入",
-      "reason": "估值达标且未触发价值陷阱",
-      "claims": 8,
+      "verdict": "观察",
+      "reason": "估值或数据仍待确认",
+      "claims": 9,
       "metrics": {
-        "r": 6.6144,
-        "gg": 7.701,
+        "r": 6.6516,
+        "gg": 7.7444,
         "ii": 5.0,
-        "margin": 2.701,
+        "margin": 2.7444,
         "floor": 6.43,
-        "premium": 155.32,
+        "premium": 153.88,
         "payout": 58.96,
-        "price": 16.42,
-        "pb": 1.3008,
-        "fcf_yield": 16.2028
+        "price": 16.33,
+        "pb": 1.2935,
+        "fcf_yield": 16.2941
       },
       "structure": "PASS",
       "qa_fail": [
-        "verdict_drift",
         "research_grade",
         "research_depth"
       ]
@@ -413,18 +417,18 @@
       "coverage": "1.0",
       "verdict": "观察",
       "reason": "估值或数据仍待确认",
-      "claims": 10,
+      "claims": 11,
       "metrics": {
-        "r": 2.9628,
-        "gg": 8.9672,
+        "r": 2.9706,
+        "gg": 8.9908,
         "ii": 5.0,
-        "margin": 3.9672,
+        "margin": 3.9908,
         "floor": null,
         "premium": null,
         "payout": 40.3067,
         "price": 3.51,
-        "pb": 0.538,
-        "fcf_yield": 43.0157
+        "pb": 0.5365,
+        "fcf_yield": 43.1286
       },
       "structure": "PASS",
       "qa_fail": [
@@ -442,18 +446,18 @@
       "coverage": "1.0",
       "verdict": "观察",
       "reason": "估值或数据仍待确认",
-      "claims": 7,
+      "claims": 9,
       "metrics": {
-        "r": 6.7522,
-        "gg": 5.3047,
+        "r": 6.9242,
+        "gg": 5.4398,
         "ii": 5.0,
-        "margin": 0.3047,
+        "margin": 0.4398,
         "floor": null,
         "premium": null,
         "payout": 61.87,
-        "price": 1.48,
-        "pb": 1.5612,
-        "fcf_yield": 6.553
+        "price": 1.44,
+        "pb": 1.5224,
+        "fcf_yield": 6.72
       },
       "structure": "PASS",
       "qa_fail": [
@@ -471,18 +475,18 @@
       "coverage": "1.0",
       "verdict": "观察",
       "reason": "估值或数据仍待确认",
-      "claims": 8,
+      "claims": 14,
       "metrics": {
-        "r": 3.3331,
-        "gg": 8.7845,
+        "r": 3.3296,
+        "gg": 8.7753,
         "ii": 5.0,
-        "margin": 3.7845,
+        "margin": 3.7753,
         "floor": 7.16,
-        "premium": 144.42,
+        "premium": 144.68,
         "payout": 76.17,
-        "price": 17.5,
-        "pb": 1.2816,
-        "fcf_yield": 16.3842
+        "price": 17.52,
+        "pb": 1.283,
+        "fcf_yield": 16.367
       },
       "structure": "PASS",
       "qa_fail": [
@@ -499,18 +503,18 @@
       "coverage": "1.0",
       "verdict": "买入",
       "reason": "估值达标且未触发价值陷阱",
-      "claims": 9,
+      "claims": 8,
       "metrics": {
-        "r": 7.9322,
-        "gg": 9.7613,
+        "r": 7.9769,
+        "gg": 9.8163,
         "ii": 5.0,
-        "margin": 4.7613,
+        "margin": 4.8163,
         "floor": 11.4,
-        "premium": 101.57,
+        "premium": 100.44,
         "payout": 100.0,
-        "price": 22.98,
-        "pb": 1.4693,
-        "fcf_yield": 12.5991
+        "price": 22.85,
+        "pb": 1.461,
+        "fcf_yield": 12.6701
       },
       "structure": "PASS",
       "qa_fail": [
@@ -524,28 +528,26 @@
       "market": "HK",
       "status": "ok",
       "qa": "WARN",
-      "research": "on",
+      "research": "fallback",
       "coverage": "1.0",
       "verdict": "观察",
       "reason": "估值或数据仍待确认",
-      "claims": 7,
+      "claims": 0,
       "metrics": {
-        "r": 6.4317,
-        "gg": 8.2522,
+        "r": 6.4452,
+        "gg": 8.2696,
         "ii": 5.0,
-        "margin": 3.2522,
+        "margin": 3.2696,
         "floor": null,
         "premium": null,
         "payout": 65.21,
         "price": 2.38,
-        "pb": 0.8847,
-        "fcf_yield": 19.4834
+        "pb": 0.8828,
+        "fcf_yield": 19.5244
       },
       "structure": "PASS",
       "qa_fail": [
-        "metric_conflicts",
-        "research_grade",
-        "research_depth"
+        "metric_conflicts"
       ]
     },
     "01999.HK": {
@@ -557,7 +559,7 @@
       "coverage": "1.0",
       "verdict": "排除",
       "reason": "粗算穿透回报率未过否决门",
-      "claims": 10,
+      "claims": 8,
       "metrics": {
         "r": null,
         "gg": null,
@@ -566,7 +568,7 @@
         "floor": null,
         "premium": null,
         "payout": null,
-        "price": 2.24,
+        "price": 2.22,
         "pb": null,
         "fcf_yield": null
       },
@@ -585,18 +587,18 @@
       "coverage": "1.0",
       "verdict": "观察",
       "reason": "估值或数据仍待确认",
-      "claims": 7,
+      "claims": 8,
       "metrics": {
-        "r": 4.3631,
-        "gg": 9.9269,
+        "r": 4.4752,
+        "gg": 10.1821,
         "ii": 5.0,
-        "margin": 4.9269,
+        "margin": 5.1821,
         "floor": 6.42,
-        "premium": -17.05,
+        "premium": -19.13,
         "payout": 25.1633,
-        "price": 5.32,
-        "pb": 0.5179,
-        "fcf_yield": 63.374
+        "price": 5.19,
+        "pb": 0.5049,
+        "fcf_yield": 65.0033
       },
       "structure": "PASS",
       "qa_fail": [
@@ -615,16 +617,16 @@
       "reason": "估值或数据仍待确认",
       "claims": 7,
       "metrics": {
-        "r": 4.5931,
-        "gg": 12.6449,
+        "r": 4.6358,
+        "gg": 12.7626,
         "ii": 5.0,
-        "margin": 7.6449,
+        "margin": 7.7626,
         "floor": null,
         "premium": null,
         "payout": 72.54,
-        "price": 5.98,
-        "pb": 1.4332,
-        "fcf_yield": 22.9075
+        "price": 5.93,
+        "pb": 1.42,
+        "fcf_yield": 23.1207
       },
       "structure": "PASS",
       "qa_fail": [
@@ -642,18 +644,18 @@
       "coverage": "1.0",
       "verdict": "观察",
       "reason": "估值或数据仍待确认",
-      "claims": 6,
+      "claims": 9,
       "metrics": {
-        "r": 10.2012,
-        "gg": 13.3125,
+        "r": 10.2209,
+        "gg": 13.3382,
         "ii": 5.0,
-        "margin": 8.3125,
+        "margin": 8.3382,
         "floor": 9.9,
-        "premium": -27.78,
+        "premium": -27.92,
         "payout": 100.0,
-        "price": 7.15,
-        "pb": 0.6698,
-        "fcf_yield": 18.0397
+        "price": 7.13,
+        "pb": 0.6685,
+        "fcf_yield": 18.0746
       },
       "structure": "PASS",
       "qa_fail": [
@@ -671,23 +673,24 @@
       "coverage": "1.0",
       "verdict": "排除",
       "reason": "粗算穿透回报率未过否决门",
-      "claims": 10,
+      "claims": 7,
       "metrics": {
-        "r": -5.4629,
-        "gg": 17.2977,
+        "r": -5.5369,
+        "gg": 17.532,
         "ii": 5.0,
-        "margin": 12.2977,
+        "margin": 12.532,
         "floor": null,
         "premium": null,
         "payout": 35.9,
-        "price": 4.13,
-        "pb": 0.5048,
-        "fcf_yield": 65.2294
+        "price": 4.08,
+        "pb": 0.4981,
+        "fcf_yield": 66.1128
       },
       "structure": "PASS",
       "qa_fail": [
         "metric_conflicts",
-        "research_grade"
+        "research_grade",
+        "research_depth"
       ]
     },
     "03660.HK": {
@@ -699,23 +702,22 @@
       "coverage": "1.0",
       "verdict": "买入",
       "reason": "估值达标且未触发价值陷阱",
-      "claims": 6,
+      "claims": 8,
       "metrics": {
-        "r": 23.2171,
-        "gg": 43.0362,
+        "r": 23.7737,
+        "gg": 44.0681,
         "ii": 5.0,
-        "margin": 38.0362,
+        "margin": 39.0681,
         "floor": 47.82,
-        "premium": -60.56,
+        "premium": -61.48,
         "payout": 24.63,
-        "price": 18.86,
-        "pb": 0.1902,
-        "fcf_yield": 236.4361
+        "price": 18.42,
+        "pb": 0.1857,
+        "fcf_yield": 242.1049
       },
       "structure": "PASS",
       "qa_fail": [
         "verdict_drift",
-        "research_fallback_rate",
         "research_grade",
         "research_depth"
       ]
@@ -758,18 +760,18 @@
       "coverage": "1.0",
       "verdict": "观察",
       "reason": "估值或数据仍待确认",
-      "claims": 6,
+      "claims": 7,
       "metrics": {
-        "r": 5.6484,
-        "gg": 27.1411,
+        "r": 5.7224,
+        "gg": 27.333,
         "ii": 5.0,
-        "margin": 22.1411,
+        "margin": 22.333,
         "floor": null,
         "premium": null,
         "payout": 98.0567,
-        "price": 5.9,
-        "pb": 1.4363,
-        "fcf_yield": 26.9065
+        "price": 5.87,
+        "pb": 1.4284,
+        "fcf_yield": 27.0541
       },
       "structure": "PASS",
       "qa_fail": [
@@ -788,18 +790,18 @@
       "coverage": "1.0",
       "verdict": "观察",
       "reason": "估值或数据仍待确认",
-      "claims": 6,
+      "claims": 12,
       "metrics": {
-        "r": 3.72,
-        "gg": 6.7249,
+        "r": 3.7164,
+        "gg": 6.7185,
         "ii": 5.0,
-        "margin": 1.7249,
+        "margin": 1.7185,
         "floor": 1.5,
-        "premium": 539.62,
+        "premium": 540.23,
         "payout": 85.39,
-        "price": 9.6,
-        "pb": 5.1942,
-        "fcf_yield": 7.5283
+        "price": 9.61,
+        "pb": 5.1992,
+        "fcf_yield": 7.5211
       },
       "structure": "PASS",
       "qa_fail": [
@@ -816,7 +818,7 @@
       "coverage": "1.0",
       "verdict": "买入",
       "reason": "估值达标且未触发价值陷阱",
-      "claims": 13,
+      "claims": 10,
       "metrics": {
         "r": 4.4321,
         "gg": 9.1597,
@@ -843,8 +845,8 @@
       "research": "on",
       "coverage": "1.0",
       "verdict": "排除",
-      "reason": "因子1A「控股股东重大负面信号」触发否决",
-      "claims": 15,
+      "reason": "因子1A「商业模式未被验证」触发否决",
+      "claims": 14,
       "metrics": {
         "r": 0.8869,
         "gg": 10.1515,
@@ -872,7 +874,7 @@
       "coverage": "1.0",
       "verdict": "排除",
       "reason": "因子1B「现金上游障碍」触发否决",
-      "claims": 6,
+      "claims": 9,
       "metrics": {
         "r": 5.5255,
         "gg": 6.9925,
@@ -888,6 +890,7 @@
       "structure": "PASS",
       "qa_fail": [
         "metric_conflicts",
+        "research_fallback_rate",
         "research_grade",
         "research_depth"
       ]
@@ -900,8 +903,8 @@
       "research": "on",
       "coverage": "1.0",
       "verdict": "排除",
-      "reason": "因子1B「现金上游障碍」触发否决",
-      "claims": 13,
+      "reason": "因子1A「商业模式未被验证」触发否决",
+      "claims": 15,
       "metrics": {
         "r": 0.5226,
         "gg": 5.4664,
@@ -927,8 +930,8 @@
       "research": "on",
       "coverage": "1.0",
       "verdict": "排除",
-      "reason": "因子1A「商业模式未被验证」触发否决",
-      "claims": 15,
+      "reason": "估值未通过门槛",
+      "claims": 8,
       "metrics": {
         "r": 7.5349,
         "gg": 3.5372,
@@ -943,7 +946,8 @@
       },
       "structure": "PASS",
       "qa_fail": [
-        "research_grade"
+        "research_grade",
+        "research_depth"
       ]
     },
     "601633.SH": {
@@ -955,7 +959,7 @@
       "coverage": "1.0",
       "verdict": "排除",
       "reason": "因子1B「现金上游障碍」触发否决",
-      "claims": 15,
+      "claims": 21,
       "metrics": {
         "r": 0.1487,
         "gg": 2.3704,
@@ -982,7 +986,7 @@
       "coverage": "1.0",
       "verdict": "排除",
       "reason": "因子1B「现金上游障碍」触发否决",
-      "claims": 11,
+      "claims": 7,
       "metrics": {
         "r": -3.9218,
         "gg": 9.3191,
@@ -998,7 +1002,9 @@
       "structure": "PASS",
       "qa_fail": [
         "metric_conflicts",
-        "research_grade"
+        "research_fallback_rate",
+        "research_grade",
+        "research_depth"
       ]
     },
     "603214.SH": {
@@ -1009,8 +1015,8 @@
       "research": "on",
       "coverage": "1.0",
       "verdict": "排除",
-      "reason": "因子1A「商业模式未被验证」触发否决",
-      "claims": 18,
+      "reason": "因子1B「现金上游障碍」触发否决",
+      "claims": 8,
       "metrics": {
         "r": 2.8605,
         "gg": 9.698,
@@ -1025,6 +1031,7 @@
       },
       "structure": "PASS",
       "qa_fail": [
+        "research_fallback_rate",
         "research_grade",
         "research_depth"
       ]
@@ -1038,7 +1045,7 @@
       "coverage": "1.0",
       "verdict": "排除",
       "reason": "因子1B「现金上游障碍」触发否决",
-      "claims": 13,
+      "claims": 15,
       "metrics": {
         "r": 0.7019,
         "gg": 2.5016,
@@ -1064,8 +1071,8 @@
       "research": "on",
       "coverage": "1.0",
       "verdict": "排除",
-      "reason": "因子1A「商业模式未被验证」触发否决",
-      "claims": 10,
+      "reason": "因子1B「现金上游障碍」触发否决",
+      "claims": 6,
       "metrics": {
         "r": 4.4867,
         "gg": 6.9351,
@@ -1080,7 +1087,8 @@
       },
       "structure": "PASS",
       "qa_fail": [
-        "research_grade"
+        "research_grade",
+        "research_depth"
       ]
     },
     "603611.SH": {
@@ -1091,8 +1099,8 @@
       "research": "on",
       "coverage": "1.0",
       "verdict": "排除",
-      "reason": "因子1B「现金上游障碍」触发否决",
-      "claims": 8,
+      "reason": "因子1B「现金上游障碍、管理层与治理」触发否决",
+      "claims": 16,
       "metrics": {
         "r": 0.0993,
         "gg": -0.7305,
@@ -1107,8 +1115,7 @@
       },
       "structure": "PASS",
       "qa_fail": [
-        "research_grade",
-        "research_depth"
+        "research_grade"
       ]
     },
     "689009.SH": {
@@ -1120,7 +1127,7 @@
       "coverage": "1.0",
       "verdict": "排除",
       "reason": "粗算穿透回报率未过否决门",
-      "claims": 10,
+      "claims": 17,
       "metrics": {
         "r": 0.5972,
         "gg": -0.0485,

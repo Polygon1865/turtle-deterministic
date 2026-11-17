@@ -255,6 +255,19 @@ CSV 列含 `R%`/`GG%`/`II%`/`margin`/`payout`/`FCF yield%`，与 `ranking.csv` �
 - 00700 的 Capex：PDF PPE 87,482 + 无形 25,399 = 112,881 百万；修复前 Tushare 只映射无形 25,393，FCF 被高估。现已相加。
 - 详见 [pdf-extraction-validation.md](pdf-extraction-validation.md)。
 
+### 港股回购（HKEXnews，2026-11-17 接入）
+
+港交所没有公开的回购日表接口（旧「每日股份購回報告」入口已 404），本地改为读**翌日披露報表**（Next Day Disclosure Return，FF305）：
+
+- 检索：`search/prefix.do` 取 `stockId`，`search/titleSearchServlet.do` 按 `stockId + fromDate/toDate` 列文档，再下载 PDF 用 `pdfplumber` 解析；
+- 解析：Part B 行形如 `N). Shares repurchased for cancellation but not yet cancelled 227,000 0.0025 % HKD 442.3505` + 下一行 `Date of changes 23 September 2026`，金额 = 股数 × VWAP；也兼容显式 `Buy-back date ... Aggregate price paid` 表；
+- 窗口与平均：`hk_buyback_events(years=2)` 抓两年事件（最多 400 份、6 线程、7 天缓存）；`hk_buyback_amount(years=3)` 按自然年汇总且**只平均已完成年份**（当前年不计，避免部分年份拉低年化）；
+- 币种：保留披露币种（多为 HKD，个别 RMB），进报告时按 `fx` 折成报表币种；
+- 降级：失败记 `FetchIssue("hk_buyback", …, "HKEX 回购抓取失败：…")` 并返回空，报告照常生成（O=0）；
+- 局限：ADR/美股回购不进披露易，双重上市可能低估；披露易数据再分发需授权；窗口内未回填 2024 年以前。
+
+实测：00700 两年 **323 条**事件、年化 **81.88 亿港元**；20 只日更港股中只有 06069 有回购（292 万港元），其余确无回购记录。
+
 ## 美股（yfinance 实验）
 
 | 项 | 来源/字段 | 状态 |

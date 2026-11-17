@@ -531,7 +531,7 @@ def _peer_metrics_for_inputs(provider: Any, inputs: Any) -> list[dict[str, objec
 
 
 def _governance(
-    provider, code: StockCode, unit: Currency
+    provider, code: StockCode, unit: Currency, *, fx: Decimal | None = None
 ) -> tuple[Decimal | None, Decimal | None, Money | None]:
     """Parent-company cash, pledge ratio and annualised buyback amount."""
     parent_cash: Decimal | None = None
@@ -559,6 +559,16 @@ def _governance(
                 buyback = Money(amount, unit)
         except Exception:  # noqa: BLE001
             buyback = None
+    elif code.market is Market.HK:
+        # HKEX Next Day Disclosure Returns disclose repurchases in HKD; the
+        # report is usually in CNY, so convert with the configured rate.
+        try:
+            amount = provider.hk_buyback_amount(code)
+        except Exception:  # noqa: BLE001 - buyback is supporting context
+            amount = None
+        if amount is not None:
+            rate = Decimal("1") if unit is Currency.HKD else (fx or Decimal("1"))
+            buyback = Money(amount * rate, unit)
     return parent_cash, pledge_pct, buyback
 
 
@@ -644,7 +654,7 @@ def _live_analyze(
     diluted_shares = statements.diluted_shares(rows)
 
     tax = grids.default_tax_rate(code)
-    parent_cash, pledge_pct, buyback = _governance(provider, code, unit)
+    parent_cash, pledge_pct, buyback = _governance(provider, code, unit, fx=fx)
     sbc = _sbc_from_rows(rows, unit)
     items = kpi_summary(
         code,
@@ -758,7 +768,7 @@ def _pack(
             market_cap = Money(total_mv_wan * Decimal("10000") * fx, unit)
             shares = total_share_wan * Decimal("10000")
 
-    parent_cash, pledge_pct, buyback = _governance(provider, code, unit)
+    parent_cash, pledge_pct, buyback = _governance(provider, code, unit, fx=fx)
     pdf_bridge = _pdf_bridge(pdf_numbers)
     sbc_value = _pdf_sbc(pdf_numbers)
     sbc = Money(sbc_value, unit) if sbc_value is not None else _sbc_from_rows(rows, unit)
@@ -3286,7 +3296,7 @@ def _report(
                 allow=allow_research_decisions,
             )
         evidence_facts = _pdf_facts(pdf_numbers) | _evidence_facts(evidence_path)
-        parent_cash, pledge_pct, buyback = _governance(provider, code, unit)
+        parent_cash, pledge_pct, buyback = _governance(provider, code, unit, fx=fx)
         pdf_bridge = _pdf_bridge(pdf_numbers)
         sbc_value = _pdf_sbc(pdf_numbers)
         sbc = Money(sbc_value, unit) if sbc_value is not None else _sbc_from_rows(rows, unit)

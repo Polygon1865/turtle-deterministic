@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import requests
 
 from ..metrics.prices import adjust_ohlc, factor_map
 from ..paths import cache_root as default_cache_root
@@ -270,6 +271,7 @@ class TushareProvider:
         self._us_yf: dict[str, Any] = {}
         self._profile_cache: dict[str, dict[str, str]] = {}
         self._holders_cache: dict[str, list[dict[str, Any]]] = {}
+        self._hk_stock_ids: dict[str, str] = {}
         self._dividend_map: dict[str, pd.DataFrame] | None = None
 
     def _new_client(self, token: str):
@@ -1813,6 +1815,109 @@ class TushareProvider:
             return None
         total = sum(by_year.values(), Decimal("0"))
         return total / Decimal(max(1, min(years, len(by_year))))
+
+    def _hk_stock_id(self, code: StockCode) -> str:
+        key = str(code)
+        cached = self._hk_stock_ids.get(key)
+        if cached is not None:
+            return cached
+        from . import hkex
+
+        stock = hkex.stock_id(str(code))
+        self._hk_stock_ids[key] = stock
+        return stock
+
+    def _ndr_events(self, doc: dict[str, Any]) -> list[Any]:
+        from . import hkex
+
+        link = str(doc.get("FILE_LINK") or "")
+        if not link.startswith("/"):
+            return []
+        url = f"{hkex.BASE}{link}"
+        key = self._fund_cache.make_key("hkex_ndr_text", {"url": url}, "v1")
+        cached = self._fund_cache.get(key)
+        if isinstance(cached, dict) and isinstance(cached.get("text"), str):
+            return hkex.parse_buyback_text(cached["text"])
+        response = requests.get(url, headers=hkex.HEADERS, timeout=hkex.TIMEOUT_SECONDS)
+        response.raise_for_status()
+        text = hkex.pdf_text(response.content)
+        self._fund_cache.put(key, {"text": text})
+        return hkex.parse_buyback_text(text)
+
+    def hk_buyback_events(self, code: StockCode, *, years: int = 2) -> list[dict[str, Any]]:
+        """HK repurchase events parsed from HKEXnews Next Day Disclosure Returns.
+
+        Amounts stay in the filing currency (HKD for almost every issuer).
+        The window starts on 1 January ``years`` years ago and results are
+        cached for seven days; a failed fetch degrades to an empty list and a
+        ``FetchIssue`` rather than blocking the report.
+        """
+
+        if code.market is not Market.HK:
+            return []
+        today = date.today()
+        start = date(today.year - years, 1, 1)
+        key = self._fund_cache.make_key(
+            "hk_buyback",
+            {"code": str(code), "from": start.isoformat(), "to": today.isoformat()},
+            "v1",
+        )
+        cached = self._fund_cache.get(key)
+        if isinstance(cached, list):
+            return [row for row in cached if isinstance(row, dict)]
+        from concurrent.futures import ThreadPoolExecutor
+
+        from . import hkex
+
+        events: list[Any] = []
+        try:
+            stock = self._hk_stock_id(code)
+            docs = hkex.documents(stock, from_date=start, to_date=today)
+            filings = [row for row in docs if hkex.is_next_day_disclosure(str(row.get("TITLE", "")))]
+            with ThreadPoolExecutor(max_workers=6) as pool:
+                for parsed in pool.map(self._ndr_events, filings[:400]):
+                    events.extend(parsed)
+        except Exception as exc:  # noqa: BLE001 - exchange side is best-effort
+            self.issues.append(
+                FetchIssue("hk_buyback", str(code), f"HKEX 回购抓取失败：{exc}", retryable=False)
+            )
+            return []
+        dedup: dict[date, Any] = {}
+        for event in events:
+            dedup.setdefault(event.trade_date, event)
+        rows = [dedup[day].to_dict() for day in sorted(dedup)]
+        self._fund_cache.put(key, rows)
+        return rows
+
+    def hk_buyback_amount(self, code: StockCode, *, years: int = 3) -> Decimal | None:
+        """Annualised HK buyback amount in the filing currency (usually HKD).
+
+        Only completed calendar years are averaged: the current year is still
+        in progress, and including its partial total would understate the run
+        rate (Tencent 2026 is a good example: a few months of buybacks against
+        full years of 2024 and 2025).
+        """
+
+        rows = self.hk_buyback_events(code, years=max(2, years))
+        if not rows:
+            return None
+        current_year = date.today().year
+        cutoff = current_year - years
+        by_year: dict[int, Decimal] = {}
+        for row in rows:
+            try:
+                year = int(str(row.get("trade_date", ""))[:4])
+                amount = Decimal(str(row.get("amount")))
+            except (TypeError, ValueError, ArithmeticError):
+                continue
+            if year < cutoff or year >= current_year:
+                continue
+            if not amount.is_finite() or amount <= 0:
+                continue
+            by_year[year] = by_year.get(year, Decimal("0")) + amount
+        if not by_year:
+            return None
+        return sum(by_year.values(), Decimal("0")) / Decimal(len(by_year))
 
     def holders(self, code: StockCode) -> list[dict]:
         """Latest shareholder rows.

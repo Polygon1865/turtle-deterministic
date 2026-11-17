@@ -30,6 +30,7 @@
 | `premium.earnings` | 收益价值溢价 | `price/floor.earnings − 1` | % | metrics | 唯一触发底价降级的口径 |
 | `payout` | 支付率（报告展示） | 近三年 `payout.latest` 均值 | % | metrics | `payout_consistency`（港股榜单 0.01） |
 | `payout.latest` | 最近年度支付率 | `divi_ratio` → `dps/eps` → 事件合计，三选一 | % | `metrics/payout.py` | 同上；>100% 截断且 `reliable=false` |
+| `buyback` | 年化回购金额 | A 股 `repurchase` 年度合计；港股取 HKEXnews 翌日披露事件、按自然年汇总并**只平均已完成年份** | 百万元 | `data/provider` | 港股原始币种（多为 HKD）按 `fx` 折报表币种；无记录记 0/—，不阻断 |
 | `price` | 当前价（报表币种） | 港股为 `close × fx`，`quote.close_local` 保留原币 | 元/股 | metrics | 报告头显示「CNY（报价 HKD）」 |
 | `market_cap` | 总市值 | 港股 `total_market_cap × fx`（CNY）；`market_cap_hkd` 保留 HKD 原值 | 元 | metrics / `screener/hk.py` | 榜单与报告同为 CNY（W0.2）；`payout_consistency` 不覆盖此项 |
 | `pb` / `ev_ebitda` / `fcf_yield` | 估值倍数与收益率 | 见 `metrics/valuation.py` | 倍 / % | metrics | numeric audit |
